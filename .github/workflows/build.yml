@@ -148,9 +148,11 @@ jobs:
             ! -path "*/packages/*" ! -name "*.json" ! -name "*.manifest" \
             \( -name "*.bin" -o -name "*.itb" -o -name "*.img" -o -name "*.sha256sums" \))
           echo "发布文件:"; echo "$FILES"
+          NOTES="设备: ${{ matrix.device }}"
+          NOTES="$NOTES
+          包组合: ${{ inputs.profile }}
+          上游: ${{ env.UPSTREAM_OWNER }}/${{ env.UPSTREAM_REPO }} @ ${{ env.DEV_BRANCH }}
+          构建号: ${{ github.run_id }}"
           gh release create "$TAG" $FILES \
             --title "${{ matrix.device }} (${{ inputs.profile }}) build ${{ github.run_number }}" \
-            --notes "设备: ${{ matrix.device }}
-包组合: ${{ inputs.profile }}
-上游: ${{ env.UPSTREAM_OWNER }}/${{ env.UPSTREAM_REPO }} @ ${{ env.DEV_BRANCH }}
-构建号: ${{ github.run_id }}"
+            --notes "$NOTES"
