@@ -8,13 +8,14 @@ on:
         required: true
         default: "cudy_tr3600-v1"
       profile:
-        description: "包组合 (minimal=最小 / standard=含随身WiFi / full=含代理 / ultimate=全能型)"
+        description: "包组合 (minimal=最小 / standard=随身WiFi / lite=精简实用 / full=代理 / ultimate=全能)"
         required: true
         default: "standard"
         type: choice
         options:
           - minimal
           - standard
+          - lite
           - full
           - ultimate
       upstream_owner:
