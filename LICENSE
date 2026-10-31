@@ -1,9 +1,12 @@
-本仓库自有内容（工作流、脚本、设备配置、文档）以 GPL-2.0-only 发布，
-与 OpenWrt 项目许可保持一致。
+This repository is provided under:
 
-本仓库引用/合并的第三方内容遵循其各自许可：
-- OpenWrt 及其补丁: GPL-2.0-only (https://github.com/openwrt/openwrt)
-- QModem: MPL-2.0 (https://github.com/FUjr/QModem)
-- Nikki: GPL-3.0 (https://github.com/nikkinikki-org/OpenWrt-nikki)
+	SPDX-License-Identifier: GPL-2.0-only
 
-SPDX-License-Identifier: GPL-2.0-only
+Being under the terms of the GNU General Public License version 2 only,
+according with:
+
+	LICENSES/GPL-2.0
+
+In addition, other licenses may also apply.
+
+本仓库（工作流、脚本、设备配置、文档）遵循与 OpenWrt 相同的许可；第三方内容（QModem: MPL-2.0、Nikki: GPL-3.0）遵循其各自许可。
