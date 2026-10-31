@@ -32,4 +32,5 @@ if ! make "-j$(nproc)" V=s; then
 fi
 
 echo "==== 编译完成，产物位于: $OPENWRT/bin/targets ===="
-ls -lh "$OPENWRT/bin/targets"/*/
+# 此处 cwd 已是 openwrt 树，用相对路径列出产物
+ls -lh bin/targets/*/
