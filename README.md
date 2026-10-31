@@ -62,8 +62,9 @@ Actions → 🔀 合并官方 PR → 填 PR 号（如 `26012`）→ Run。
 |------|------|
 | minimal | 种子配置（中文化 LuCI + HTTPS 管理页） |
 | standard | + QModem 全套 USB 上网卡驱动（随身WiFi即插即用） |
+| lite | standard + 精简实用全家桶：Argon 主题/turboacc加速/nikki代理/ddns-go/acme证书/socat/UPnP/SFTP/WebDAV/SQM/vnstat/autoreboot |
 | full | + Nikki 透明代理（mihomo）、tailscale、travelmate、SQM |
-| ultimate | full 全部 + 全能型全家桶：Argon 主题/ttyd/turboacc加速/ddns-go/acme证书/socat/UPnP/wolplus/SFTP/filebrowser/WebDAV/SQM/vnstat/netdata(轻量化)/autoreboot（含预设与中文界面） |
+| ultimate | full 全部 + ttyd/filebrowser/netspeedtest/netdata(轻量化)/mwan3多WAN/macvlan/wolplus |
 
 包清单改 `common/packages/*.list`，种子改 `devices/<设备>/default.seed`。
 

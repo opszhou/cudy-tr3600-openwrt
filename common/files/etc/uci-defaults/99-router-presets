@@ -1,5 +1,5 @@
 #!/bin/sh
-# 全能型组合的默认配置预设（uci-defaults，首次开机执行一次）
+# 通用默认配置预设（lite/ultimate 共用：UPnP 安全模式、定时重启、BBR）（uci-defaults，首次开机执行一次）
 
 # ---- UPnP：默认启用安全模式（仅允许位于 DMZ/已映射主机的请求）
 uci -q set upnpd.config.secure_mode=1
