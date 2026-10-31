@@ -72,14 +72,16 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 1
       matrix:
         include: ${{ fromJSON(needs.matrix.outputs.jobs) }}
     steps:
       - name: 挂载大空间构建目录
         uses: easimon/maximize-build-space@master
         with:
-          root-reserve-mb: 8192
+          # 根分区须容得下：runner 本体+diag 日志+apt 安装（ubuntu-latest 已迁移 Ubuntu 26，
+          # 新镜像布局更大；run#15 lite job 曾因 8GB 预留被写爆、runner No space left 暴毙）
+          root-reserve-mb: 14336
           swap-size-mb: 1024
           remove-dotnet: "true"
           remove-android: "true"
