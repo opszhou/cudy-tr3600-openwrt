@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout 本仓库
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 解析设备配置
         run: |
@@ -32,7 +32,7 @@ jobs:
           echo "DEV_BRANCH=${DEV_BRANCH:-main}" >> "$GITHUB_ENV"
 
       - name: Checkout 上游 OpenWrt
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ vars.OPENWRT_UPSTREAM || 'openwrt/openwrt' }}
           ref: ${{ env.DEV_BRANCH }}

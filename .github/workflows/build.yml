@@ -95,7 +95,7 @@ jobs:
           sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
       - name: Checkout 本仓库
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 解析设备配置
         run: |
@@ -109,7 +109,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Checkout 上游 OpenWrt
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ env.UPSTREAM_OWNER }}/${{ env.UPSTREAM_REPO }}
           ref: ${{ env.DEV_BRANCH }}
@@ -117,7 +117,7 @@ jobs:
           fetch-depth: 0
 
       - name: 缓存 ccache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: openwrt/.ccache
           key: ccache-${{ matrix.device }}-${{ env.DEV_BRANCH }}-${{ hashFiles('devices/**', 'common/**') }}
@@ -131,7 +131,7 @@ jobs:
             openwrt "${{ env.UPSTREAM_OWNER }}" "${{ env.UPSTREAM_REPO }}" "${{ inputs.extra_prs }}"
 
       - name: 上传固件 Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: openwrt-${{ matrix.device }}-${{ inputs.profile }}
           path: openwrt/bin/targets
@@ -140,16 +140,17 @@ jobs:
 
       - name: 创建 Release
         if: ${{ inputs.create_release }}
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ matrix.device }}-${{ inputs.profile }}-${{ github.run_number }}
-          name: ${{ matrix.device }} (${{ inputs.profile }}) build ${{ github.run_number }}
-          body: |
-            设备: ${{ matrix.device }}
-            包组合: ${{ inputs.profile }}
-            上游: ${{ env.UPSTREAM_OWNER }}/${{ env.UPSTREAM_REPO }} @ ${{ env.DEV_BRANCH }}
-            构建号: ${{ github.run_id }}
-          files: |
-            openwrt/bin/targets/**/*
-          draft: false
-          prerelease: false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ matrix.device }}-${{ inputs.profile }}-${{ github.run_number }}"
+          FILES=$(find openwrt/bin/targets -type f \
+            ! -path "*/packages/*" ! -name "*.json" ! -name "*.manifest" \
+            \( -name "*.bin" -o -name "*.itb" -o -name "*.img" -o -name "*.sha256sums" \))
+          echo "发布文件:"; echo "$FILES"
+          gh release create "$TAG" $FILES \
+            --title "${{ matrix.device }} (${{ inputs.profile }}) build ${{ github.run_number }}" \
+            --notes "设备: ${{ matrix.device }}
+包组合: ${{ inputs.profile }}
+上游: ${{ env.UPSTREAM_OWNER }}/${{ env.UPSTREAM_REPO }} @ ${{ env.DEV_BRANCH }}
+构建号: ${{ github.run_id }}"
