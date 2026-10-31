@@ -71,14 +71,11 @@ case "$PROFILE" in
         cat "$ROOT/common/packages/ultimate.list" >> "$OPENWRT/.config"
         ;;
     *)
-        echo "错误: 未知 profile: $PROFILE（可选 minimal/standard/full）" >&2
+        echo "错误: 未知 profile: $PROFILE（可选 minimal/standard/full/ultimate）" >&2
         exit 1
         ;;
 esac
 
-# 7) 公共定制脚本（在 openwrt 根目录下执行）
-if [ -f "$ROOT/common/customize.sh" ]; then
-    (cd "$OPENWRT" && bash "$ROOT/common/customize.sh")
-fi
-
+# 定制脚本（customize.sh）在 build-device.sh 的 feeds 安装之后执行——
+# 部分定制（如默认主题 sed）需要操作 feeds 里的文件，早于 feeds 会报文件不存在
 echo "==== 组装完成 ===="
