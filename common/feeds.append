@@ -1,9 +1,14 @@
 # 追加到上游 OpenWrt 的 feeds.conf.default（assemble.sh 自动去重，只增不覆盖）
-src-git qmodem https://github.com/FUjr/QModem.git;main
-src-git nikki https://github.com/nikkinikki-org/OpenWrt-nikki.git;main
-src-git kenzok8 https://github.com/kenzok8/openwrt-packages.git
-src-git small https://github.com/kenzok8/small.git
+# ;@latest = 每次构建自动解析该仓库「最新稳定 release tag」：
+#            优先过滤 rc/beta/alpha 后取版本最高的稳定 tag；无稳定 tag 时取最高 tag；
+#            仓库完全无 tag 时回退默认分支（解析逻辑见 scripts/assemble.sh resolve_latest_tag）
+src-git qmodem https://github.com/FUjr/QModem.git;@latest
+src-git nikki https://github.com/nikkinikki-org/OpenWrt-nikki.git;@latest
+src-git kenzok8 https://github.com/kenzok8/openwrt-packages.git;@latest
+src-git small https://github.com/kenzok8/small.git;@latest
 # turboacc 面板（官方 luci 已无此应用，作者独立仓库，含 luci-app-turboacc 子目录）
-src-git turboacc https://github.com/chenmozhijin/turboacc.git
+src-git turboacc https://github.com/chenmozhijin/turboacc.git;@latest
 # 网络测速面板（sirpdboy，含 luci-app-netspeedtest 子目录）
-src-git netspeedtest https://github.com/sirpdboy/netspeedtest.git
+src-git netspeedtest https://github.com/sirpdboy/netspeedtest.git;@latest
+# 多WAN 管理器 NetPath（Rust + nftables 重写的 mwan3；feed 递归扫描可同时收录 netpath 与 luci-app-netpath）
+src-git netpath https://github.com/HikaruChang/NetPath.git;@latest
