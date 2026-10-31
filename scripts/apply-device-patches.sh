@@ -24,6 +24,8 @@ COUNT=0
 if [ -d "$PDIR" ]; then
     while IFS= read -r p; do
         echo "应用补丁: $(basename "$p")"
+        # 转绝对路径：git -C 会在源码树内解析相对路径，导致找不到补丁
+        p="$(cd "$(dirname "$p")" && pwd)/$(basename "$p")"
         if ! git -C "$OPENWRT" apply --3way "$p"; then
             echo "错误: 补丁应用失败: $p" >&2
             echo "可能原因: 上游分支已变动/已合并该 PR。" >&2

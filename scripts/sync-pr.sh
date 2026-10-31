@@ -22,7 +22,10 @@ if [ -z "$PRS" ]; then
 fi
 
 # 先应用已有补丁，保证新 PR 基于当前补丁栈（与构建时顺序一致）
-bash "$ROOT/scripts/apply-device-patches.sh" "$ROOT" "$DEV" "$OPENWRT" "$BRANCH"
+if ! bash "$ROOT/scripts/apply-device-patches.sh" "$ROOT" "$DEV" "$OPENWRT" "$BRANCH"; then
+    echo "错误: 已有补丁应用失败，中止本次合并（先修复补丁栈）" >&2
+    exit 2
+fi
 
 PDIR="$ROOT/devices/$DEV/patches/openwrt-$BRANCH"
 mkdir -p "$PDIR"
