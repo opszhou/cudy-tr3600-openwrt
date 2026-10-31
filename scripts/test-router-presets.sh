@@ -43,13 +43,14 @@ case "$cmd" in
 esac
 STUB
 
-# ---- crontab stub：-l 读沙箱文件，其余参数当写入 ----
+# ---- crontab stub：-l 读沙箱文件；传文件名参数时复制该文件；否则读 stdin ----
 cat > "$SB/bin/crontab" <<'STUB'
 #!/usr/bin/env bash
 f="$CRON_FILE"
 case "${1:-}" in
   -l) [ -f "$f" ] && cat "$f"; exit 0 ;;
-  *)  cat > "$f"; exit 0 ;;
+  -*) exit 0 ;;
+  *)  if [ -n "${1:-}" ] && [ -f "$1" ]; then cat "$1" > "$f"; else cat > "$f"; fi; exit 0 ;;
 esac
 STUB
 chmod +x "$SB/bin/uci" "$SB/bin/crontab"
