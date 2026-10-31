@@ -61,7 +61,11 @@ while IFS= read -r line; do
     grep -qxF "$line" "$OPENWRT/feeds.conf.default" || echo "$line" >> "$OPENWRT/feeds.conf.default"
 done < "$ROOT/common/feeds.append"
 
-# 4) 设备专属源码包（如 tr3600-dualslot-upgrade）
+# 4) 源码树内包：公共 vendor 包（如 netpath）+ 设备专属包（如 tr3600-dualslot-upgrade）
+#    不走 feed：绕开 scan.mk 对非标准 feed 布局的兼容问题
+if [ -d "$ROOT/common/package" ]; then
+    cp -a "$ROOT/common/package/." "$OPENWRT/package/"
+fi
 if [ -d "$ROOT/devices/$DEV/package" ]; then
     cp -a "$ROOT/devices/$DEV/package/." "$OPENWRT/package/"
 fi

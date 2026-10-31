@@ -47,7 +47,7 @@
 
 | 分类 | 内容 |
 |------|------|
-| 组网 | **tailscale**（异地组网）+ **NetPath** 多 WAN 负载均衡/故障切换（mwan3 的 nftables 现代替代）+ macvlan |
+| 组网 | **tailscale**（异地组网）+ **NetPath** 多 WAN 负载均衡/故障切换（mwan3 的 nftables 现代替代；CLI 配置）+ macvlan |
 | 无线漫游 | travelmate（无线中继/酒店 WiFi 上行管理） |
 | 运维工具 | ttyd 网页终端 + filebrowser 网页文件管理器 + 网络测速面板（netspeedtest）+ luci-app-statistics 轻量监控（CPU/内存/接口图表） |
 | 网络 | ip-full / yq |

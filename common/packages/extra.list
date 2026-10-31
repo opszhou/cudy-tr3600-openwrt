@@ -23,10 +23,10 @@ CONFIG_PACKAGE_luci-i18n-nikki-zh-cn=y
 # 单口多拨/虚拟网卡
 CONFIG_PACKAGE_kmod-macvlan=y
 # 多 WAN 负载均衡/故障切换（NetPath：Rust + nftables 重写的 mwan3，支持 OpenWrt 24.x/25.x）
-# feed: HikaruChang/NetPath（见 common/feeds.append，feed 递归扫描可同时收录 netpath 与 luci-app-netpath）
-# 注意：依赖 rust/host 构建链，首次编译会多花约 15~25 分钟；LuCI 面板暂无中文语言包
+# feed: HikaruChang/NetPath（见 common/feeds.append；feed 布局由 customize.sh 修复）
+# 注意：依赖 rust/host 构建链，首次编译会多花约 15~25 分钟
+# 注意：上游 luci-app-netpath 包定义不完整（无 BuildPackage eval），CLI 配置，无 LuCI 面板
 CONFIG_PACKAGE_netpath=y
-CONFIG_PACKAGE_luci-app-netpath=y
 
 # ---- 第二梯队：远程访问与端口控制 ----
 # 动态DNS（ddns-go，kenzok8 源）

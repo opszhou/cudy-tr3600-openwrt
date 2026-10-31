@@ -10,5 +10,8 @@ src-git small https://github.com/kenzok8/small.git;@latest
 src-git turboacc https://github.com/chenmozhijin/turboacc.git;@latest
 # 网络测速面板（sirpdboy，含 luci-app-netspeedtest 子目录）
 src-git netspeedtest https://github.com/sirpdboy/netspeedtest.git;@latest
-# 多WAN 管理器 NetPath（Rust + nftables 重写的 mwan3；feed 递归扫描可同时收录 netpath 与 luci-app-netpath）
-src-git netpath https://github.com/HikaruChang/NetPath.git;@latest
+# 多WAN 管理器 NetPath（Rust + nftables 重写的 mwan3）
+# ⛔ 不走 feed：上游仓库把包 Makefile 放在根目录 + luci/ 子 Makefile 残缺，
+#    OpenWrt scan.mk 对这种布局会生成坏 index、整个 feed 被忽略（run#14 实锤）。
+#    包定义已 vendor 进 common/package/netpath/（assemble.sh 复制进源码树）。
+#    luci-app-netpath 上游包定义不完整（无 BuildPackage eval），不收录，CLI 配置。
