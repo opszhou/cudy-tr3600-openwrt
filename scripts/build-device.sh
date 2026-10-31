@@ -6,7 +6,7 @@ set -euo pipefail
 
 ROOT="${1:?缺少 repo root}"
 DEV="${2:?缺少设备ID}"
-PROFILE="${3:-standard}"
+PROFILE="${3:-lite}"
 OPENWRT="${4:?缺少 openwrt 目录}"
 OWNER="${5:-openwrt}"
 REPO="${6:-openwrt}"

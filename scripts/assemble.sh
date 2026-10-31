@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # 组装 openwrt 源码树：补丁 → PR → feeds → 设备包 → files → .config → 定制脚本。
 # 用法: assemble.sh <repo-root> <device-id> <profile> <openwrt目录> [owner] [repo] [extra_prs]
-#   profile: minimal | standard | full
+#   profile: lite | ultimate
 #   extra_prs: 临时追加合并的官方 PR 号（空格分隔，仅本次构建，不入库）
 set -euo pipefail
 
 ROOT="${1:?缺少 repo root}"
 DEV="${2:?缺少设备ID}"
-PROFILE="${3:-standard}"
+PROFILE="${3:-lite}"
 OPENWRT="${4:?缺少 openwrt 目录}"
 OWNER="${5:-openwrt}"
 REPO="${6:-openwrt}"
