@@ -1,0 +1,21 @@
+# 透明代理（Nikki + Mihomo，官方源: nikkinikki-org/OpenWrt-nikki）
+# 依赖的 feed 已在 common/feeds.append 中启用
+CONFIG_PACKAGE_nikki=y
+CONFIG_PACKAGE_luci-app-nikki=y
+CONFIG_PACKAGE_luci-i18n-nikki-zh-cn=y
+
+# nikki 依赖的内核模块与工具（见上游 README Dependencies）
+CONFIG_PACKAGE_kmod-tun=y
+CONFIG_PACKAGE_kmod-nft-tproxy=y
+CONFIG_PACKAGE_kmod-nft-socket=y
+CONFIG_PACKAGE_kmod-inet-diag=y
+CONFIG_PACKAGE_kmod-dummy=y
+CONFIG_PACKAGE_ip-full=y
+CONFIG_PACKAGE_yq=y
+
+# 出行场景补充（原 openwrt-cudy-tr3600 项目 travel 组合）
+CONFIG_PACKAGE_luci-app-travelmate=y
+CONFIG_PACKAGE_luci-i18n-travelmate-zh-cn=y
+CONFIG_PACKAGE_tailscale=y
+CONFIG_PACKAGE_luci-app-sqm=y
+CONFIG_PACKAGE_luci-i18n-sqm-zh-cn=y

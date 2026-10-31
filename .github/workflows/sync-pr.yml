@@ -1,0 +1,80 @@
+name: "🔀 合并官方 PR (Sync PRs)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      device:
+        description: "设备ID（devices/ 目录名）"
+        required: true
+        default: "cudy_tr3600-v1"
+      pr_numbers:
+        description: "官方 PR 号（空格分隔；留空使用 device.yml 的 default_prs）"
+        default: ""
+      auto_build:
+        description: "有新补丁时自动触发编译"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout 本仓库
+        uses: actions/checkout@v4
+
+      - name: 解析设备配置
+        run: |
+          eval "$(bash scripts/parse-device.sh . "${{ inputs.device }}")"
+          echo "DEV_BRANCH=${DEV_BRANCH:-main}" >> "$GITHUB_ENV"
+
+      - name: Checkout 上游 OpenWrt
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.OPENWRT_UPSTREAM || 'openwrt/openwrt' }}
+          ref: ${{ env.DEV_BRANCH }}
+          path: openwrt
+          fetch-depth: 0
+
+      - name: 拉取并应用 PR，生成补丁
+        id: sync
+        continue-on-error: true
+        run: |
+          bash scripts/sync-pr.sh . "${{ inputs.device }}" openwrt ${{ inputs.pr_numbers }}
+
+      - name: 提交补丁到仓库
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -z "$(git status --porcelain --untracked-files=all)" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "没有新增补丁，无需提交"
+          else
+            git add devices/
+            git commit -m "sync(${{ inputs.device }}): merge official PRs (run ${{ github.run_id }})"
+            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 上传失败的 diff 供人工处理
+        if: ${{ steps.sync.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-pr-diffs-${{ inputs.device }}
+          path: devices/${{ inputs.device }}/patches/**/failed-pr*.diff
+          if-no-files-found: ignore
+
+      - name: 自动触发编译
+        if: ${{ steps.sync.outcome == 'success' && steps.commit.outputs.changed == 'true' && inputs.auto_build }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sleep 5
+          gh workflow run build.yml \
+            --ref "$GITHUB_REF_NAME" \
+            -f device="${{ inputs.device }}" \
+            -f profile=standard
+          echo "已触发编译工作流（profile=standard）"

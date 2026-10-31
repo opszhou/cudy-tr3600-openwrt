@@ -1,0 +1,176 @@
+name: "🚀 编译固件 (Build OpenWrt)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      device:
+        description: "设备ID（devices/ 目录名）"
+        required: true
+        default: "cudy_tr3600-v1"
+      profile:
+        description: "包组合 (minimal=最小 / standard=含随身WiFi / full=含代理)"
+        required: true
+        default: "standard"
+        type: choice
+        options:
+          - minimal
+          - standard
+          - full
+      upstream_owner:
+        description: "上游仓库 Owner"
+        default: "openwrt"
+      upstream_repo:
+        description: "上游仓库名"
+        default: "openwrt"
+      upstream_branch:
+        description: "上游分支（留空则使用 device.yml 的 branch）"
+        default: ""
+      extra_prs:
+        description: "临时追加合并的官方 PR 号（空格分隔，仅本次构建不入库）"
+        default: ""
+      build_all:
+        description: "忽略上方设备，编译 devices/ 下全部设备"
+        type: boolean
+        default: false
+      create_release:
+        description: "编译成功后创建 Release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      devices: ${{ steps.set.outputs.devices }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: set
+        run: |
+          if [ "${{ inputs.build_all }}" = "true" ]; then
+            echo "devices=$(bash scripts/list-devices.sh --json)" >> "$GITHUB_OUTPUT"
+          else
+            echo 'devices=["${{ inputs.device }}"]' >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        device: ${{ fromJSON(needs.matrix.outputs.devices) }}
+    steps:
+      - name: 磁盘空间优化
+        uses: hugoalh/disk-space-optimizer-ghaction@v0.8.1
+        with:
+          operate_sudo: "True"
+          general_include: ".+"
+          general_exclude: |-
+            ^GCC$
+            ^G\+\+$
+            Clang
+            LLVM
+          docker_include: ".+"
+          docker_prune: "True"
+          docker_clean: "True"
+          apt_prune: "True"
+          apt_clean: "True"
+          homebrew_prune: "True"
+          homebrew_clean: "True"
+          npm_prune: "True"
+          npm_clean: "True"
+          os_swap: "True"
+
+      - name: 挂载大空间构建目录
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 3072
+          swap-size-mb: 1024
+          remove-dotnet: "true"
+          remove-android: "true"
+          remove-haskell: "true"
+          remove-codeql: "true"
+          remove-docker-images: "true"
+
+      - name: 安装编译依赖
+        run: |
+          export TMPDIR=$RUNNER_TEMP
+          sudo mkdir -p $TMPDIR
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends \
+            ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+            bzip2 ccache clang cmake cpio curl device-tree-compiler flex gawk gcc-multilib \
+            g++-multilib gettext genisoimage git gperf haveged help2man intltool \
+            libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev \
+            libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libpython3-dev \
+            libreadline-dev libssl-dev libtool llvm lrzsz libnsl-dev ninja-build p7zip \
+            p7zip-full patch pkgconf python3 python3-pyelftools python3-setuptools \
+            qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs \
+            upx-ucl unzip vim wget xmlto xxd zlib1g-dev
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+
+      - name: Checkout 本仓库
+        uses: actions/checkout@v4
+
+      - name: 解析设备配置
+        run: |
+          eval "$(bash scripts/parse-device.sh . "${{ matrix.device }}")"
+          BRANCH="${{ inputs.upstream_branch }}"
+          [ -n "$BRANCH" ] || BRANCH="${DEV_BRANCH:-main}"
+          {
+            echo "DEV_BRANCH=$BRANCH"
+            echo "UPSTREAM_OWNER=${{ inputs.upstream_owner }}"
+            echo "UPSTREAM_REPO=${{ inputs.upstream_repo }}"
+          } >> "$GITHUB_ENV"
+
+      - name: Checkout 上游 OpenWrt
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.UPSTREAM_OWNER }}/${{ env.UPSTREAM_REPO }}
+          ref: ${{ env.DEV_BRANCH }}
+          path: openwrt
+          fetch-depth: 0
+
+      - name: 缓存 ccache
+        uses: actions/cache@v4
+        with:
+          path: openwrt/.ccache
+          key: ccache-${{ matrix.device }}-${{ env.DEV_BRANCH }}-${{ hashFiles('devices/**', 'common/**') }}
+          restore-keys: |
+            ccache-${{ matrix.device }}-${{ env.DEV_BRANCH }}-
+            ccache-${{ matrix.device }}-
+
+      - name: 组装并编译
+        run: |
+          bash scripts/build-device.sh . "${{ matrix.device }}" "${{ inputs.profile }}" \
+            openwrt "${{ env.UPSTREAM_OWNER }}" "${{ env.UPSTREAM_REPO }}" "${{ inputs.extra_prs }}"
+
+      - name: 上传固件 Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt-${{ matrix.device }}-${{ inputs.profile }}
+          path: openwrt/bin/targets
+          retention-days: 14
+          include-hidden-files: true
+
+      - name: 创建 Release
+        if: ${{ inputs.create_release }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ matrix.device }}-${{ inputs.profile }}-${{ github.run_number }}
+          name: ${{ matrix.device }} (${{ inputs.profile }}) build ${{ github.run_number }}
+          body: |
+            设备: ${{ matrix.device }}
+            包组合: ${{ inputs.profile }}
+            上游: ${{ env.UPSTREAM_OWNER }}/${{ env.UPSTREAM_REPO }} @ ${{ env.DEV_BRANCH }}
+            构建号: ${{ github.run_id }}
+          files: |
+            openwrt/bin/targets/**/*
+          draft: false
+          prerelease: false
