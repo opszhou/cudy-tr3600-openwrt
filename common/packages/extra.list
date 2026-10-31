@@ -3,7 +3,7 @@
 # 不确定包名的行若在源中不存在，make defconfig 会忽略并告警，构建不受阻
 
 # ---- 第一梯队：核心基础设施 ----
-# 现代化主题（官方 luci 源有 argon 主题本体；配置面板在 kenzok8 源）
+# 现代化主题（argon 主题本体与配置面板均在 kenzok8 源；官方 luci 源无 argon，2026-10 实测）
 CONFIG_PACKAGE_luci-theme-argon=y
 CONFIG_PACKAGE_luci-app-argon-config=y
 CONFIG_PACKAGE_luci-i18n-argon-config-zh-cn=y
@@ -22,10 +22,11 @@ CONFIG_PACKAGE_luci-app-nikki=y
 CONFIG_PACKAGE_luci-i18n-nikki-zh-cn=y
 # 单口多拨/虚拟网卡
 CONFIG_PACKAGE_kmod-macvlan=y
-# 多 WAN 负载均衡/故障切换（配合 macvlan 多拨或多个上行）
-CONFIG_PACKAGE_luci-app-mwan3=y
-CONFIG_PACKAGE_luci-i18n-mwan3-zh-cn=y
-CONFIG_PACKAGE_mwan3=y
+# 多 WAN 负载均衡/故障切换（NetPath：Rust + nftables 重写的 mwan3，支持 OpenWrt 24.x/25.x）
+# feed: HikaruChang/NetPath（见 common/feeds.append，feed 递归扫描可同时收录 netpath 与 luci-app-netpath）
+# 注意：依赖 rust/host 构建链，首次编译会多花约 15~25 分钟；LuCI 面板暂无中文语言包
+CONFIG_PACKAGE_netpath=y
+CONFIG_PACKAGE_luci-app-netpath=y
 
 # ---- 第二梯队：远程访问与端口控制 ----
 # 动态DNS（ddns-go，kenzok8 源）
@@ -40,7 +41,7 @@ CONFIG_PACKAGE_acme-acmesh=y
 CONFIG_PACKAGE_luci-app-upnp=y
 CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y
 CONFIG_PACKAGE_miniupnpd=y
-# 网络唤醒增强版（kenzok8 源）
+# WOL：lite 已含 luci-app-wol（官方源）；wolplus 上游 siwind 2022-10 起停更，不收录
 
 # ---- 第三梯队：文件服务与存储 ----
 # SFTP
@@ -61,7 +62,8 @@ CONFIG_PACKAGE_luci-i18n-sqm-zh-cn=y
 CONFIG_PACKAGE_sqm-scripts=y
 # 网络测速（kenzok8 源）
 CONFIG_PACKAGE_luci-app-netspeedtest=y
-# 实时性能监控（netdata 本体官方源；自带 19999 Web 界面；内存已做轻量化预设，见 common/files）
-CONFIG_PACKAGE_netdata=y
-# netdata 面板包上游无维护，核心自带 19999 Web 界面，无需 LuCI 面板
+# 实时性能监控：collectd + rrdtool（官方源，RRD 存 /tmp，常驻内存约 15~25MB）
+# 替代 netdata（RAM 模式仍占 100MB+，512MB 设备负担大）；CPU/内存/负载/网卡/无线一体
+CONFIG_PACKAGE_luci-app-statistics=y
+CONFIG_PACKAGE_luci-i18n-statistics-zh-cn=y
 # 定时重启
