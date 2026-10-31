@@ -4,6 +4,13 @@ CONFIG_PACKAGE_qmodem=y
 CONFIG_PACKAGE_luci-app-qmodem-next=y
 CONFIG_PACKAGE_luci-i18n-qmodem-next-zh-cn=y
 
+# QModem 的 IPv6 ND 工具选择（三选一 choice，默认 ndisc6）：选「都不包含」。
+# 原因：qmodem feed 自带的 ndisc6 已损坏——1.0.2 源 remlab.net 返回 410、全网无镜像；
+#       升级到 Debian 池 1.0.8 后，src/trace-tcp.c 用 C11 alignas 而该包编译带 -std=c99，
+#       直接语法错误（run#17 实测）。rdisc6 是独立包、该 feed 里并不存在，选了也是缺包。
+# 恢复方式：修 trace-tcp.c（alignas 改 __attribute__((aligned))）后改回 INCLUDE_ndisc6。
+CONFIG_PACKAGE_qmodem_INCLUDE_no_ndisc_rdisc6=y
+
 # USB 驱动：覆盖常见随身WiFi的上网卡协议（RNDIS/QMI/NCM/MBIM/串口）
 CONFIG_PACKAGE_kmod-usb3=y
 CONFIG_PACKAGE_kmod-usb-storage=y
