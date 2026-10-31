@@ -77,5 +77,5 @@ jobs:
           gh workflow run build.yml \
             --ref "$GITHUB_REF_NAME" \
             -f device="${{ inputs.device }}" \
-            -f profile=standard
-          echo "已触发编译工作流（profile=standard）"
+            -f profile=lite
+          echo "已触发编译工作流（profile=lite）"

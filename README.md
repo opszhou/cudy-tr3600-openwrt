@@ -6,7 +6,7 @@
 - **官方 PR 一键合并**：填 PR 号跑一次「合并官方 PR」工作流，补丁自动落盘入库、自动触发编译
 - **多设备架构**：路由器特有配置抽到 `devices/<设备>/`，feeds/包组合/脚本全部共用
 - **内置 QModem 随身WiFi 支持**：USB RNDIS/QMI/NCM/MBIM 全驱动 + LuCI 管理界面
-- 三档包组合：`minimal` / `standard`（含随身WiFi）/ `full`（再含 Nikki 代理）
+- 两档包组合：`lite`（精简实用，默认）/ `ultimate`（全能）
 
 ## 目录结构
 
@@ -60,11 +60,8 @@ Actions → 🔀 合并官方 PR → 填 PR 号（如 `26012`）→ Run。
 
 | 组合 | 内容 |
 |------|------|
-| minimal | 种子配置（中文化 LuCI + HTTPS 管理页） |
-| standard | + QModem 全套 USB 上网卡驱动（随身WiFi即插即用） |
-| lite | standard + 精简实用全家桶：Argon 主题/turboacc加速/nikki代理/ddns-go/acme证书/socat/UPnP/SFTP/WebDAV/SQM/vnstat/autoreboot |
-| full | + Nikki 透明代理（mihomo）、tailscale、travelmate、SQM |
-| ultimate | full 全部 + ttyd/filebrowser/netspeedtest/netdata(轻量化)/mwan3多WAN/macvlan/wolplus |
+| **lite** | 精简实用（默认）：QModem 随身WiFi 全套 + 中文化 LuCI + Argon 主题(默认) + turboacc 硬件加速/BBR + nikki + ddns-go + acme + socat + UPnP(安全模式) + SFTP + WebDAV + SQM + vnstat + autoreboot |
+| **ultimate** | 全能：lite 全部 + tailscale/travelmate + ttyd/filebrowser/netspeedtest/netdata(轻量化)/mwan3 多WAN/macvlan/wolplus |
 
 包清单改 `common/packages/*.list`，种子改 `devices/<设备>/default.seed`。
 
@@ -72,7 +69,7 @@ Actions → 🔀 合并官方 PR → 填 PR 号（如 `26012`）→ Run。
 
 ```bash
 git clone https://github.com/openwrt/openwrt.git openwrt   # 需完整历史
-bash scripts/build-device.sh . cudy_tr3600-v1 standard openwrt
+bash scripts/build-device.sh . cudy_tr3600-v1 lite openwrt
 ```
 
 ## 添加新路由器
