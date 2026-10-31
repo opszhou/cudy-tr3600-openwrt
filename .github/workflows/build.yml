@@ -146,9 +146,32 @@ jobs:
       - name: 组装并编译
         run: |
           set -o pipefail
+          # 三通道日志：控制台全量（GitHub step 日志）+ 完整日志流式 gzip（省 ~90% 磁盘）
+          # + 错误行明文摘要（--line-buffered 防止 grep 缓冲吞尾行）
+          ERRPAT='ERROR: package/|Download failed|failed to build|\*\*\* \[[^]]*\] Error|make.*Error [0-9]|错误:'
           bash scripts/build-device.sh . "${{ matrix.device }}" "${{ matrix.profile }}" \
             openwrt "${{ env.UPSTREAM_OWNER }}" "${{ env.UPSTREAM_REPO }}" "${{ inputs.extra_prs }}" \
-            2>&1 | tee build-output.log
+            2>&1 | tee >(gzip -c > build-output.log.gz) \
+                      >(grep --line-buffered -aE "$ERRPAT" > build-errors.log)
+
+      - name: 错误行摘要（无论成败）
+        if: always()
+        run: |
+          if [ -s build-errors.log ]; then
+            echo "==== 构建输出中的错误行（完整日志见 build-output.log.gz）===="
+            tail -50 build-errors.log
+          else
+            echo "构建输出无错误行"
+          fi
+
+      - name: 上传错误摘要（无论成败）
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: errors-${{ matrix.device }}-${{ matrix.profile }}-run${{ github.run_number }}
+          path: build-errors.log
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: 上传构建诊断（仅失败时）
         if: failure()
@@ -156,7 +179,8 @@ jobs:
         with:
           name: diag-${{ matrix.device }}-${{ matrix.profile }}-run${{ github.run_number }}
           path: |
-            build-output.log
+            build-output.log.gz
+            build-errors.log
             openwrt/.config
             openwrt/feeds.conf.default
           retention-days: 7
