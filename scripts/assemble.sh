@@ -31,10 +31,33 @@ for pr in $EXTRA_PRS; do
 done
 
 # 3) 追加公共 feeds（去重；只追加，不覆盖上游自带 feeds）
+#    支持 ;@latest 标记：构建时解析该仓库「最新稳定 release tag」——
+#    过滤 rc/beta/alpha 等预发布 tag 取版本最高者；无稳定 tag 取最高 tag；完全无 tag 回退默认分支
+resolve_latest_tag() {
+    local tags stable
+    tags=$(git ls-remote --tags "$1" 2>/dev/null | awk '{print $2}' | sed 's|refs/tags/||' | grep -v '\^{}' || true)
+    [ -z "$tags" ] && return 0
+    stable=$(echo "$tags" | grep -viE '(rc|beta|alpha|dev|test|snapshot)' | sort -rV | head -1)
+    [ -n "$stable" ] && { echo "$stable"; return 0; }
+    echo "$tags" | sort -rV | head -1
+}
+
 touch "$OPENWRT/feeds.conf.default"
 while IFS= read -r line; do
     [ -z "$line" ] && continue
     case "$line" in \#*) continue ;; esac
+    if [[ "$line" == *";@latest" ]]; then
+        _name=$(echo "$line" | awk '{print $2}')
+        _url=$(echo "$line" | awk '{print $3}' | sed 's|;@latest$||')
+        _tag="$(resolve_latest_tag "$_url")"
+        if [ -n "$_tag" ]; then
+            echo "feed $_name: 追踪最新 release tag -> $_tag"
+            line="src-git $_name $_url;$_tag"
+        else
+            echo "feed $_name: 仓库无 tag，回退默认分支"
+            line="src-git $_name $_url"
+        fi
+    fi
     grep -qxF "$line" "$OPENWRT/feeds.conf.default" || echo "$line" >> "$OPENWRT/feeds.conf.default"
 done < "$ROOT/common/feeds.append"
 
@@ -61,7 +84,7 @@ case "$PROFILE" in
         cat "$ROOT/common/packages/lite.list" >> "$OPENWRT/.config"
         ;;
     ultimate)
-        # 全能型：lite 全部 + tailscale/travelmate/ttyd/filebrowser/netspeedtest/netdata/mwan3/macvlan/wolplus
+        # 全能型：lite 全部 + tailscale/travelmate/ttyd/filebrowser/netspeedtest/statistics/netpath/macvlan
         cat "$ROOT/common/packages/modem.list" >> "$OPENWRT/.config"
         cat "$ROOT/common/packages/lite.list" >> "$OPENWRT/.config"
         cat "$ROOT/common/packages/proxy.list" >> "$OPENWRT/.config"
