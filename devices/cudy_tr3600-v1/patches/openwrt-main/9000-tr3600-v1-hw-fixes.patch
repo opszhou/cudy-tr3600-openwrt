@@ -11,7 +11,6 @@
 # 注意：fan 节点不得带 pinctrl-0（PWM 核心自行 mux，重复申请会导致 pwm-fan probe 失败 -EINVAL）。
 # fan PWM0 通道 #25860 已正确，无需修改。
 #
-diff --git
 diff --git a/target/linux/mediatek/dts/mt7987b-cudy-tr3600-v1.dts b/target/linux/mediatek/dts/mt7987b-cudy-tr3600-v1.dts
 index d47e584..92149ed 100644
 --- a/target/linux/mediatek/dts/mt7987b-cudy-tr3600-v1.dts

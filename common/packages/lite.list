@@ -40,12 +40,19 @@ CONFIG_PACKAGE_lighttpd-mod-auth=y
 CONFIG_PACKAGE_lighttpd-mod-authn_file=y
 
 # ---- USB 存储（U 盘/移动硬盘开箱即挂载；基础 kmod-usb-storage 已在 modem.list）----
-CONFIG_PACKAGE_kmod-usb-storage-uas=y          # UAS 高速协议
-CONFIG_PACKAGE_kmod-fs-ext4=y                  # ext4
-CONFIG_PACKAGE_kmod-fs-exfat=y                 # exFAT（main 分支包名，非旧教程的 exfat0137）
-CONFIG_PACKAGE_kmod-fs-ntfs3=y                 # NTFS（内核原生 ntfs3）
-CONFIG_PACKAGE_kmod-fs-vfat=y                  # FAT32
-CONFIG_PACKAGE_block-mount=y                   # 自动挂载 + LuCI 挂载点页（fstools 提供）
+# ⚠️ Kconfig 不支持行内注释（conf 会把 "y # ..." 整段当值导致包被静默丢弃），注释必须独立成行
+# UAS 高速协议
+CONFIG_PACKAGE_kmod-usb-storage-uas=y
+# ext4
+CONFIG_PACKAGE_kmod-fs-ext4=y
+# exFAT（main 分支包名，非旧教程的 exfat0137）
+CONFIG_PACKAGE_kmod-fs-exfat=y
+# NTFS（内核原生 ntfs3）
+CONFIG_PACKAGE_kmod-fs-ntfs3=y
+# FAT32
+CONFIG_PACKAGE_kmod-fs-vfat=y
+# 自动挂载 + LuCI 挂载点页（fstools 提供）
+CONFIG_PACKAGE_block-mount=y
 
 # ---- 网络质量、监控与维护 ----
 CONFIG_PACKAGE_luci-app-sqm=y

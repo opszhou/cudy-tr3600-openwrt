@@ -25,7 +25,25 @@ if [ -f "$ROOT/common/customize.sh" ]; then
 fi
 
 echo "==== 生成最终 .config ===="
+# defconfig 前快照审计基准：种子 + 包清单里的全部 CONFIG_*=y 必选项
+cp .config .config.wanted
 make defconfig
+
+echo "==== 必选项审计（=y 项必须全部幸存，防止被 defconfig 静默丢弃）===="
+missing=0
+while IFS= read -r setting; do
+    case "$setting" in
+        CONFIG_*=y)
+            grep -Fxq "$setting" .config || { echo "  被丢弃: $setting"; missing=$((missing + 1)); }
+            ;;
+    esac
+done < .config.wanted
+if [ "$missing" -ne 0 ]; then
+    echo "错误: $missing 个必选包在 defconfig 后被静默丢弃，中止构建。" >&2
+    echo "常见原因: 上游已删除该包 / luci-i18n 缺 CONFIG_LUCI_LANG_zh_Hans / Kconfig 行内注释导致整行失效 / 包名拼写错误" >&2
+    exit 1
+fi
+rm -f .config.wanted
 
 echo "==== 下载源码包 ===="
 make download "-j$(nproc)"
