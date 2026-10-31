@@ -55,28 +55,20 @@ fi
 # 6) 组装 .config：设备种子 + 包组合（make defconfig 会解析补全）
 cp "$ROOT/devices/$DEV/default.seed" "$OPENWRT/.config"
 case "$PROFILE" in
-    minimal)
-        ;;
-    standard)
-        cat "$ROOT/common/packages/modem.list" >> "$OPENWRT/.config"
-        ;;
-    full)
-        cat "$ROOT/common/packages/modem.list" >> "$OPENWRT/.config"
-        cat "$ROOT/common/packages/proxy.list" >> "$OPENWRT/.config"
-        ;;
     lite)
-        # 精简实用型：standard（含随身WiFi）+ 需求清单精简版
+        # 精简实用型：随身WiFi(QModem) + 需求清单精简版
         cat "$ROOT/common/packages/modem.list" >> "$OPENWRT/.config"
         cat "$ROOT/common/packages/lite.list" >> "$OPENWRT/.config"
         ;;
     ultimate)
-        # 全能型：standard 全部 + proxy + 需求清单全家桶（见 ultimate.list）
+        # 全能型：lite 全部 + tailscale/travelmate/ttyd/filebrowser/netspeedtest/netdata/mwan3/macvlan/wolplus
         cat "$ROOT/common/packages/modem.list" >> "$OPENWRT/.config"
+        cat "$ROOT/common/packages/lite.list" >> "$OPENWRT/.config"
         cat "$ROOT/common/packages/proxy.list" >> "$OPENWRT/.config"
-        cat "$ROOT/common/packages/ultimate.list" >> "$OPENWRT/.config"
+        cat "$ROOT/common/packages/extra.list" >> "$OPENWRT/.config"
         ;;
     *)
-        echo "错误: 未知 profile: $PROFILE（可选 minimal/standard/lite/full/ultimate）" >&2
+        echo "错误: 未知 profile: $PROFILE（可选 lite/ultimate）" >&2
         exit 1
         ;;
 esac

@@ -1,5 +1,5 @@
 # ===== 精简实用型组合（lite）—— 需求清单的精简版 =====
-# = ultimate 减去：ttyd / filebrowser / netspeedtest / netdata / mwan3 / macvlan
+# = lite（不含 modem 基座）减去：ttyd / filebrowser / netspeedtest / netdata / mwan3 / macvlan
 # 保留：argon 主题、turboacc、nikki、ddns-go、acme、socat、UPnP、SFTP、WebDAV、SQM、vnstat、autoreboot
 # 额外依赖 feed：kenzok8 / small（argon-config、turboacc、ddns-go 所需）
 
