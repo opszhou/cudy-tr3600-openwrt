@@ -23,9 +23,11 @@ CONFIG_PACKAGE_ddns-go=y
 CONFIG_PACKAGE_luci-app-acme=y
 CONFIG_PACKAGE_luci-i18n-acme-zh-cn=y
 CONFIG_PACKAGE_acme-acmesh=y
-CONFIG_PACKAGE_luci-app-socat=y
-CONFIG_PACKAGE_luci-i18n-socat-zh-cn=y
+# socat 的 LuCI 面板已被上游 feeds 删除，保留核心（CLI 可用）
 CONFIG_PACKAGE_socat=y
+# WOL 网络唤醒（官方 luci 保留版；wolplus 上游已无 feed 化仓库）
+CONFIG_PACKAGE_luci-app-wol=y
+CONFIG_PACKAGE_luci-i18n-wol-zh-cn=y
 CONFIG_PACKAGE_luci-app-upnp=y
 CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y
 CONFIG_PACKAGE_miniupnpd=y
@@ -41,8 +43,8 @@ CONFIG_PACKAGE_lighttpd-mod-authn_file=y
 CONFIG_PACKAGE_luci-app-sqm=y
 CONFIG_PACKAGE_luci-i18n-sqm-zh-cn=y
 CONFIG_PACKAGE_sqm-scripts=y
-CONFIG_PACKAGE_luci-app-vnstat=y
-CONFIG_PACKAGE_luci-i18n-vnstat-zh-cn=y
-CONFIG_PACKAGE_vnstat=y
-CONFIG_PACKAGE_luci-app-autoreboot=y
-CONFIG_PACKAGE_luci-i18n-autoreboot-zh-cn=y
+# vnstat 面板与核心均已被上游 feeds 删除，改用官方 nlbwmon（按主机流量统计）
+CONFIG_PACKAGE_luci-app-nlbwmon=y
+CONFIG_PACKAGE_luci-i18n-nlbwmon-zh-cn=y
+# autoreboot 面板已被上游 feeds 删除，定时重启由 uci-defaults 写入 crontab 实现
+# （见 common/files/etc/uci-defaults/99-router-presets）

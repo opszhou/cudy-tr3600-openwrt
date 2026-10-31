@@ -11,6 +11,8 @@ CONFIG_DEVEL=y
 CONFIG_CCACHE=y
 
 # ---- 基础体验（中文化 / HTTPS 管理页 / 包管理器）----
+# LUCI_LANG：新版 LuCI 的语言开关，必须开启，否则所有 luci-i18n-* 语言包不会被编译
+CONFIG_LUCI_LANG_zh_Hans=y
 CONFIG_PACKAGE_luci-ssl=y
 CONFIG_PACKAGE_luci-app-package-manager=y
 CONFIG_PACKAGE_luci-i18n-base-zh-cn=y

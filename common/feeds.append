@@ -3,3 +3,7 @@ src-git qmodem https://github.com/FUjr/QModem.git;main
 src-git nikki https://github.com/nikkinikki-org/OpenWrt-nikki.git;main
 src-git kenzok8 https://github.com/kenzok8/openwrt-packages.git
 src-git small https://github.com/kenzok8/small.git
+# turboacc 面板（官方 luci 已无此应用，作者独立仓库，含 luci-app-turboacc 子目录）
+src-git turboacc https://github.com/chenmozhijin/turboacc.git
+# 网络测速面板（sirpdboy，含 luci-app-netspeedtest 子目录）
+src-git netspeedtest https://github.com/sirpdboy/netspeedtest.git
