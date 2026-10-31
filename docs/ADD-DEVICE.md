@@ -1,6 +1,7 @@
 # 添加新路由器
 
 新增一台路由器 = 在 `devices/` 下新建目录 + 改 3 处，**不碰 workflows 和共用脚本**。
+目录结构与补丁机制背景见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
 ## 步骤
 
