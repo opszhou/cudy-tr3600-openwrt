@@ -2,6 +2,10 @@
 # 通用默认配置预设（lite/ultimate 共用：LAN IP、UPnP 安全模式、定时重启、BBR、5G SSID 后缀）
 # （uci-defaults，首次开机执行一次；WED 关闭在 /etc/modules.conf，模块参数层面固化）
 
+# 测试钩子（scripts/test-router-presets.sh 用；默认值与生产行为完全一致）
+BBR_DIR="${BBR_SYS_DIR:-/sys/module/tcp_bbr}"
+SYSCTL_CONF="${SYSCTL_CONF:-/etc/sysctl.conf}"
+
 # ---- 默认 LAN：192.168.10.1/24，DHCP 池 .100~.249 ----
 uci -q set network.lan.ipaddr='192.168.10.1'
 uci -q set network.lan.netmask='255.255.255.0'
@@ -16,14 +20,15 @@ uci -q commit upnpd
 
 # ---- 定时重启：每周一凌晨 04:30（crontab 实现；上游 luci-app-autoreboot 已删除）
 CRON_LINE="30 4 * * 1 sleep 70 && touch /etc/banner && reboot"
-crontab -l 2>/dev/null | grep -vF "touch /etc/banner && reboot" > /tmp/cron.tmp
-echo "$CRON_LINE" >> /tmp/cron.tmp
-crontab /tmp/cron.tmp && rm -f /tmp/cron.tmp
+CRON_TMP="${CRON_TMP:-/tmp/cron.tmp}"   # 测试钩子：CI 测试中重定向到沙箱
+crontab -l 2>/dev/null | grep -vF "touch /etc/banner && reboot" > "$CRON_TMP"
+echo "$CRON_LINE" >> "$CRON_TMP"
+crontab "$CRON_TMP" && rm -f "$CRON_TMP"
 /etc/init.d/cron restart 2>/dev/null || true
 
 # ---- BBR 拥塞控制默认启用（turboacc 面板亦可改）----
-if [ -d /sys/module/tcp_bbr ]; then
-	echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
+if [ -d "$BBR_DIR" ]; then
+	echo "net.ipv4.tcp_congestion_control=bbr" >> "$SYSCTL_CONF"
 fi
 
 # ---- 5G SSID 自动加 _5G 后缀（区分双频，规避同名漫游到错误频段）----

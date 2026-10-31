@@ -143,8 +143,22 @@ jobs:
 
       - name: 组装并编译
         run: |
+          set -o pipefail
           bash scripts/build-device.sh . "${{ matrix.device }}" "${{ matrix.profile }}" \
-            openwrt "${{ env.UPSTREAM_OWNER }}" "${{ env.UPSTREAM_REPO }}" "${{ inputs.extra_prs }}"
+            openwrt "${{ env.UPSTREAM_OWNER }}" "${{ env.UPSTREAM_REPO }}" "${{ inputs.extra_prs }}" \
+            2>&1 | tee build-output.log
+
+      - name: 上传构建诊断（仅失败时）
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: diag-${{ matrix.device }}-${{ matrix.profile }}-run${{ github.run_number }}
+          path: |
+            build-output.log
+            openwrt/.config
+            openwrt/feeds.conf.default
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: 上传固件 Artifact
         uses: actions/upload-artifact@v6

@@ -42,7 +42,7 @@
 - feeds（qmodem/nikki）、包组合（modem/proxy）、定制脚本、files 公共覆盖 → `common/`，所有设备共享
 - 设备特有的包：建 `devices/<设备>/package/<包名>/`（会整体拷入 openwrt/package/）
 - 设备特有的 /etc 配置：`devices/<设备>/files/`（覆盖在 common/files 之上）
-- 设备特有补丁：`devices/<设备>/patches/openwrt-<分支>/`，命名顺序 `0xxx 本地基础 < pr<PR号> < 9xxx PR后修正`
+- 设备特有补丁：`devices/<设备>/patches/openwrt-<分支>/`，命名 `0xxx 本地基础 < 1pr<PR号> 官方PR < 9xxx PR后修正`（首位数字即档位，字典序=应用顺序）
 
 ## 注意
 

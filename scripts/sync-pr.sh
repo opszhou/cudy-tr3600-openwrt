@@ -36,7 +36,7 @@ REPO="${UPSTREAM_REPO:-openwrt}"
 OK=(); FAIL=()
 for pr in $PRS; do
     # 补丁名带 PR 号前缀保证应用顺序（PR 号 5 位补零；100000+ 时需人工调整命名）
-    OUT="$PDIR/pr$(printf '%05d' "$pr").patch"
+    OUT="$PDIR/1pr$(printf '%05d' "$pr").patch"
     if bash "$ROOT/scripts/apply-pr.sh" "$OPENWRT" "$pr" "$OUT" "$OWNER" "$REPO"; then
         OK+=("$pr")
     else
