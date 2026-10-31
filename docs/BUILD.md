@@ -38,24 +38,31 @@
 |------|------|
 | `device` | 设备 ID |
 | `profile` | 包组合：`lite`（默认）/ `ultimate` |
+| `build_all_profiles` | 勾选后忽略 `profile`，lite + ultimate 两个组合一次全出（矩阵并行，各自出 Artifact/Release） |
 | `upstream_owner` / `upstream_repo` | 上游仓库（默认 `openwrt/openwrt`） |
 | `upstream_branch` | 上游分支，留空则用 `device.yml` 的 `branch` |
 | `extra_prs` | 临时追加合并的 PR 号（空格分隔，仅本次构建、不入库） |
 | `build_all` | 忽略 `device`，编译 `devices/` 下全部设备 |
 | `create_release` | 编译成功后创建 Release |
 
-产物在 Run 页面的 **Artifacts**（`openwrt-<设备>-<组合>`，保留 14 天）。
+产物在 Run 页面的 **Artifacts**（`openwrt-<设备>-<组合>-snapshot`，保留 14 天；Release tag 同样带 `snapshot` 标识——本仓库跟踪上游 main，产物均为快照性质，非正式版本）。
 
 ## PR 组合备忘（TR3600）
 
 | PR | 内容 | 适用分支 | 状态 |
 |----|------|----------|------|
-| #25860 | TR3600 v1 设备支持 | `main` | ✅ 默认启用，对最新 main 干净应用 |
+| #25860 | TR3600 v1 设备支持 | `main` | ✅ 默认启用，对最新 main 干净应用；已叠加 `9000-tr3600-v1-hw-fixes.patch` 修正（见下） |
 | #25996 | RTL8221B EEE 修复（1G 丢包 41%~100%） | `main` | ✅ 默认启用，TR3600 同款 2.5G PHY |
 | #24581 | TR3600 v1 设备支持（另一实现） | `main` | ⛔ 与 #25860 **互斥**；对最新 main 的 02_network 冲突，待作者 rebase |
 | #24596 | TR3600 v1 设备支持 | `openwrt-25.12` | 换 25.12 稳定分支时改用它 |
 
 **切换 25.12 稳定分支**：`device.yml` 改 `branch: openwrt-25.12`，`default_prs` 换成 `24596`。
+
+**9xxx 本地修正（已入库）**：`9000-tr3600-v1-hw-fixes.patch` 基于 PR #25860 作者 Ylarod 的真机实测结论
+（2026-08 在 PR #24596 评论区发布，并与 Cudy 官方 GPL 包 R126.dts 交叉验证）修正三处硬件数据：
+`led-upgrade` 改红色 LED、5G MAC 偏移改 `base+0x10`（#25860 误写 +2）、补充风扇 cooling-levels
+与 cpu_thermal 四档 active trip（65/72/80/88 °C 内核温控自动调速）。
+若日后切换 25.12 + #24596，需按同一结论为 #24596 的 dts 制作对应修正补丁（其 LED 颜色、PWM 通道、MAC 偏移错误更多）。
 
 ## 刷机（TR3600 v1）
 

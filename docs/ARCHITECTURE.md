@@ -19,7 +19,7 @@
 │   ├── feeds.append       # 追加 feeds（qmodem / nikki / kenzok8 / small）
 │   ├── packages/          # 包清单：modem(随身WiFi) / lite(精简) / proxy(出行) / extra(全能增量)
 │   ├── customize.sh       # 公共定制脚本（feeds 安装后执行）
-│   └── files/             # 公共 /etc 覆盖（netdata 轻量化配置、开机预设）
+│   └── files/             # 公共 /etc 覆盖（开机预设 uci-defaults）
 └── scripts/               # 组装/合并/编译脚本（CI 与本地通用）
 ```
 

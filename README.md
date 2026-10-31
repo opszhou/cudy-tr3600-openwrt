@@ -29,8 +29,8 @@
 > ⚠️ 首次编译必须先跑「合并官方 PR」，否则只会产出 mediatek/filogic 通用镜像。
 
 1. **Actions → 🔀 合并官方 PR → Run workflow** — 设备选 `cudy_tr3600-v1`，PR 号留空（自动合并默认 PR 列表），完成后自动触发编译
-2. **Actions → 🚀 编译固件** — 选设备与包组合（默认 `lite`）
-3. 在 Run 页面下载 **Artifacts**（`openwrt-<设备>-<组合>`），或勾选 `create_release` 直接发 Release
+2. **Actions → 🚀 编译固件** — 选设备与包组合（默认 `lite`），勾选「两个组合一起编译」可一次产出 lite + ultimate
+3. 在 Run 页面下载 **Artifacts**（`openwrt-<设备>-<组合>-snapshot`），或勾选 `create_release` 直接发 Release
 4. **刷机** — 先刷 Cudy 官方中间固件，再在 LuCI 升级页刷 sysupgrade 固件
 
 详细参数、PR 组合备忘与刷机步骤见 **[docs/BUILD.md](docs/BUILD.md)**。
@@ -49,7 +49,7 @@
 | 组合 | 定位 | 说明 |
 |------|------|------|
 | **lite** | 精简实用（默认） | QModem 随身 WiFi 全套 + 中文化 LuCI + Argon 主题 + turboacc 硬件加速 + nikki 代理等 |
-| **ultimate** | 全能 | lite 全部 + tailscale + mwan3 多 WAN + netdata + filebrowser 等 |
+| **ultimate** | 全能 | lite 全部 + tailscale + NetPath 多 WAN + macvlan + 轻量监控(statistics) + filebrowser 等 |
 
 完整包清单与开机预设见 **[docs/PACKAGES.md](docs/PACKAGES.md)**。
 
