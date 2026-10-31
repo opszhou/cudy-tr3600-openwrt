@@ -82,10 +82,10 @@ jobs:
           sudo apt-get clean
           sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/*
           sudo apt-get update -y
-          # apt 缓存目录指到大容量数据盘（根分区空间有限，Ubuntu 26.04 镜像更满）
-          sudo mkdir -p $RUNNER_TEMP/apt-archives/partial
+          # apt 缓存目录指到大容量数据盘（只有工作区目录挂在 LVM 上，RUNNER_TEMP 仍在根分区）
+          sudo mkdir -p "$GITHUB_WORKSPACE/.apt-archives/partial"
           sudo apt-get install -y --no-install-recommends \
-            -o Dir::Cache::archives="$RUNNER_TEMP/apt-archives" \
+            -o Dir::Cache::archives="$GITHUB_WORKSPACE/.apt-archives" \
             ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
             bzip2 ccache clang cmake cpio curl device-tree-compiler flex gawk gcc-multilib \
             g++-multilib gettext genisoimage git gperf haveged help2man intltool \
@@ -96,7 +96,7 @@ jobs:
             qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs \
             upx-ucl unzip vim wget xmlto xxd zlib1g-dev
           sudo apt-get clean
-          sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+          sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* "$GITHUB_WORKSPACE/.apt-archives"
 
       - name: Checkout 本仓库
         uses: actions/checkout@v5
