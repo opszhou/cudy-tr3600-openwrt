@@ -43,6 +43,12 @@ on:
 permissions:
   contents: write
 
+# 整个仓库同时只允许一个构建 run（后来的排队等待，不取消进行中的）。
+# matrix job 已串行（max-parallel: 1），这里再加 run 级闸门，杜绝多 run 并行占资源。
+concurrency:
+  group: build-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   matrix:
     runs-on: ubuntu-latest
