@@ -1,0 +1,16 @@
+# 设备元数据 —— 新增路由器时复制本目录改名，修改以下字段即可
+id: cudy_tr3600-v1
+target: mediatek/filogic            # OpenWrt target/subtarget
+profile: cudy_tr3600-v1             # CONFIG_TARGET_..._DEVICE_<profile>，见 default.seed
+branch: main                        # 上游 OpenWrt 分支；补丁目录须对应 patches/openwrt-<branch>
+
+# 「合并官方 PR」工作流未手动填 PR 号时默认合并的 PR
+# 注意：24581 与 25860 都是 TR3600 设备支持 PR，互斥，只能启用其一
+default_prs:
+  - 24581                           # mediatek: add support for Cudy TR3600 v1（目标 main）
+  # - 25860                         # 备选: mediatek: add Cudy TR3600 v1 support（目标 main，与 24581 互斥）
+  - 25996                           # mediatek: filogic: mark RTL8221B EEE as broken（TR3600 同款 2.5G PHY 的 1G 丢包修复）
+
+# 分支组合备忘：
+#   main         + 24581（或 25860）+ 25996
+#   openwrt-25.12 + 24596（稳定分支 backport；25.12 下注释掉上面两个 main 专属 PR）

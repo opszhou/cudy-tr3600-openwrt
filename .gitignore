@@ -1,0 +1,12 @@
+# openwrt 源码树（本地编译用）
+/openwrt/
+
+# 合并失败的 PR diff（仅作 CI artifact，不入库）
+devices/**/failed-pr*.diff
+
+# 工作区工具数据
+.workbuddy/
+
+# 临时文件
+*.tmp
+*.log

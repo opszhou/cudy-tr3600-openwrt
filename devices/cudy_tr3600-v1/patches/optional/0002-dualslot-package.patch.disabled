@@ -1,0 +1,14 @@
+--- a/target/linux/mediatek/image/filogic.mk
++++ b/target/linux/mediatek/image/filogic.mk
+@@ -1304,9 +1304,9 @@ define Device/cudy_tr3600-v1
+   DEVICE_VARIANT := v1
+   DEVICE_DTS := mt7987b-cudy-tr3600-v1
+   DEVICE_DTS_DIR := ../dts
+-  SUPPORTED_DEVICES += R126
++  SUPPORTED_DEVICES += R126 cudy,tr3600-v1-dualslot-v1
+   DEVICE_PACKAGES := mt7987-2p5g-phy-firmware kmod-mt7990-firmware \
+-	kmod-hwmon-pwmfan kmod-usb3
++	kmod-hwmon-pwmfan kmod-usb3 tr3600-dualslot-upgrade
+   KERNEL_IN_UBI := 1
+   KERNEL_LOADADDR := 0x40000000
+   UBINIZE_OPTS := -E 5

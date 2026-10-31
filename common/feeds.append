@@ -1,0 +1,3 @@
+# 追加到上游 OpenWrt 的 feeds.conf.default（assemble.sh 自动去重，只增不覆盖）
+src-git qmodem https://github.com/FUjr/QModem.git;main
+src-git nikki https://github.com/nikkinikki-org/OpenWrt-nikki.git;main
