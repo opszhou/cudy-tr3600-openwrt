@@ -1,5 +1,14 @@
 #!/bin/sh
-# 通用默认配置预设（lite/ultimate 共用：UPnP 安全模式、定时重启、BBR）（uci-defaults，首次开机执行一次）
+# 通用默认配置预设（lite/ultimate 共用：LAN IP、UPnP 安全模式、定时重启、BBR、5G SSID 后缀）
+# （uci-defaults，首次开机执行一次；WED 关闭在 /etc/modules.conf，模块参数层面固化）
+
+# ---- 默认 LAN：192.168.10.1/24，DHCP 池 .100~.249 ----
+uci -q set network.lan.ipaddr='192.168.10.1'
+uci -q set network.lan.netmask='255.255.255.0'
+uci -q set dhcp.lan.start='100'
+uci -q set dhcp.lan.limit='150'    # start+limit-1 = .249
+uci -q commit network
+uci -q commit dhcp
 
 # ---- UPnP：默认启用安全模式（仅允许位于 DMZ/已映射主机的请求）
 uci -q set upnpd.config.secure_mode=1
@@ -12,9 +21,21 @@ echo "$CRON_LINE" >> /tmp/cron.tmp
 crontab /tmp/cron.tmp && rm -f /tmp/cron.tmp
 /etc/init.d/cron restart 2>/dev/null || true
 
-# ---- BBR 拥塞控制默认启用（turboacc 面板亦可改）
+# ---- BBR 拥塞控制默认启用（turboacc 面板亦可改）----
 if [ -d /sys/module/tcp_bbr ]; then
 	echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
 fi
+
+# ---- 5G SSID 自动加 _5G 后缀（区分双频，规避同名漫游到错误频段）----
+for dev in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p'); do
+	[ "$(uci -q get wireless.$dev.band)" = "5g" ] || continue
+	for ifc in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-iface$/\1/p'); do
+		[ "$(uci -q get wireless.$ifc.device)" = "$dev" ] || continue
+		ssid="$(uci -q get wireless.$ifc.ssid)"
+		case "$ssid" in *_5G) continue ;; esac
+		uci -q set wireless.$ifc.ssid="${ssid}_5G"
+	done
+done
+uci -q commit wireless
 
 exit 0
