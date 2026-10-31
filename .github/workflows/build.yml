@@ -15,6 +15,10 @@ on:
         options:
           - lite
           - ultimate
+      build_all_profiles:
+        description: "忽略上方组合，lite + ultimate 两个一起编译"
+        type: boolean
+        default: false
       upstream_owner:
         description: "上游仓库 Owner"
         default: "openwrt"
@@ -43,24 +47,34 @@ jobs:
   matrix:
     runs-on: ubuntu-latest
     outputs:
-      devices: ${{ steps.set.outputs.devices }}
+      jobs: ${{ steps.set.outputs.jobs }}
     steps:
       - uses: actions/checkout@v5
       - id: set
         run: |
           if [ "${{ inputs.build_all }}" = "true" ]; then
-            echo "devices=$(bash scripts/list-devices.sh --json)" >> "$GITHUB_OUTPUT"
+            DEVICES=$(bash scripts/list-devices.sh --json)
           else
-            echo 'devices=["${{ inputs.device }}"]' >> "$GITHUB_OUTPUT"
+            DEVICES='["${{ inputs.device }}"]'
           fi
+          if [ "${{ inputs.build_all_profiles }}" = "true" ]; then
+            PROFILES='["lite","ultimate"]'
+          else
+            PROFILES='["${{ inputs.profile }}"]'
+          fi
+          JOBS=$(jq -nc --argjson d "$DEVICES" --argjson p "$PROFILES" \
+            '[ $d[] as $dev | $p[] as $prof | {device: $dev, profile: $prof} ]')
+          echo "设备×组合矩阵: $JOBS"
+          echo "jobs=$JOBS" >> "$GITHUB_OUTPUT"
 
   build:
     needs: matrix
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
-        device: ${{ fromJSON(needs.matrix.outputs.devices) }}
+        include: ${{ fromJSON(needs.matrix.outputs.jobs) }}
     steps:
       - name: 挂载大空间构建目录
         uses: easimon/maximize-build-space@master
@@ -129,13 +143,13 @@ jobs:
 
       - name: 组装并编译
         run: |
-          bash scripts/build-device.sh . "${{ matrix.device }}" "${{ inputs.profile }}" \
+          bash scripts/build-device.sh . "${{ matrix.device }}" "${{ matrix.profile }}" \
             openwrt "${{ env.UPSTREAM_OWNER }}" "${{ env.UPSTREAM_REPO }}" "${{ inputs.extra_prs }}"
 
       - name: 上传固件 Artifact
         uses: actions/upload-artifact@v6
         with:
-          name: openwrt-${{ matrix.device }}-${{ inputs.profile }}
+          name: openwrt-${{ matrix.device }}-${{ matrix.profile }}-snapshot
           path: openwrt/bin/targets
           retention-days: 14
           include-hidden-files: true
@@ -145,16 +159,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${{ matrix.device }}-${{ inputs.profile }}-${{ github.run_number }}"
+          TAG="${{ matrix.device }}-${{ matrix.profile }}-snapshot-${{ github.run_number }}"
           FILES=$(find openwrt/bin/targets -type f \
             ! -path "*/packages/*" ! -name "*.json" ! -name "*.manifest" \
             \( -name "*.bin" -o -name "*.itb" -o -name "*.img" -o -name "*.sha256sums" \))
           echo "发布文件:"; echo "$FILES"
           NOTES="设备: ${{ matrix.device }}"
           NOTES="$NOTES
-          包组合: ${{ inputs.profile }}
+          包组合: ${{ matrix.profile }}
           上游: ${{ env.UPSTREAM_OWNER }}/${{ env.UPSTREAM_REPO }} @ ${{ env.DEV_BRANCH }}
           构建号: ${{ github.run_id }}"
           gh release create "$TAG" $FILES \
-            --title "${{ matrix.device }} (${{ inputs.profile }}) build ${{ github.run_number }}" \
+            --title "${{ matrix.device }} (${{ matrix.profile }}) snapshot build ${{ github.run_number }}" \
             --notes "$NOTES"
