@@ -46,7 +46,7 @@ jobs:
     outputs:
       devices: ${{ steps.set.outputs.devices }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: set
         run: |
           if [ "${{ inputs.build_all }}" = "true" ]; then
