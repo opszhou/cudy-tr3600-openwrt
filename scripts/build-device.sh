@@ -4,10 +4,12 @@
 #   openwrt 目录需已 checkout 好上游源码（fetch-depth: 0，保证补丁可三方合并）。
 set -euo pipefail
 
-ROOT="${1:?缺少 repo root}"
+# 一律转绝对路径：本脚本会 cd 进 openwrt 树，相对路径（CI 传入的 "."）之后会错位——
+# 曾导致 common/customize.sh 与 translate-make.awk 被静默跳过（run#15/#16 ndisc6 修复未生效）
+ROOT="$(cd "${1:?缺少 repo root}" && pwd)"
 DEV="${2:?缺少设备ID}"
 PROFILE="${3:-lite}"
-OPENWRT="${4:?缺少 openwrt 目录}"
+OPENWRT="$(cd "${4:?缺少 openwrt 目录}" && pwd)"
 OWNER="${5:-openwrt}"
 REPO="${6:-openwrt}"
 EXTRA_PRS="${7:-}"
@@ -31,7 +33,11 @@ echo "✅ feeds update/install 完成"
 
 echo "==== 运行公共定制脚本（feeds 就绪后）===="
 if [ -f "$ROOT/common/customize.sh" ]; then
+    echo "→ 执行 $ROOT/common/customize.sh"
     bash "$ROOT/common/customize.sh"
+else
+    echo "警告: 未找到 $ROOT/common/customize.sh，跳过定制步骤" >&2
+    exit 1
 fi
 
 echo "==== 生成最终 .config ===="
