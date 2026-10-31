@@ -1,4 +1,4 @@
-# cudy-tr3600-openwrt
+# Cudy TR3600 v1 OpenWrt 固件
 
 <p>
   <img alt="License" src="https://img.shields.io/badge/license-GPL--2.0-blue">
@@ -7,61 +7,64 @@
   <img alt="OpenWrt" src="https://img.shields.io/badge/OpenWrt-mediatek%2Ffilogic-00B5E2">
 </p>
 
-基于 GitHub Actions 的 OpenWrt 云编译仓库，当前支持 **Cudy TR3600 v1**（MT7987B + MT7990）。
-不 fork 源码树——官方 PR 以补丁形式入库，设备配置抽离、公共配置共用，新增路由器只需复制一个目录。
+> ## ⚠️ 使用前必读
+>
+> - **本项目仅为个人自用**，不是成熟发行版：**没有做过系统性真机验证**，刷机有变砖风险，请自行评估、自行备份
+> - 仅适用于 Cudy **TR3600 v1**，不适用于 TR3000、WR3600 或任何其他硬件版本，刷前务必核对硬件版本
+> - 固件以 GitHub Actions 最新成功构建为准，随上游更新滚动变化，不承诺任何稳定性
 
-## ✨ 特性
+## 为什么用这套固件
 
-- **🔀 官方 PR 一键合并** — 填 PR 号跑一次工作流，补丁自动落盘入库、自动触发编译；冲突的 PR 会生成 diff artifact 供人工处理
-- **🧩 多设备架构** — 路由器特有配置收敛到 `devices/<设备>/`，feeds / 包组合 / 脚本全部共用，workflows 零改动
-- **📶 内置 QModem 随身 WiFi 支持** — USB RNDIS / QMI / NCM / MBIM 全驱动 + LuCI 管理界面（qmodem-next）
-- **⚙️ 两档包组合** — `lite`（精简实用，默认）/ `ultimate`（全能），一键切换
-- **⚡ ccache 加速** — 二次构建约 60 分钟，首编约 90 分钟
+- **官方 PR 直接合并**：基于 OpenWrt 官方 main + 官方 PR **#25860**（TR3600 v1 设备支持）+ **#25996**（千兆网口 EEE 丢包修复，该问题在原版下丢包率可达 41%~100%）
+- **硬件数据校准**：在 PR 基础上按真机实测与 Cudy 官方 GPL 源码修正了 LED 颜色（boot/failsafe/upgrade=红、运行=白）、5G MAC 布局（base+0x10），并补充**风扇四档温控**（65/72/80/88 °C 自动调速）
+- **开箱即用的开机预设**（首次开机自动生效，LuCI 均可再改）：
+  - LAN 地址 **192.168.10.1/24**，DHCP 池 .100~.249
+  - 5G SSID 自动加 `_5G` 后缀（双频同名会导致终端漫游到错误频段）
+  - 每周一凌晨 04:30 自动重启；UPnP 默认安全模式；BBR 拥塞控制默认启用
+- **全套中文 LuCI** + Argon 主题（默认主题，含 argon-config 配置器）
+- **随身 WiFi 场景拉满**：QModem 管理 UI，USB RNDIS / QMI / NCM / MBIM / 串口全驱动，即插即用
+- **插件永远新鲜**：所有第三方插件 feed 构建时自动追踪上游最新稳定版（自动跳过 rc/beta 预发布）
+- 每次构建输出 sysupgrade 固件 + 完整包清单（manifest）+ sha256 校验和
 
-## 📦 支持的设备
+## 固件里有什么
 
-| 设备 | Target | 上游分支 | 默认 PR |
-|------|--------|----------|---------|
-| Cudy TR3600 v1 | `mediatek/filogic` | `main` | #25860 设备支持 + #25996 EEE 修复 |
+### lite（精简实用，默认组合）
 
-## 🚀 快速开始
-
-> ⚠️ 首次编译必须先跑「合并官方 PR」，否则只会产出 mediatek/filogic 通用镜像。
-
-1. **Actions → 🔀 合并官方 PR → Run workflow** — 设备选 `cudy_tr3600-v1`，PR 号留空（自动合并默认 PR 列表），完成后自动触发编译
-2. **Actions → 🚀 编译固件** — 选设备与包组合（默认 `lite`），勾选「两个组合一起编译」可一次产出 lite + ultimate
-3. 在 Run 页面下载 **Artifacts**（`openwrt-<设备>-<组合>-snapshot`），或勾选 `create_release` 直接发 Release
-4. **刷机** — 先刷 Cudy 官方中间固件，再在 LuCI 升级页刷 sysupgrade 固件
-
-详细参数、PR 组合备忘与刷机步骤见 **[docs/BUILD.md](docs/BUILD.md)**。
-
-## 🗂️ 文档
-
-| 文档 | 内容 |
+| 分类 | 内容 |
 |------|------|
-| [docs/BUILD.md](docs/BUILD.md) | 云编译工作流详解、PR 组合备忘、刷机指南、本地编译 |
-| [docs/PACKAGES.md](docs/PACKAGES.md) | 包组合明细、开机预设、自定义包与 feeds |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 目录结构、多设备设计、补丁机制与命名规则 |
-| [docs/ADD-DEVICE.md](docs/ADD-DEVICE.md) | 添加新路由器（复制目录、改 3 个文件即可） |
+| 系统基础 | LuCI（HTTPS 管理页）+ 全套中文语言包 + Argon 主题与配置器 + 系统包管理器 + htop / curl |
+| 随身 WiFi | **QModem**（luci-app-qmodem-next）+ USB RNDIS / QMI / NCM / MBIM / 串口全驱动 + usb-modeswitch |
+| 无线 | wpad-mesh-openssl（Mesh + WPA3，openssl 加密栈） |
+| 网络加速 | turboacc（软/硬件流量分载面板）+ SFE/Flow Offload 内核模块 + **BBR** |
+| 代理 | **nikki**（mihomo 内核）+ LuCI 管理界面 + TUN / nft-tproxy 内核模块 |
+| DDNS 与证书 | ddns-go + acme（acme-acmesh，LuCI 面板） |
+| 端口与服务 | UPnP（miniupnpd）+ WOL 网络唤醒 + socat（命令行）+ SFTP |
+| 文件服务 | lighttpd + WebDAV + 基础认证 |
+| USB 存储 | UAS 高速协议 + ext4 / exFAT / NTFS3 / FAT32 文件系统 + 自动挂载（block-mount） |
+| 网络质量 | SQM 智能队列（消除 bufferbloat）+ nlbwmon 按主机流量统计 |
 
-## 🧩 包组合一览
+### ultimate（全能 = lite 全部，再加：）
 
-| 组合 | 定位 | 说明 |
-|------|------|------|
-| **lite** | 精简实用（默认） | QModem 随身 WiFi 全套 + 中文化 LuCI + Argon 主题 + turboacc 硬件加速 + nikki 代理等 |
-| **ultimate** | 全能 | lite 全部 + tailscale + NetPath 多 WAN + macvlan + 轻量监控(statistics) + filebrowser 等 |
+| 分类 | 内容 |
+|------|------|
+| 组网 | **tailscale**（异地组网）+ **NetPath** 多 WAN 负载均衡/故障切换（mwan3 的 nftables 现代替代）+ macvlan |
+| 无线漫游 | travelmate（无线中继/酒店 WiFi 上行管理） |
+| 运维工具 | ttyd 网页终端 + filebrowser 网页文件管理器 + 网络测速面板（netspeedtest）+ luci-app-statistics 轻量监控（CPU/内存/接口图表） |
+| 网络 | ip-full / yq |
 
-完整包清单与开机预设见 **[docs/PACKAGES.md](docs/PACKAGES.md)**。
+## 下载固件
 
-## 🏗️ 设计理念
+- **Releases**：勾选发布选项的构建会发布到仓库 [Releases](https://github.com/opszhou/cudy-tr3600-openwrt/releases) 页
+- **Artifacts**：每次构建产物为 `openwrt-cudy_tr3600-v1-<组合>-snapshot`（保留 14 天），含固件、manifest 与校验和
 
-- **补丁入库，不 fork 源码** — 官方 PR 合并后删除对应 `pr*.patch` 即回归官方源码，可复现、无漂移
-- **设备与公共分离** — `devices/<设备>/` 只放该机器的元数据、种子与补丁，其余全在 `common/` 共享
-- **CI 与本地同一套脚本** — `scripts/` 下的组装/合并/编译脚本两边通用
+## 刷机提醒
 
-架构细节见 **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**。
+1. 原厂固件 → OpenWrt **必须先刷 Cudy 官方中间固件**（见 [Cudy TR3600 v1 下载页](https://www.cudy.com/zh-cn/pages/download-center/tr3600-1-0) 说明），再刷 OpenWrt sysupgrade
+2. 跨原厂/社区固件刷机**不保留配置**，刷前备份
+3. `sysupgrade.bin` 不能当作原厂升级镜像直接刷入原厂系统
+4. 刷前核对 sha256 校验和；变砖救砖请自行了解 failsafe / initramfs 恢复方式
 
 ## 📄 许可证
 
 本仓库自身内容遵循 [GPL-2.0](LICENSES/GPL-2.0)。
-第三方组件：QModem 为 MPL-2.0，Nikki 为 GPL-3.0，kenzok8 插件以各自仓库为准。
+第三方组件：QModem 为 MPL-2.0，Nikki 为 GPL-3.0，NetPath 为 GPL-2.0（README 另有非商业表述，个人使用无影响），其余以各自仓库为准。
