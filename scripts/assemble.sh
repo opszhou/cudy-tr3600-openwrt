@@ -13,6 +13,9 @@ OWNER="${5:-openwrt}"
 REPO="${6:-openwrt}"
 EXTRA_PRS="${7:-}"
 
+# 规范化为绝对路径：脚本内会 cd 进 openwrt 树，相对路径会解析错位
+ROOT="$(cd "$ROOT" && pwd)"
+
 # shellcheck disable=SC2046
 eval "$(bash "$ROOT/scripts/parse-device.sh" "$ROOT" "$DEV")"
 BRANCH="${DEV_BRANCH:-main}"
