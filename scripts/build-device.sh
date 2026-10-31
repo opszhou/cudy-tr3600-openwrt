@@ -34,7 +34,14 @@ missing=0
 while IFS= read -r setting; do
     case "$setting" in
         CONFIG_*=y)
-            grep -Fxq "$setting" .config || { echo "  被丢弃: $setting"; missing=$((missing + 1)); }
+            if ! grep -Fxq "$setting" .config; then
+                echo "  被丢弃: $setting"
+                # 提示同名前缀候选：区分「包被上游改名」与「包真被丢弃」
+                # （如 miniupnpd 是虚拟名，defconfig 规范化为 miniupnpd-nftables）
+                base="${setting%=y}"
+                grep -E "^${base}" .config | sed 's/^/    现存近似项: /'
+                missing=$((missing + 1))
+            fi
             ;;
     esac
 done < .config.wanted
