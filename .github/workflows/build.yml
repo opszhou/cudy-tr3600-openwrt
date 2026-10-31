@@ -160,15 +160,72 @@ jobs:
             2>&1 | tee >(gzip -c > build-output.log.gz) \
                       >(grep --line-buffered -aE "$ERRPAT" > build-errors.log)
 
-      - name: 错误行摘要（无论成败）
+      - name: 构建摘要（无论成败，写入 Summary 页）
         if: always()
         run: |
+          {
+            echo "## 构建摘要：${{ matrix.device }} / ${{ matrix.profile }}（run ${{ github.run_number }}）"
+            echo
+            if [ -s build-errors.log ]; then
+              echo "### ⚠️ 构建输出中的错误行（末 50 行，完整日志见 diag artifact 的 build-output.log.gz）"
+              echo '```'
+              tail -50 build-errors.log
+              echo '```'
+            else
+              echo "✅ 构建输出无错误行"
+            fi
+            if compgen -G "openwrt/bin/targets/*/*" > /dev/null; then
+              echo
+              echo "### 产物"
+              echo '```'
+              ls -lh openwrt/bin/targets/*/
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          # 同步打印到 job 日志（Summary 页在 run 页面，job 日志在 job 页面，两处都能看）
           if [ -s build-errors.log ]; then
             echo "==== 构建输出中的错误行（完整日志见 build-output.log.gz）===="
             tail -50 build-errors.log
           else
             echo "构建输出无错误行"
           fi
+
+      - name: 包清单对比与存档（成功时，写入 Summary 页）
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          NAME: ${{ matrix.device }}-${{ matrix.profile }}.manifest
+        run: |
+          MF=$(find openwrt/bin/targets -name '*.manifest' | head -n1)
+          if [ -z "$MF" ]; then echo "未找到 manifest，跳过包清单对比"; exit 0; fi
+
+          # 与上次成功构建存档的 manifest（build-manifests 分支）对比
+          OLD=$(gh api "repos/$REPO/contents/manifests/$NAME?ref=build-manifests" --jq '.content' 2>/dev/null | base64 -d || true)
+          if [ -n "$OLD" ]; then
+            {
+              echo
+              echo "### 📦 包清单变更（相对上次成功构建）"
+              echo '```diff'
+              diff <(printf '%s\n' "$OLD") <(sort "$MF") | grep -E '^[<>]' || echo "（无变化）"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### 📦 首次存档包清单（$NAME）" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          # 确保 build-manifests 分支存在（不存在则从 main 创建）
+          if ! gh api "repos/$REPO/branches/build-manifests" --jq .name >/dev/null 2>&1; then
+            MAIN_SHA=$(gh api "repos/$REPO/git/refs/heads/main" --jq '.object.sha')
+            gh api -X POST "repos/$REPO/git/refs" -f ref=refs/heads/build-manifests -f sha="$MAIN_SHA" >/dev/null
+          fi
+          # 写入/更新存档（build.yml 无 push 触发器，此提交不会引发循环构建）
+          FILE_SHA=$(gh api "repos/$REPO/contents/manifests/$NAME?ref=build-manifests" --jq '.sha' 2>/dev/null || true)
+          ARGS=(-f message="manifest: run#${{ github.run_number }} ${{ matrix.device }}/${{ matrix.profile }}" \
+                -f content="$(base64 -w0 "$MF")" -f branch=build-manifests)
+          [ -n "$FILE_SHA" ] && ARGS+=(-f sha="$FILE_SHA")
+          gh api -X PUT "repos/$REPO/contents/manifests/$NAME" "${ARGS[@]}" >/dev/null
+          echo "manifest 已存档到 build-manifests 分支: manifests/$NAME"
 
       - name: 上传错误摘要（无论成败）
         if: always()

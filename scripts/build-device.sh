@@ -56,7 +56,21 @@ echo "==== 下载源码包 ===="
 make download "-j$(nproc)"
 
 echo "==== 开始编译 ===="
-if ! make "-j$(nproc)" V=s; then
+# 常规编译不带 V=s（全量 echo 命令会把日志撑到 200MB+，V=s 的价值只在定位失败）。
+# 失败时下面的 make -j1 V=s 重试天然就是 verbose 段，错误照样落进 CI 的 errors 通道。
+# 心跳：常规编译输出稀疏，后台每 10 分钟向日志报告进度与最近目标，避免长编译成黑盒。
+PROG="$PWD/.build-progress.log"
+T0=$(date +%s)
+: > "$PROG"
+(
+    while sleep "${HEARTBEAT_SEC:-600}"; do
+        last=$(tail -n 1 "$PROG" 2>/dev/null || true)
+        echo "[心跳 $(date '+%H:%M:%S')] 编译已进行 $(( ($(date +%s) - T0) / 60 )) 分钟，最近目标: ${last:-（暂无输出）}"
+    done
+) &
+HB_PID=$!
+trap 'kill "$HB_PID" 2>/dev/null || true; rm -f "$PROG"' EXIT
+if ! make "-j$(nproc)" 2>&1 | tee "$PROG"; then
     echo "并行编译失败，改用单线程重试以定位错误..."
     make -j1 V=s
 fi
