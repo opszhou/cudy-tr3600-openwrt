@@ -1,0 +1,22 @@
+#!/bin/sh
+# 全能型组合的默认配置预设（uci-defaults，首次开机执行一次）
+
+# ---- UPnP：默认启用安全模式（仅允许位于 DMZ/已映射主机的请求）
+uci -q set upnpd.config.secure_mode=1
+uci -q commit upnpd
+
+# ---- 定时重启：每周一凌晨 04:30（可在 LuCI 系统里改）
+uci -q del system.@autoreboot[0] 2>/dev/null
+uci -q add system autoreboot
+uci -q set system.@autoreboot[0].week=1
+uci -q set system.@autoreboot[0].hour=4
+uci -q set system.@autoreboot[0].minute=30
+uci -q set system.@autoreboot[0].enable=1
+uci -q commit system
+
+# ---- BBR 拥塞控制默认启用（turboacc 面板亦可改）
+if [ -d /sys/module/tcp_bbr ]; then
+	echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
+fi
+
+exit 0

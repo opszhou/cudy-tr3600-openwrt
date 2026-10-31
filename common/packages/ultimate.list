@@ -1,0 +1,73 @@
+# ===== 全能型组合（ultimate）——按用户需求清单定制 =====
+# 需要额外 feed：kenzok8 / small（已在 common/feeds.append 启用）
+# 不确定包名的行若在源中不存在，make defconfig 会忽略并告警，构建不受阻
+
+# ---- 第一梯队：核心基础设施 ----
+# 现代化主题（官方 luci 源有 argon 主题本体；配置面板在 kenzok8 源）
+CONFIG_PACKAGE_luci-theme-argon=y
+CONFIG_PACKAGE_luci-app-argon-config=y
+CONFIG_PACKAGE_luci-i18n-argon-config-zh-cn=y
+# 网页终端
+CONFIG_PACKAGE_luci-app-ttyd=y
+CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y
+CONFIG_PACKAGE_ttyd=y
+# 网络加速：流卸载 + BBR（面板在 kenzok8 源；内核模块官方源）
+CONFIG_PACKAGE_luci-app-turboacc=y
+CONFIG_PACKAGE_kmod-nft-flow-offload=y
+CONFIG_PACKAGE_kmod-nft-hw-flow-offload=y
+CONFIG_PACKAGE_kmod-tcp-bbr=y
+# 透明代理（nikki feed）
+CONFIG_PACKAGE_nikki=y
+CONFIG_PACKAGE_luci-app-nikki=y
+CONFIG_PACKAGE_luci-i18n-nikki-zh-cn=y
+# 单口多拨/虚拟网卡
+CONFIG_PACKAGE_kmod-macvlan=y
+
+# ---- 第二梯队：远程访问与端口控制 ----
+# 动态DNS（ddns-go，kenzok8 源）
+CONFIG_PACKAGE_luci-app-ddns-go=y
+CONFIG_PACKAGE_ddns-go=y
+# 证书自动化
+CONFIG_PACKAGE_luci-app-acme=y
+CONFIG_PACKAGE_luci-i18n-acme-zh-cn=y
+CONFIG_PACKAGE_acme-acmesh=y
+# 跨协议转发
+CONFIG_PACKAGE_luci-app-socat=y
+CONFIG_PACKAGE_luci-i18n-socat-zh-cn=y
+CONFIG_PACKAGE_socat=y
+# UPnP（安全模式由 uci-defaults 预设）
+CONFIG_PACKAGE_luci-app-upnp=y
+CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y
+CONFIG_PACKAGE_miniupnpd=y
+# 网络唤醒增强版（kenzok8 源）
+CONFIG_PACKAGE_luci-app-wolplus=y
+
+# ---- 第三梯队：文件服务与存储 ----
+# SFTP
+CONFIG_PACKAGE_openssh-sftp-server=y
+# 网页文件管理器（kenzok8 源）
+CONFIG_PACKAGE_luci-app-filebrowser=y
+CONFIG_PACKAGE_filebrowser=y
+# WebDAV（lighttpd 本体官方源；独立 LuCI 面板如源中缺失会被忽略）
+CONFIG_PACKAGE_lighttpd=y
+CONFIG_PACKAGE_lighttpd-mod-webdav=y
+CONFIG_PACKAGE_lighttpd-mod-auth=y
+CONFIG_PACKAGE_lighttpd-mod-authn_file=y
+
+# ---- 第四梯队：网络质量、监控与维护 ----
+# 智能限速
+CONFIG_PACKAGE_luci-app-sqm=y
+CONFIG_PACKAGE_luci-i18n-sqm-zh-cn=y
+CONFIG_PACKAGE_sqm-scripts=y
+# 网络测速（kenzok8 源）
+CONFIG_PACKAGE_luci-app-netspeedtest=y
+# 流量统计
+CONFIG_PACKAGE_luci-app-vnstat=y
+CONFIG_PACKAGE_luci-i18n-vnstat-zh-cn=y
+CONFIG_PACKAGE_vnstat=y
+# 实时性能监控（netdata 本体官方源；LuCI 面板 kenzok8 源；内存已做轻量化预设，见 common/files）
+CONFIG_PACKAGE_netdata=y
+CONFIG_PACKAGE_luci-app-netdata=y
+# 定时重启
+CONFIG_PACKAGE_luci-app-autoreboot=y
+CONFIG_PACKAGE_luci-i18n-autoreboot-zh-cn=y
