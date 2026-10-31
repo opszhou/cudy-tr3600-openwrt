@@ -8,5 +8,7 @@
 # 修改默认固件名称显示
 # sed -i 's/OpenWrt/MyWrt/g' package/base-files/files/bin/config_generate
 
-# 调整默认主题（需先在 .config 里选中对应 luci-theme-*）
-# sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/Makefile
+# 修改默认主题为 Argon（仅当本组合预装了该主题时才替换，避免影响精简组合）
+if grep -q '^CONFIG_PACKAGE_luci-theme-argon=y' .config; then
+    sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/Makefile
+fi

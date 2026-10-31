@@ -64,6 +64,12 @@ case "$PROFILE" in
         cat "$ROOT/common/packages/modem.list" >> "$OPENWRT/.config"
         cat "$ROOT/common/packages/proxy.list" >> "$OPENWRT/.config"
         ;;
+    ultimate)
+        # 全能型：standard 全部 + proxy + 需求清单全家桶（见 ultimate.list）
+        cat "$ROOT/common/packages/modem.list" >> "$OPENWRT/.config"
+        cat "$ROOT/common/packages/proxy.list" >> "$OPENWRT/.config"
+        cat "$ROOT/common/packages/ultimate.list" >> "$OPENWRT/.config"
+        ;;
     *)
         echo "错误: 未知 profile: $PROFILE（可选 minimal/standard/full）" >&2
         exit 1
