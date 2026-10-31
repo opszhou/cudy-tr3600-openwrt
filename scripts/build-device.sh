@@ -16,8 +16,18 @@ bash "$ROOT/scripts/assemble.sh" "$ROOT" "$DEV" "$PROFILE" "$OPENWRT" "$OWNER" "
 
 cd "$OPENWRT"
 echo "==== 更新并安装 feeds ===="
-./scripts/feeds update -a
-./scripts/feeds install -a
+# 输出压缩成事件：成功只留一行摘要 + feed 被忽略的警告（run#14 教训），失败才倒出错误行
+FEEDS_LOG="$PWD/.feeds.log"
+for step in update install; do
+    if ! ./scripts/feeds "$step" -a > "$FEEDS_LOG" 2>&1; then
+        echo "错误: feeds $step 失败:" >&2
+        grep -aE "error:|ERROR|fatal|Ignoring" "$FEEDS_LOG" | head -20 >&2
+        exit 1
+    fi
+done
+grep -aE "Ignoring feed" "$FEEDS_LOG" | head -10 || true
+rm -f "$FEEDS_LOG"
+echo "✅ feeds update/install 完成"
 
 echo "==== 运行公共定制脚本（feeds 就绪后）===="
 if [ -f "$ROOT/common/customize.sh" ]; then
@@ -53,7 +63,12 @@ fi
 rm -f .config.wanted
 
 echo "==== 下载源码包 ===="
-make download "-j$(nproc)"
+# 每个文件的 Downloading/Checking 行全部吞掉，只留失败信息（curl 错误、Download failed 不在这些前缀里）
+if ! make download "-j$(nproc)" 2>&1 | awk '{ if ($0 !~ /^(Downloading|Checking) /) { print; fflush() } }'; then
+    echo "错误: 源码包下载失败（见上方错误行）" >&2
+    exit 1
+fi
+echo "✅ 源码包下载完成"
 
 echo "==== 开始编译 ===="
 # 常规编译不带 V=s（全量 echo 命令会把日志撑到 200MB+，V=s 的价值只在定位失败）。
