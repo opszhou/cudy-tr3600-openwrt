@@ -22,6 +22,10 @@ CONFIG_PACKAGE_luci-app-nikki=y
 CONFIG_PACKAGE_luci-i18n-nikki-zh-cn=y
 # 单口多拨/虚拟网卡
 CONFIG_PACKAGE_kmod-macvlan=y
+# 多 WAN 负载均衡/故障切换（配合 macvlan 多拨或多个上行）
+CONFIG_PACKAGE_luci-app-mwan3=y
+CONFIG_PACKAGE_luci-i18n-mwan3-zh-cn=y
+CONFIG_PACKAGE_mwan3=y
 
 # ---- 第二梯队：远程访问与端口控制 ----
 # 动态DNS（ddns-go，kenzok8 源）
