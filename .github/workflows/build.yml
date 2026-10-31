@@ -159,6 +159,7 @@ jobs:
             openwrt/feeds.conf.default
           retention-days: 7
           if-no-files-found: ignore
+          include-hidden-files: true
 
       - name: 上传固件 Artifact
         uses: actions/upload-artifact@v6
