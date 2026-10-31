@@ -19,6 +19,11 @@ echo "==== 更新并安装 feeds ===="
 ./scripts/feeds update -a
 ./scripts/feeds install -a
 
+echo "==== 运行公共定制脚本（feeds 就绪后）===="
+if [ -f "$ROOT/common/customize.sh" ]; then
+    bash "$ROOT/common/customize.sh"
+fi
+
 echo "==== 生成最终 .config ===="
 make defconfig
 
