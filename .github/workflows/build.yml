@@ -134,7 +134,7 @@ jobs:
             openwrt "${{ env.UPSTREAM_OWNER }}" "${{ env.UPSTREAM_REPO }}" "${{ inputs.extra_prs }}"
 
       - name: 上传固件 Artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: openwrt-${{ matrix.device }}-${{ inputs.profile }}
           path: openwrt/bin/targets
