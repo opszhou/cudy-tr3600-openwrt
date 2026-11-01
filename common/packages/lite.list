@@ -59,6 +59,28 @@ CONFIG_PACKAGE_kmod-fs-vfat=y
 # 自动挂载 + LuCI 挂载点页（fstools 提供）
 CONFIG_PACKAGE_block-mount=y
 
+# ---- USB 网卡与 USB 转串口芯片（第二 WAN、串口调试/救砖；lite 与 ultimate 共用）----
+# 包名均已在容器内 defconfig 实测幸存（OpenWrt main），非臆测。
+# 注意：这些都是芯片级驱动，插上对应设备才会加载，日常不影响启动。
+# RTL8152/8153/8156 —— 最常见的 1G/2.5G USB 网卡（绿联、山泽等绝大多数成品）
+CONFIG_PACKAGE_kmod-usb-net-rtl8152=y
+# RTL8150 —— 老式百兆 USB 网卡（少量存量设备）
+CONFIG_PACKAGE_kmod-usb-net-rtl8150=y
+# ASIX AX88172/88772 —— 百兆/千兆 USB 网卡（较老但常见）
+CONFIG_PACKAGE_kmod-usb-net-asix=y
+# ASIX AX88179/88179A —— 2.5G/千兆 USB 网卡
+CONFIG_PACKAGE_kmod-usb-net-asix-ax88179=y
+# CDC-EEM —— 部分 4G/5G 模块与手机共享网络走这个协议
+CONFIG_PACKAGE_kmod-usb-net-cdc-eem=y
+# CH340/CH341 —— ESP32/Arduino/路由器救砖线最常用
+CONFIG_PACKAGE_kmod-usb-serial-ch341=y
+# CP210x —— CP2102/CP2104（ESP32 开发板标配）
+CONFIG_PACKAGE_kmod-usb-serial-cp210x=y
+# PL2303 —— 老牌 USB 转串口线
+CONFIG_PACKAGE_kmod-usb-serial-pl2303=y
+# FTDI FT232 —— 工业/调试用 USB 转串口
+CONFIG_PACKAGE_kmod-usb-serial-ftdi=y
+
 # ---- 网络质量、监控与维护 ----
 CONFIG_PACKAGE_luci-app-sqm=y
 CONFIG_PACKAGE_luci-i18n-sqm-zh-cn=y
