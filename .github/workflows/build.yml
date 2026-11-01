@@ -82,11 +82,27 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.matrix.outputs.jobs) }}
     steps:
+      - name: 评估根分区空间（决定是否需要 LVM 扩容）
+        id: space
+        run: |
+          sudo df -h / /mnt 2>/dev/null || sudo df -h /
+          FREE_GB=$(df --block-size=1G --output=avail / | tail -1 | tr -d ' ')
+          echo "根分区可用: ${FREE_GB}G"
+          if [ "${FREE_GB:-0}" -ge 40 ]; then
+            echo "enough=true" >> "$GITHUB_OUTPUT"
+            echo "→ 根分区空间充足（≥40G），跳过 LVM 扩容（新镜像 /mnt 与 / 同盘，扩容反而会把根写满）"
+          else
+            echo "enough=false" >> "$GITHUB_OUTPUT"
+            echo "→ 根分区不足，启用 LVM 扩容"
+          fi
+
       - name: 挂载大空间构建目录
+        if: steps.space.outputs.enough == 'false'
         uses: easimon/maximize-build-space@master
         with:
-          # 根分区须容得下：runner 本体+diag 日志+apt 安装（ubuntu-latest 已迁移 Ubuntu 26，
-          # 新镜像布局更大；run#15 lite job 曾因 8GB 预留被写爆、runner No space left 暴毙）
+          # 仅在根分区偏小（旧镜像，如 24.04 的 14G 根）时启用。
+          # 注意：新镜像 /mnt 与 / 同盘，此时该动作会把两个 loop 文件都写到根分区，
+          # 反而写满根分区（见 run#24）——所以上面先判断空间，够用就跳过。
           root-reserve-mb: 14336
           swap-size-mb: 1024
           remove-dotnet: "true"
