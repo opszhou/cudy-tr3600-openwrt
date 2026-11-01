@@ -120,12 +120,20 @@ echo "==== 开始编译 ===="
 PROG="$PWD/.build-progress.log"
 T0=$(date +%s)
 : > "$PROG"
-# 进度分母：defconfig 后的 =y 包符号数（近似总包数，含少量虚拟符号）
-TOTAL=$(grep -cE '^CONFIG_PACKAGE_.+=y' .config 2>/dev/null || echo 0)
+# 进度分母：defconfig 后的真实包符号数（排除 PACKAGE_x_INCLUDE_y 这类子选项，否则分母虚高）
+TOTAL=$(awk '/^CONFIG_PACKAGE_.+=y/ && !/_INCLUDE_/' .config 2>/dev/null | wc -l | tr -d ' ')
+: "${TOTAL:=0}"
 (
     while sleep "${HEARTBEAT_SEC:-600}"; do
-        # 已出现的唯一包名数（▶ 前缀事件行），答「还剩多少包」用
-        done_pkgs=$(awk -F'：' '/^▶ /{print $1}' "$PROG" 2>/dev/null | sort -u | wc -l | tr -d ' ')
+        # 已编包数：优先数翻译后的「▶ 包：动作」事件；翻译器未生效时退回原始
+        # 「make[N] -C <路径> <目标>」行，两种格式都能计数，且排除工具链/内核等非包目标。
+        done_pkgs=$(awk '
+            /^▶ / { n=$0; sub(/^▶ /,"",n); sub(/：.*/,"",n);
+                    if (n !~ /^(tools|toolchain|linux|target)(\/|$)/) print n; next }
+            /^make\[[0-9]+\] -C (package|feeds)\// {
+                    l=$0; sub(/^make\[[0-9]+\] -C /,"",l); split(l,a," ");
+                    if (l ~ /compile|install/) print a[1] }
+        ' "$PROG" 2>/dev/null | sort -u | wc -l | tr -d ' ')
         last=$(tail -n 1 "$PROG" 2>/dev/null || true)
         echo "[心跳 $(date '+%H:%M:%S')] 已编 ${done_pkgs}/${TOTAL} 个包，已进行 $(( ($(date +%s) - T0) / 60 )) 分钟，最近事件: ${last:-（暂无输出）}"
     done
