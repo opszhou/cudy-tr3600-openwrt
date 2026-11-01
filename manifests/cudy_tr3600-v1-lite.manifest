@@ -1,7 +1,7 @@
 acme-acmesh - 3.1.4-r2
 acme-common - 1.5.3
 apk-mbedtls - 3.0.5-r4
-base-files - 1719~5799d2da76
+base-files - 1719~382a2109c8
 bc - 1.08.2-r2
 block-mount - 2026.10.18~907cf449-r1
 busybox - 1.38.0-r3
@@ -23,7 +23,7 @@ flock - 2.42.2-r1
 fstools - 2026.10.18~907cf449-r1
 fwtool - 2025.10.03~04cd252e-r1
 getrandom - 2025.10.30~6f78fa49-r1
-hostapd-common - 2026.08.07~831364bf-r4
+hostapd-common - 2026.08.07~831364bf-r5
 htop - 3.5.3-r1
 ip-full - 7.3.0-r1
 iw - 6.17-r1
@@ -308,7 +308,7 @@ usign - 2025.10.03~c4c72b1b-r1
 wget-ssl - 1.25.0-r5
 wifi-scripts - 1.0-r4
 wireless-regdb - 2026.09.03-r1
-wpad-mesh-openssl - 2026.08.07~831364bf-r4
+wpad-mesh-openssl - 2026.08.07~831364bf-r5
 xxd - 2026.06.16-r1
 yq - 4.54.1-r1
 zlib - 2.3.3-r2
