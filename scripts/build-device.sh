@@ -92,7 +92,9 @@ T0=$(date +%s)
 ) &
 HB_PID=$!
 trap 'kill "$HB_PID" 2>/dev/null || true; rm -f "$PROG"' EXIT
-if ! make "-j$(nproc)" 2>&1 | awk -f "$ROOT/scripts/translate-make.awk" | tee "$PROG"; then
+# stdbuf -oL：make 的输出接管道时是块缓冲（4KB），事件要攒够一块才出现，
+# 造成日志看起来「卡在某个包上不动」。强制行缓冲后进度实时可见。
+if ! stdbuf -oL -eL make "-j$(nproc)" 2>&1 | awk -f "$ROOT/scripts/translate-make.awk" | tee "$PROG"; then
     echo "并行编译失败，改用单线程 verbose 重试以定位错误..."
     make -j1 V=s
 fi
