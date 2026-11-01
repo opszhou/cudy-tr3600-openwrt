@@ -36,9 +36,9 @@ on:
         type: boolean
         default: false
       create_release:
-        description: "编译成功后创建 Release"
+        description: "编译成功后创建 Release（默认开启，发布裸固件 + 校验和 + 文本元数据）"
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: write
@@ -272,15 +272,38 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ matrix.device }}-${{ matrix.profile }}-snapshot-${{ github.run_number }}"
+          # 只发裸文件（不打包压缩）：固件本体 + 校验和 + 文本元数据。
+          # 不发 packages/*.apk —— 几百个包文件，刷机用户用不上。
           FILES=$(find openwrt/bin/targets -type f \
-            ! -path "*/packages/*" ! -name "*.json" ! -name "*.manifest" \
-            \( -name "*.bin" -o -name "*.itb" -o -name "*.img" -o -name "*.sha256sums" \))
+            ! -path "*/packages/*" \
+            \( -name "*.bin" -o -name "*.itb" -o -name "*.img" \
+               -o -name "sha256sums" -o -name "*.manifest" \
+               -o -name "*.buildinfo" \) | sort)
+          [ -n "$FILES" ] || { echo "未找到可发布文件" >&2; exit 1; }
           echo "发布文件:"; echo "$FILES"
-          NOTES="设备: ${{ matrix.device }}"
-          NOTES="$NOTES
-          包组合: ${{ matrix.profile }}
-          上游: ${{ env.UPSTREAM_OWNER }}/${{ env.UPSTREAM_REPO }} @ ${{ env.DEV_BRANCH }}
-          构建号: ${{ github.run_id }}"
+
+          MF=$(find openwrt/bin/targets -name "*.manifest" | head -n1)
+          PKGCOUNT=$( [ -n "$MF" ] && grep -c . "$MF" || echo "未知" )
+          SYS=$(echo "$FILES" | grep -m1 "sysupgrade.bin" || true)
+
+          NOTES=$(cat <<EOF
+          **设备**：${{ matrix.device }}　**组合**：${{ matrix.profile }}　**构建号**：#${{ github.run_number }}
+          **上游**：${{ env.UPSTREAM_OWNER }}/${{ env.UPSTREAM_REPO }} @ ${{ env.DEV_BRANCH }}　**提交**：\`${GITHUB_SHA:0:8}\`
+          **包数量**：${PKGCOUNT}　**主固件**：\`$(basename "${SYS:-无}")\`
+
+          ### 刷机步骤（务必按顺序）
+          1. 原厂固件 → 先刷 Cudy 官方**中间固件**（见 Cudy 下载页说明），不要直接刷 OpenWrt
+          2. 进入 OpenWrt 后，用「系统 → 备份/升级」刷入上面的 \`*sysupgrade.bin\`
+          3. 回车键式恢复：把 \`*initramfs-kernel.bin\` 放 U 盘，刷坏时可引导进内存系统抢救
+
+          ### 校验
+          \`sha256sum -c sha256sums\`（先下载同一行的校验文件）
+
+          ### ⚠️ 声明
+          本项目为个人自用构建，**未做系统性真机验证**，仅适配 Cudy TR3600 v1。刷机有变砖风险，自担后果。
+          包清单见 \`.manifest\`（纯文本，可核对版本）；构建配置见 \`config.buildinfo\`。
+          EOF
+          )
           gh release create "$TAG" $FILES \
-            --title "${{ matrix.device }} (${{ matrix.profile }}) snapshot build ${{ github.run_number }}" \
-            --notes "$NOTES"
+            --title "${{ matrix.device }} (${{ matrix.profile }}) · build #${{ github.run_number }}" \
+            --notes "$NOTES" --latest=false
