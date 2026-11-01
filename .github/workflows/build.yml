@@ -300,6 +300,8 @@ jobs:
       - name: 汇总发布（lite + ultimate 同页）
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 本 job 没有 checkout，gh 无法从 .git 推断仓库，必须显式指定（run#27 因此失败）
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           RUN="${{ github.run_number }}"
