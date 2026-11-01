@@ -291,79 +291,20 @@ jobs:
     if: ${{ inputs.create_release && success() }}
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
+
       - name: 下载全部固件 artifact
         uses: actions/download-artifact@v5
         with:
           pattern: openwrt-*-snapshot
           path: fw
 
+      # 发布逻辑集中在 scripts/publish-release.sh，release.yml 手动补发复用同一份
       - name: 汇总发布（lite + ultimate 同页）
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 本 job 没有 checkout，gh 无法从 .git 推断仓库，必须显式指定（run#27 因此失败）
+          # 显式给仓库：gh 在缺少 .git 时推断不出仓库（run#27 因此失败）
           GH_REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          RUN="${{ github.run_number }}"
-          TAG="snapshot-$(date -u +%Y%m%d)-r${RUN}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            TAG="${TAG}-a${{ github.run_attempt }}"   # 重跑同一 run 时不撞已有标签
-          fi
-          mkdir -p assets
-          NOTES=$(mktemp)
-          {
-            echo "本页是**同一次构建（run #${RUN}）的全部固件**：lite 与 ultimate 都在这里，资产以组合名作前缀。"
-            echo
-            echo "| 组合 | 设备 | 主固件 | 包数量 |"
-            echo "| --- | --- | --- | --- |"
-          } > "$NOTES"
-
-          for d in fw/*/; do
-            A=$(basename "$d")                         # openwrt-<device>-<profile>-snapshot
-            X=${A#openwrt-}; X=${X%-snapshot}
-            PROF=${X##*-}; DEV=${X%-*}
-            while IFS= read -r f; do
-              cp -f "$f" "assets/${PROF}-$(basename "$f")"
-            done < <(find "$d" -type f ! -path "*/packages/*" \
-                       \( -name 'openwrt-*.bin' -o -name 'openwrt-*.itb' -o -name 'openwrt-*.img' \
-                          -o -name 'openwrt-*.manifest' -o -name '*.buildinfo' \) | sort)
-            SYS=$(find "$d" -name 'openwrt-*-sysupgrade.bin' -printf '%f\n' 2>/dev/null | head -n1)
-            MF=$(find "$d" -name 'openwrt-*.manifest' | head -n1)
-            PKG=$( [ -n "$MF" ] && grep -c . "$MF" || echo "?" )
-            echo "| ${PROF} | ${DEV} | \`${PROF}-${SYS:-无}\` | ${PKG} |" >> "$NOTES"
-          done
-
-          ( cd assets && sha256sum * > sha256sums )
-
-          cat >> "$NOTES" <<'MD'
-
-          ### 两个组合怎么选
-          - **lite**：精简实用——路由本职 + 常用网络工具 + 中文界面 + QModem 蜂窝支持
-          - **ultimate**：全能——额外含 docker、各类插件与诊断工具，体积更大、开机更慢
-
-          ### 刷机步骤（务必按顺序）
-          1. 原厂固件 → 先刷 Cudy 官方**中间固件**（见 Cudy 下载页说明），**不要**直接刷 OpenWrt
-          2. 进入 OpenWrt 后，用「系统 → 备份/升级」刷入 `<组合>-openwrt-…-sysupgrade.bin`
-          3. 救砖：`<组合>-openwrt-…-initramfs-kernel.bin` 可引导进内存系统抢救
-
-          ### 校验
-          ```
-          sha256sum -c sha256sums
-          ```
-
-          ### 包含内容
-          - `*-sysupgrade.bin`：主固件（OpenWrt 内升级/刷机）
-          - `*-initramfs-kernel.bin`：救砖 / 内存调试
-          - `*.manifest`：包清单（纯文本，精确到每个包的版本）
-          - `*.buildinfo`：构建配置与 feed 版本（可复现）
-          - 不提供压缩包，也不提供 `packages/*.apk`
-
-          ### ⚠️ 声明
-          本项目为**个人自用构建**，未经系统性真机验证，仅适配 Cudy TR3600 v1。刷机有变砖风险，后果自担。
-          MD
-
-          echo "== 待发布资产 ==" ; ls -lh assets
-          gh release create "$TAG" assets/* \
-            --title "快照 ${RUN} · $(date -u +%Y-%m-%d)" \
-            --notes-file "$NOTES" --latest
-          echo "已发布: https://github.com/${{ github.repository }}/releases/tag/$TAG"
+          RUN: ${{ github.run_number }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: bash scripts/publish-release.sh

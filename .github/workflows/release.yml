@@ -1,0 +1,82 @@
+name: "📦 发布固件 (Publish Release)"
+
+# 只做「把已编好的固件发到 Release」这一件事，不编译。
+# 用途：① 构建后自动发布失败时补发；② 重发历史 run 的固件；③ 调标签/说明后重发。
+# 与 build.yml 共用 scripts/publish-release.sh，逻辑只有一处。
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "要发布的构建 run_id（留空=最近一次编译成功的 build run）"
+        required: false
+        default: ""
+      tag_date:
+        description: "标签日期 YYYYMMDD（留空=取该 run 的创建日期）"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: 解析目标 run
+        id: target
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          RID="${{ inputs.run_id }}"
+          if [ -z "$RID" ]; then
+            RID=$(gh run list --workflow build.yml --status success --limit 1 \
+                    --json databaseId --jq '.[0].databaseId')
+          fi
+          if [ -z "$RID" ] || [ "$RID" = "null" ]; then
+            echo "找不到可发布的 run（可显式传 run_id）"; exit 1
+          fi
+          gh run view "$RID" --json databaseId,runNumber,createdAt,conclusion,headSha \
+            --jq '"run_number=\(.runNumber)","created=\(.createdAt)","conclusion=\(.conclusion)","sha=\(.headSha)"' \
+            >> "$GITHUB_OUTPUT"
+          echo "run_id=$RID" >> "$GITHUB_OUTPUT"
+          echo "目标 run: #$(gh run view "$RID" --json runNumber --jq .runNumber) ($RID)"
+
+      - name: 下载该 run 的固件 artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RID: ${{ steps.target.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p fw
+          gh run download "$RID" -p 'openwrt-*-snapshot' -D fw
+          echo "== 下载到的 artifact =="
+          find fw -mindepth 1 -maxdepth 1 -type d | sort
+
+      - name: 汇总发布（lite + ultimate 同页）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN: ${{ steps.target.outputs.run_number }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          IN_TAG_DATE: ${{ inputs.tag_date }}
+          RUN_CREATED: ${{ steps.target.outputs.created }}
+        run: |
+          set -euo pipefail
+          if [ -n "$IN_TAG_DATE" ]; then
+            export TAG_DATE="$IN_TAG_DATE"
+          else
+            export TAG_DATE=$(date -u -d "$RUN_CREATED" +%Y%m%d)
+          fi
+          echo "标签日期: $TAG_DATE"
+          bash scripts/publish-release.sh
