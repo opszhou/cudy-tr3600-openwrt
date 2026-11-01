@@ -21,6 +21,22 @@ cd "$(dirname "$0")/.."
 
 [ -d "$FW_DIR" ] || { echo "找不到 artifact 目录 $FW_DIR"; exit 1; }
 
+# 资产命名：组合名紧跟设备名（openwrt-…-cudy_tr3600-v1-lite-squashfs-sysupgrade.bin）；
+# 文件名里没有设备名时（如 config.buildinfo），把组合名插在扩展名之前。
+asset_name() { # $1=原文件名 $2=设备 $3=组合
+  local b="$1" dev="$2" prof="$3" stem ext
+  if [[ "$b" == *"-$dev"* ]]; then
+    printf '%s' "${b/"-$dev"/"-${dev}-${prof}"}"
+    return
+  fi
+  if [[ "$b" == *.* ]]; then
+    stem="${b%.*}"; ext=".${b##*.}"
+  else
+    stem="$b"; ext=""
+  fi
+  printf '%s' "${stem}-${prof}${ext}"
+}
+
 TAG="snapshot-${TAG_DATE}-r${RUN}"
 if gh release view "$TAG" >/dev/null 2>&1; then
   TAG="${TAG}-a${RUN_ATTEMPT}"   # 重跑同一 run 时不撞已有标签
@@ -29,7 +45,7 @@ fi
 rm -rf assets && mkdir -p assets
 NOTES=$(mktemp)
 {
-  echo "本页是**同一次构建（run #${RUN}）的全部固件**：lite 与 ultimate 都在这里，资产以组合名作前缀。"
+  echo "本页是**同一次构建（run #${RUN}）的全部固件**：lite 与 ultimate 都在这里，资产名里的组合名紧跟设备名（如 openwrt-…-cudy_tr3600-v1-lite-squashfs-sysupgrade.bin）。"
   echo
   echo "| 组合 | 设备 | 主固件 | 包数量 |"
   echo "| --- | --- | --- | --- |"
@@ -43,14 +59,15 @@ for d in "$FW_DIR"/*/; do
   X=${A#openwrt-}; X=${X%-snapshot}
   PROF=${X##*-}; DEV=${X%-*}
   while IFS= read -r f; do
-    cp -f "$f" "assets/${PROF}-$(basename "$f")"
+    cp -f "$f" "assets/$(asset_name "$(basename "$f")" "$DEV" "$PROF")"
   done < <(find "$d" -type f ! -path "*/packages/*" \
              \( -name 'openwrt-*.bin' -o -name 'openwrt-*.itb' -o -name 'openwrt-*.img' \
                 -o -name 'openwrt-*.manifest' -o -name '*.buildinfo' \) | sort)
   SYS=$(find "$d" -name 'openwrt-*-sysupgrade.bin' -printf '%f\n' 2>/dev/null | head -n1)
   MF=$(find "$d" -name 'openwrt-*.manifest' | head -n1)
   PKG=$( { [ -n "$MF" ] && grep -c . "$MF"; } || echo "?" )
-  echo "| ${PROF} | ${DEV} | \`${PROF}-${SYS:-无}\` | ${PKG} |" >> "$NOTES"
+  SYS_N=$( [ -n "$SYS" ] && asset_name "$SYS" "$DEV" "$PROF" )
+  echo "| ${PROF} | ${DEV} | \`${SYS_N:-无}\` | ${PKG} |" >> "$NOTES"
   found=$((found + 1))
 done
 
@@ -69,8 +86,8 @@ cat >> "$NOTES" <<'MD'
 
 ### 刷机步骤（务必按顺序）
 1. 原厂固件 → 先刷 Cudy 官方**中间固件**（见 Cudy 下载页说明），**不要**直接刷 OpenWrt
-2. 进入 OpenWrt 后，用「系统 → 备份/升级」刷入 `<组合>-openwrt-…-sysupgrade.bin`
-3. 救砖：`<组合>-openwrt-…-initramfs-kernel.bin` 可引导进内存系统抢救
+2. 进入 OpenWrt 后，用「系统 → 备份/升级」刷入 `openwrt-…-<组合>-sysupgrade.bin`
+3. 救砖：`openwrt-…-<组合>-initramfs-kernel.bin` 可引导进内存系统抢救
 
 ### 校验
 ```
