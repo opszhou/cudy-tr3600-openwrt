@@ -43,7 +43,8 @@ fi
 echo "==== 生成最终 .config ===="
 # defconfig 前快照审计基准：种子 + 包清单里的全部 CONFIG_*=y 必选项
 cp .config .config.wanted
-make defconfig
+DEFCONFIG_LOG="$PWD/.defconfig.log"
+make defconfig 2>&1 | tee "$DEFCONFIG_LOG"
 
 echo "==== 必选项审计（=y 项必须全部幸存，防止被 defconfig 静默丢弃）===="
 missing=0
@@ -67,6 +68,41 @@ if [ "$missing" -ne 0 ]; then
     exit 1
 fi
 rm -f .config.wanted
+
+echo "==== 依赖缺失交叉检查（提示性，不阻断）===="
+# defconfig 会为所有 feed 的所有包打印「依赖不存在」警告，绝大多数与我们无关。
+# 这里只挑出「包本身被选中」的那些——它们会拖到 package/install 才炸
+# （如 luci-app-netspeedtest 依赖已消失的 python3-pkg-resources、turboacc 依赖 kmod-nft-fullcone）。
+# 条件依赖会造成误报，故只提示不 fail。
+if command -v python3 >/dev/null 2>&1 && [ -s "$DEFCONFIG_LOG" ]; then
+    python3 - "$DEFCONFIG_LOG" .config <<'PY'
+import re, sys
+log, cfg = sys.argv[1], sys.argv[2]
+sel = set()
+with open(cfg, encoding='utf-8', errors='ignore') as f:
+    for line in f:
+        m = re.match(r'^CONFIG_PACKAGE_([A-Za-z0-9_.+-]+)=y$', line.strip())
+        if m:
+            sel.add(m.group(1))
+risky = {}
+with open(log, encoding='utf-8', errors='ignore') as f:
+    for line in f:
+        m = re.search(r"WARNING: Makefile '([^']+)/Makefile' has a dependency on '([^']+)', which does not exist", line)
+        if not m:
+            continue
+        path, dep = m.group(1), m.group(2)
+        pkg = path.rsplit('/', 1)[-1]
+        if pkg in sel:
+            risky.setdefault(pkg, set()).add(dep)
+if risky:
+    print("⚠ 已选中的包存在「依赖不存在」，装 rootfs 阶段可能失败（条件依赖可忽略）：")
+    for pkg in sorted(risky):
+        print("  %-34s ← %s" % (pkg, ", ".join(sorted(risky[pkg]))))
+else:
+    print("✓ 已选中的包未发现缺失依赖")
+PY
+fi
+rm -f "$DEFCONFIG_LOG"
 
 echo "==== 下载源码包 ===="
 # 每个文件的 Downloading/Checking 行全部吞掉，只留失败信息（curl 错误、Download failed 不在这些前缀里）
