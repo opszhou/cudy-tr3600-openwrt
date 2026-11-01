@@ -1,0 +1,14 @@
+#!/bin/sh
+# 清理 apk 仓库列表：第三方 feed（kenzok8 / small / nikki / qmodem / turboacc / netspeedtest）
+# 的包只在构建期存在，官方 CDN 上没有对应的 .adb，保留会让每次 apk update 刷一屏
+# "unexpected end of file"。官方 feed（base/luci/packages/routing/telephony/video）保留。
+# uci-defaults 语义：首次开机执行一次后自删。
+F=/etc/apk/repositories.d/distfeeds.list
+[ -f "$F" ] || exit 0
+TMP="$F.new"
+if grep -vE '/(kenzok8|small|nikki|qmodem|turboacc|netspeedtest)/' "$F" > "$TMP" && [ -s "$TMP" ]; then
+	mv "$TMP" "$F"
+else
+	rm -f "$TMP"
+fi
+exit 0
