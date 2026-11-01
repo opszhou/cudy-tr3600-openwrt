@@ -1,5 +1,5 @@
 #!/bin/sh
-# 通用默认配置预设（lite/ultimate 共用：LAN IP、UPnP 安全模式、定时重启、BBR、5G SSID 后缀）
+# 通用默认配置预设（lite/ultimate 共用：LAN IP、UPnP 安全模式、定时重启、BBR、WiFi7 模式与带宽、5G SSID 后缀）
 # （uci-defaults，首次开机执行一次；WED 关闭在 /etc/modules.conf，模块参数层面固化）
 
 # 测试钩子（scripts/test-router-presets.sh 用；默认值与生产行为完全一致）
@@ -30,6 +30,17 @@ crontab "$CRON_TMP" && rm -f "$CRON_TMP"
 if [ -d "$BBR_DIR" ]; then
 	echo "net.ipv4.tcp_congestion_control=bbr" >> "$SYSCTL_CONF"
 fi
+
+# ---- 无线默认协商 802.11be（WiFi 7 / EHT），按频段给合理带宽 ----
+# 板载 MT7990 支持 WiFi 7；带宽不是越大越好：
+#   2.4G 用 20MHz（开宽只增加同频干扰）、5G 用 80MHz（160 干扰大且国内需 DFS）、6G 用 160MHz
+for dev in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p'); do
+	case "$(uci -q get wireless.$dev.band)" in
+		2g) uci -q set wireless.$dev.htmode='EHT20' ;;
+		5g) uci -q set wireless.$dev.htmode='EHT80' ;;
+		6g) uci -q set wireless.$dev.htmode='EHT160' ;;
+	esac
+done
 
 # ---- 5G SSID 自动加 _5G 后缀（区分双频，规避同名漫游到错误频段）----
 for dev in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p'); do
