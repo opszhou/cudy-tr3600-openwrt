@@ -1,10 +1,11 @@
 # 把 OpenWrt make 静默模式的进度行翻译成事件行，其余行（警告/错误）原样透传，纯噪音吞掉。
-# 用法: make ... 2>&1 | awk -f scripts/translate-make.awk
+# 用法: stdbuf -oL make ... 2>&1 | awk -f scripts/translate-make.awk
 # 识别的两种真实格式：
 #   make[3] -C feeds/packages/net/nginx compile              ← 每包构建的主格式（无冒号）
 #   make[3] -C feeds/packages/net/nginx { clean compile }    ← 展开的目标列表
 #   make[3]: package/feeds/packages/nginx/compile            ← 冒号形式（Entering/Leaving 等）
-# 输出: ▶ nginx：编译
+# 输出保留来源，便于定位包出自哪个 feed：
+#   ▶ luci/luci-app-firewall：编译     ▶ kernel/mt76：编译     ▶ nikki：编译
 
 function tr(a) {
     if (a == "compile")   return "编译"
@@ -17,11 +18,18 @@ function tr(a) {
     return ""
 }
 
-function pkgname(path,   i, p) {
-    p = 0
-    for (i = length(path); i > 0; i--)
-        if (substr(path, i, 1) == "/") { p = i; break }
-    return (p > 0) ? substr(path, p + 1) : path
+# "feeds/luci/applications/luci-app-firewall" -> "luci/luci-app-firewall"
+# "feeds/nikki/nikki"                        -> "nikki"
+# "package/kernel/mt76"                      -> "kernel/mt76"
+# "tools/upx"                                -> "tools/upx"
+function shortname(path,   n, seg, first, last) {
+    n = split(path, seg, "/")
+    if (n == 0) return path
+    last = seg[n]
+    if (seg[1] == "feeds" && n >= 2) first = seg[2]
+    else if (seg[1] == "package" && n >= 2) first = seg[2]
+    else first = seg[1]
+    return (first == last) ? last : first "/" last
 }
 
 # 把 "compile" 或 "{ clean compile }" 这类目标串转成中文动作串
@@ -47,7 +55,7 @@ function actions(tgt,   n, acts, j, t, out, known) {
             path = substr(rest, 1, sp - 1)
             tgt  = substr(rest, sp + 1)
             out  = actions(tgt)
-            if (out != "") { printf "▶ %s：%s\n", pkgname(path), out; fflush() }
+            if (out != "") { printf "▶ %s：%s\n", shortname(path), out; fflush() }
         }
         next
     }
@@ -59,9 +67,8 @@ function actions(tgt,   n, acts, j, t, out, known) {
         for (i = length(tgt); i > 0; i--)
             if (substr(tgt, i, 1) == "/") { pos = i; break }
         if (pos > 0) {
-            path = substr(tgt, 1, pos - 1)
-            out  = actions(substr(tgt, pos + 1))
-            if (out != "") { printf "▶ %s：%s\n", pkgname(path), out; fflush() }
+            out = actions(substr(tgt, pos + 1))
+            if (out != "") { printf "▶ %s：%s\n", shortname(substr(tgt, 1, pos - 1)), out; fflush() }
         }
         next
     }
