@@ -273,13 +273,19 @@ jobs:
         run: |
           TAG="${{ matrix.device }}-${{ matrix.profile }}-snapshot-${{ github.run_number }}"
           # 只发裸文件（不打包压缩）：固件本体 + 校验和 + 文本元数据。
-          # 不发 packages/*.apk —— 几百个包文件，刷机用户用不上。
+          # 只取 openwrt-* 本体：同一目录里还有 mt7981/mt7986/mt7988 等其他 SoC 的 bl2.bin，与本设备无关。
           FILES=$(find openwrt/bin/targets -type f \
             ! -path "*/packages/*" \
-            \( -name "*.bin" -o -name "*.itb" -o -name "*.img" \
-               -o -name "sha256sums" -o -name "*.manifest" \
-               -o -name "*.buildinfo" \) | sort)
+            \( -name "openwrt-*.bin" -o -name "openwrt-*.itb" -o -name "openwrt-*.img" \
+               -o -name "*.manifest" -o -name "*.buildinfo" \) | sort)
           [ -n "$FILES" ] || { echo "未找到可发布文件" >&2; exit 1; }
+          # 重建 sha256sums：原版覆盖了未发布的 bl2 等文件，用户执行 sha256sum -c 会报缺失
+          FWDIR=$(echo "$FILES" | head -n1 | xargs dirname)
+          IMGS=$(echo "$FILES" | grep -E 'openwrt-.*\.(bin|itb|img)$' || true)
+          if [ -n "$IMGS" ]; then
+            ( cd "$FWDIR" && sha256sum $(echo "$IMGS" | xargs -n1 basename) > sha256sums )
+            FILES=$(printf '%s\n%s\n' "$FILES" "$FWDIR/sha256sums" | sort -u)
+          fi
           echo "发布文件:"; echo "$FILES"
 
           MF=$(find openwrt/bin/targets -name "*.manifest" | head -n1)
