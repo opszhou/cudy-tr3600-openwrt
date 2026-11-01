@@ -1,0 +1,14 @@
+#!/bin/sh
+# 保证 LuCI(uhttpd) 独占 80 端口。
+# 背景：WebDAV 用的 lighttpd 在 OpenWrt 里默认就是 server.port = 80 + document-root = /www，
+# 与 uhttpd 直接撞车。谁先起谁占 80，另一个 bind() 失败（日志 "bind(): Address in use"），
+# 浏览器打到 lighttpd 上就得到 403。首启把它挪到 8080，WebDAV 走 8080 端口。
+# uci-defaults 语义：首次开机执行一次后自删。
+CFG=/etc/lighttpd/lighttpd.conf
+if [ -f "$CFG" ] && grep -qE '^[[:space:]]*server\.port[[:space:]]*=[[:space:]]*80[[:space:]]*$' "$CFG"; then
+	sed -i 's/^[[:space:]]*server\.port[[:space:]]*=.*/server.port = 8080/' "$CFG"
+fi
+# 顺序兜底：先确保 uhttpd 拿到 80，再拉起 lighttpd
+/etc/init.d/uhttpd restart 2>/dev/null || true
+[ -x /etc/init.d/lighttpd ] && /etc/init.d/lighttpd restart 2>/dev/null || true
+exit 0
