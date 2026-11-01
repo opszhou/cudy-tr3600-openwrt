@@ -12,7 +12,7 @@ set -euo pipefail
 
 : "${GH_TOKEN:?需要 GH_TOKEN}"
 : "${GH_REPO:?需要 GH_REPO (owner/repo)}"
-: "${RUN:?需要 RUN (run number)}"
+RUN=${RUN:-0}   # 仅用于极端情况下的标签去重，不再进标签
 RUN_ATTEMPT=${RUN_ATTEMPT:-1}
 FW_DIR=${FW_DIR:-fw}
 TAG_DATE=${TAG_DATE:-$(date -u +%Y%m%d)}
@@ -37,15 +37,28 @@ asset_name() { # $1=原文件名 $2=设备 $3=组合
   printf '%s' "${stem}-${prof}${ext}"
 }
 
-TAG="snapshot-${TAG_DATE}-r${RUN}"
+# 版本标识取 OpenWrt 自己的 version.buildinfo（形如 r37983-382a2109c8），
+# 它比 CI 的 run 号更有意义：一眼看出这份固件基于哪个上游 revision。
+VER=""
+for f in "$FW_DIR"/*/version.buildinfo; do
+  [ -f "$f" ] || continue
+  VER=$(head -n1 "$f" | tr -d '[:space:]')
+  [ -n "$VER" ] && break
+done
+VER=${VER:-unknown}
+
+TAG="openwrt-${VER}"
 if gh release view "$TAG" >/dev/null 2>&1; then
-  TAG="${TAG}-a${RUN_ATTEMPT}"   # 重跑同一 run 时不撞已有标签
+  TAG="openwrt-${VER}-${TAG_DATE}"          # 同一 revision 二次构建：补日期
+fi
+if gh release view "$TAG" >/dev/null 2>&1; then
+  TAG="openwrt-${VER}-${TAG_DATE}-a${RUN_ATTEMPT}"   # 再撞：补尝试号
 fi
 
 rm -rf assets && mkdir -p assets
 NOTES=$(mktemp)
 {
-  echo "本页是**同一次构建（run #${RUN}）的全部固件**：lite 与 ultimate 都在这里，资产名里的组合名紧跟设备名（如 openwrt-…-cudy_tr3600-v1-lite-squashfs-sysupgrade.bin）。"
+  echo "本页是**同一次构建的全部固件**（OpenWrt \`${VER}\`，${TAG_DATE}）：lite 与 ultimate 都在这里，资产名里的组合名紧跟设备名（如 openwrt-…-cudy_tr3600-v1-lite-squashfs-sysupgrade.bin）。"
   echo
   echo "| 组合 | 设备 | 主固件 | 包数量 |"
   echo "| --- | --- | --- | --- |"
@@ -81,8 +94,8 @@ fi
 cat >> "$NOTES" <<'MD'
 
 ### 两个组合怎么选
-- **lite**：精简实用——路由本职 + 常用网络工具 + 中文界面 + QModem 蜂窝支持
-- **ultimate**：全能——额外含 docker、各类插件与诊断工具，体积更大、开机更慢
+- **lite**：路由本职 + 常用网络工具 + 中文界面 + QModem 蜂窝支持
+- **ultimate**：lite 全部再加——网页终端 ttyd、filebrowser 网页文件管理、collectd 实时监控图表、travelmate 中继、tailscale 异地组网、macvlan 多拨与 tun/tproxy 内核模块
 
 ### 刷机步骤（务必按顺序）
 1. 原厂固件 → 先刷 Cudy 官方**中间固件**（见 Cudy 下载页说明），**不要**直接刷 OpenWrt
@@ -111,6 +124,6 @@ ls -lh assets
 # 标题全 ASCII（用户要求不出现中文）：snapshot <run号> (<日期>)
 TAG_ISO=$(printf '%s' "$TAG_DATE" | sed 's/^\(....\)\(..\)\(..\)$/\1-\2-\3/')
 gh release create "$TAG" assets/* \
-  --title "snapshot ${RUN} (${TAG_ISO})" \
+  --title "OpenWrt ${VER} (${TAG_ISO})" \
   --notes-file "$NOTES" --latest
 echo "已发布: https://github.com/${GH_REPO}/releases/tag/${TAG}"
