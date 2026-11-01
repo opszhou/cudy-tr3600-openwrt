@@ -88,7 +88,7 @@ case "$PROFILE" in
         cat "$ROOT/common/packages/lite.list" >> "$OPENWRT/.config"
         ;;
     ultimate)
-        # 全能型：lite 全部 + tailscale/travelmate/ttyd/filebrowser/netspeedtest/statistics/netpath/macvlan
+        # 全能型：lite 全部 + tailscale/travelmate/ttyd/filebrowser/statistics/macvlan
         cat "$ROOT/common/packages/modem.list" >> "$OPENWRT/.config"
         cat "$ROOT/common/packages/lite.list" >> "$OPENWRT/.config"
         cat "$ROOT/common/packages/proxy.list" >> "$OPENWRT/.config"

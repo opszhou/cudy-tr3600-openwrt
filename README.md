@@ -47,9 +47,9 @@
 
 | 分类 | 内容 |
 |------|------|
-| 组网 | **tailscale**（异地组网）+ **NetPath** 多 WAN 负载均衡/故障切换（mwan3 的 nftables 现代替代；CLI 配置）+ macvlan |
+| 组网 | **tailscale**（异地组网）+ macvlan（单口多拨/虚拟网卡） |
 | 无线漫游 | travelmate（无线中继/酒店 WiFi 上行管理） |
-| 运维工具 | ttyd 网页终端 + filebrowser 网页文件管理器 + 网络测速面板（netspeedtest）+ luci-app-statistics 轻量监控（CPU/内存/接口图表） |
+| 运维工具 | ttyd 网页终端 + filebrowser 网页文件管理器 + luci-app-statistics 轻量监控（CPU/内存/接口图表） |
 | 网络 | ip-full / yq |
 
 ## 下载固件
@@ -73,7 +73,7 @@
 | 风险 | 说明 |
 |---|---|
 | **内核模块必然不兼容** | 固件内核是构建当天的快照版本，而官方源每天都在滚动。装任何 `kmod-*` 都会因内核版本（vermagic）不匹配而加载失败，严重时破坏依赖链、系统起不来 |
-| **第三方包根本装不到** | turboacc、qmodem、nikki、netpath、ddns-go 等来自第三方 feed，官方源上没有它们的索引——点击更新只会得到一屏 `unexpected end of file` |
+| **第三方包根本装不到** | turboacc、qmodem、nikki、ddns-go 等来自第三方 feed，官方源上没有它们的索引——点击更新只会得到一屏 `unexpected end of file` |
 | **升级会覆盖本体** | 用包管理器「升级」已内置的包，可能把经过适配的版本替换成上游新版本，导致行为不一致甚至功能失效 |
 
 **正确做法：需要什么包就重新构建一版**——在 `common/packages/*.list` 里加一行、推一次构建，所有包与内核一同编译，保证 ABI 一致。这比在设备上装包更可靠，也便于回滚。
@@ -83,4 +83,4 @@
 ## 📄 许可证
 
 本仓库自身内容遵循 [GPL-2.0](LICENSES/GPL-2.0)。
-第三方组件：QModem 为 MPL-2.0，Nikki 为 GPL-3.0，NetPath 为 GPL-2.0（README 另有非商业表述，个人使用无影响），其余以各自仓库为准。
+第三方组件：QModem 为 MPL-2.0，Nikki 为 GPL-3.0，其余以各自仓库为准。
