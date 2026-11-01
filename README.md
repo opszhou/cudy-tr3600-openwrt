@@ -39,7 +39,7 @@
 | 代理 | **nikki**（mihomo 内核）+ LuCI 管理界面 + TUN / nft-tproxy 内核模块 |
 | DDNS 与证书 | ddns-go + acme（acme-acmesh，LuCI 面板） |
 | 端口与服务 | UPnP（miniupnpd）+ WOL 网络唤醒 + socat（命令行）+ SFTP |
-| 文件服务 | lighttpd + WebDAV + 基础认证（默认端口 **8080**，80 端口保留给 LuCI） |
+| 文件服务 | lighttpd + WebDAV + 基础认证（**8080** 端口，80 保留给 LuCI；域名 `webdav.openwrt.lan:8080`） |
 | USB 存储 | UAS 高速协议 + ext4 / exFAT / NTFS3 / FAT32 文件系统 + 自动挂载（block-mount） |
 | 网络质量 | SQM 智能队列（消除 bufferbloat）+ nlbwmon 按主机流量统计 |
 
