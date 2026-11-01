@@ -1,12 +1,15 @@
 #!/bin/sh
-# 清理 apk 仓库列表：第三方 feed（kenzok8 / small / nikki / qmodem / turboacc / netspeedtest）
-# 的包只在构建期存在，官方 CDN 上没有对应的 .adb，保留会让每次 apk update 刷一屏
-# "unexpected end of file"。官方 feed（base/luci/packages/routing/telephony/video）保留。
+# 只保留官方 feed 的 apk 仓库条目。
+# 第三方 feed（kenzok8 / small / nikki / qmodem / turboacc / netspeedtest …）的包只在构建期
+# 存在，downloads.openwrt.org 上没有对应 .adb，保留会让每次 apk update 刷一屏
+# "unexpected end of file"。用白名单而不是黑名单：将来 feeds.append 新增任何第三方源都自动被过滤。
 # uci-defaults 语义：首次开机执行一次后自删。
 F=/etc/apk/repositories.d/distfeeds.list
 [ -f "$F" ] || exit 0
 TMP="$F.new"
-if grep -vE '/(kenzok8|small|nikki|qmodem|turboacc|netspeedtest)/' "$F" > "$TMP" && [ -s "$TMP" ]; then
+# 官方 feed 名固定：base luci packages routing telephony video（镜像主机名不限，兼容国内镜像）
+grep -E '/(base|luci|packages|routing|telephony|video)/packages\.adb' "$F" > "$TMP" 2>/dev/null
+if [ -s "$TMP" ]; then
 	mv "$TMP" "$F"
 else
 	rm -f "$TMP"
