@@ -11,8 +11,3 @@ src-git turboacc https://github.com/chenmozhijin/turboacc.git;@latest
 # 网络测速面板（sirpdboy）已移除：luci-app-netspeedtest 依赖的 python3-pkg-resources /
 # python3-email 等子包在现行 OpenWrt 已不存在，会拖垮 rootfs 安装阶段（详见 extra.list 注释）
 # src-git netspeedtest https://github.com/sirpdboy/netspeedtest.git;@latest
-# 多WAN 管理器 NetPath（Rust + nftables 重写的 mwan3）
-# ⛔ 不走 feed：上游仓库把包 Makefile 放在根目录 + luci/ 子 Makefile 残缺，
-#    OpenWrt scan.mk 对这种布局会生成坏 index、整个 feed 被忽略（run#14 实锤）。
-#    包定义已 vendor 进 common/package/netpath/（assemble.sh 复制进源码树）。
-#    luci-app-netpath 上游包定义不完整（无 BuildPackage eval），不收录，CLI 配置。
