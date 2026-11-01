@@ -47,16 +47,16 @@ define Package/netpath/conffiles
 endef
 
 # Rust build configuration
-CARGO_VARS += \
-	CARGO_HOME=$(CARGO_HOME)
-
+# OpenWrt 的 Rust 构建环境变量集：CARGO_PKG_VARS（含 CARGO_TARGET_<三元组>_LINKER、
+# CARGO_HOME、TARGET_CC 等）。旧名 CARGO_VARS 在现行 OpenWrt 中已不存在，展开为空会导致
+# rustc 退回宿主 cc 链接，报 "crt1.o: file in wrong format"（run#21 实测）。
 define Build/Compile
-	cd $(PKG_BUILD_DIR)/core && \
-	$(CARGO_VARS) \
+	cd "$(PKG_BUILD_DIR)/core" && \
+	$(CARGO_PKG_VARS) \
 	cargo build \
 		--release \
-		--target=$(RUSTC_TARGET_ARCH) \
-		--manifest-path=Cargo.toml
+		--target $(RUSTC_TARGET_ARCH) \
+		--manifest-path Cargo.toml
 endef
 
 define Package/netpath/install
