@@ -45,11 +45,11 @@ jobs:
           if [ -z "$RID" ] || [ "$RID" = "null" ]; then
             echo "找不到可发布的 run（可显式传 run_id）"; exit 1
           fi
-          gh run view "$RID" --json databaseId,runNumber,createdAt,conclusion,headSha \
-            --jq '"run_number=\(.runNumber)","created=\(.createdAt)","conclusion=\(.conclusion)","sha=\(.headSha)"' \
+          gh run view "$RID" --json databaseId,number,createdAt,conclusion,headSha \
+            --jq '"run_number=\(.number)","created=\(.createdAt)","conclusion=\(.conclusion)","sha=\(.headSha)"' \
             >> "$GITHUB_OUTPUT"
           echo "run_id=$RID" >> "$GITHUB_OUTPUT"
-          echo "目标 run: #$(gh run view "$RID" --json runNumber --jq .runNumber) ($RID)"
+          echo "目标 run: #$(gh run view "$RID" --json number --jq .number) ($RID)"
 
       - name: 下载该 run 的固件 artifact
         env:
