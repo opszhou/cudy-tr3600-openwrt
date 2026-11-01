@@ -63,8 +63,12 @@ CONFIG_PACKAGE_lighttpd-mod-authn_file=y
 CONFIG_PACKAGE_luci-app-sqm=y
 CONFIG_PACKAGE_luci-i18n-sqm-zh-cn=y
 CONFIG_PACKAGE_sqm-scripts=y
-# 网络测速（kenzok8 源）
-CONFIG_PACKAGE_luci-app-netspeedtest=y
+# 网络测速：luci-app-netspeedtest 已移除 —— 其 Makefile 的 LUCI_DEPENDS 写死
+# python3-pkg-resources / python3-email / python3-xml / python3-urllib / python3-codecs，
+# 这些子包在现行 OpenWrt 已不存在（python3 整合为 python3-light 等），装 rootfs 时会因
+# "no such package" 整体失败（与 kmod-nft-fullcone 同类问题）。
+# 需要测速时可用 iperf3（SSH 命令行）或临时构建时再评估上游是否修好依赖。
+# CONFIG_PACKAGE_luci-app-netspeedtest=y
 # 实时性能监控：collectd + rrdtool（官方源，RRD 存 /tmp，常驻内存约 15~25MB）
 # 替代 netdata（RAM 模式仍占 100MB+，512MB 设备负担大）；CPU/内存/负载/网卡/无线一体
 CONFIG_PACKAGE_luci-app-statistics=y
