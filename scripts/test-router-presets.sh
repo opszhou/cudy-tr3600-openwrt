@@ -84,11 +84,14 @@ wireless.radio0.band=2g
 wireless.default_radio0=wifi-iface
 wireless.default_radio0.device=radio0
 wireless.default_radio0.ssid=OpenWrt
+wireless.default_radio0.encryption=psk2
 wireless.radio1=wifi-device
 wireless.radio1.band=5g
 wireless.default_radio1=wifi-iface
 wireless.default_radio1.device=radio1
 wireless.default_radio1.ssid=Home
+wireless.default_radio1.encryption=psk2
+wireless.default_radio1.key=secret123
 FIX
 printf '0 5 * * * /usr/bin/some-existing-job\n' > "$CRON_FILE"
 
@@ -105,6 +108,13 @@ assert_eq "5G SSID 加 _5G 后缀" "Home_5G" "$(get_val wireless.default_radio1.
 assert_eq "2.4G SSID 保持不变" "OpenWrt" "$(get_val wireless.default_radio0.ssid)"
 assert_eq "2.4G 默认 WiFi7 EHT20" "EHT20" "$(get_val wireless.radio0.htmode)"
 assert_eq "5G 默认 WiFi7 EHT80" "EHT80" "$(get_val wireless.radio1.htmode)"
+assert_eq "2.4G 国家码 CN" "CN" "$(get_val wireless.radio0.country)"
+assert_eq "5G 国家码 CN" "CN" "$(get_val wireless.radio1.country)"
+assert_eq "5G 信道自动（ACS）" "auto" "$(get_val wireless.radio1.channel)"
+assert_eq "5G 排除 DFS 信道" "1" "$(get_val wireless.radio1.acs_exclude_dfs)"
+assert_eq "有密钥接口升级为 WPA2/WPA3 混合" "sae-mixed" "$(get_val wireless.default_radio1.encryption)"
+assert_eq "混合模式 PMF 为可选" "1" "$(get_val wireless.default_radio1.ieee80211w)"
+assert_eq "无密钥接口保持原样（避免起不来）" "psk2" "$(get_val wireless.default_radio0.encryption)"
 assert_count "BBR 行写入 sysctl" 1 "tcp_congestion_control=bbr" "$SYSCTL_CONF"
 assert_count "既有 cron 任务保留" 1 "some-existing-job" "$CRON_FILE"
 assert_count "定时重启 cron 恰好 1 条" 1 "touch /etc/banner && reboot" "$CRON_FILE"

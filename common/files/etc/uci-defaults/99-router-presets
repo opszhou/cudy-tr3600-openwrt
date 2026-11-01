@@ -31,15 +31,28 @@ if [ -d "$BBR_DIR" ]; then
 	echo "net.ipv4.tcp_congestion_control=bbr" >> "$SYSCTL_CONF"
 fi
 
-# ---- 无线默认协商 802.11be（WiFi 7 / EHT），按频段给合理带宽 ----
-# 板载 MT7990 支持 WiFi 7；带宽不是越大越好：
-#   2.4G 用 20MHz（开宽只增加同频干扰）、5G 用 80MHz（160 干扰大且国内需 DFS）、6G 用 160MHz
+# ---- 无线：国家码 + 自动信道 + WiFi 7（EHT）带宽 ----
+# country 必须显式设：默认 00（世界域）会把 5GHz 149~165 整段禁用，选 149 会直接没信号。
+# channel=auto 走 hostapd ACS 开机择优选信道；acs_exclude_dfs 排除 52~64，避免雷达跳频断流。
+# 带宽按频段给：2.4G 20MHz（开宽只增干扰）、5G 80MHz（160 需 DFS 且覆盖差）、6G 160MHz。
 for dev in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p'); do
+	uci -q set wireless.$dev.country='CN'
+	uci -q set wireless.$dev.channel='auto'
+	uci -q set wireless.$dev.acs_exclude_dfs='1'
 	case "$(uci -q get wireless.$dev.band)" in
 		2g) uci -q set wireless.$dev.htmode='EHT20' ;;
 		5g) uci -q set wireless.$dev.htmode='EHT80' ;;
 		6g) uci -q set wireless.$dev.htmode='EHT160' ;;
 	esac
+done
+
+# ---- 无线安全：升级为 WPA2/WPA3 混合（sae-mixed，老设备走 WPA2、新设备走 WPA3）----
+# ⚠️ 仅对「已设置密钥」的接口生效：没有密钥时设 sae-mixed 会让 hostapd 起不来（无线直接消失）。
+# PMF 设为 optional(1)，否则 WPA2 老设备无法关联。
+for ifc in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-iface$/\1/p'); do
+	[ -n "$(uci -q get wireless.$ifc.key)" ] || continue
+	uci -q set wireless.$ifc.encryption='sae-mixed'
+	uci -q set wireless.$ifc.ieee80211w='1'
 done
 
 # ---- 5G SSID 自动加 _5G 后缀（区分双频，规避同名漫游到错误频段）----
