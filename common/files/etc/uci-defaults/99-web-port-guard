@@ -22,4 +22,15 @@ fi
 # 4) 再拉起 lighttpd（此时已改到 8080）
 [ -x /etc/init.d/lighttpd ] && /etc/init.d/lighttpd start 2>/dev/null || true
 
+# 5) 给 WebDAV 一个固定域名，客户端填 http://webdav.openwrt.lan:8080 即可，不用记 IP
+LANIP=$(uci -q get network.lan.ipaddr || true)
+[ -n "$LANIP" ] || LANIP=192.168.10.1
+if ! uci -q show dhcp | grep -q "webdav\.openwrt\.lan"; then
+	uci add dhcp domain >/dev/null 2>&1 || true
+	uci set "dhcp.@domain[-1].name=webdav.openwrt.lan" 2>/dev/null || true
+	uci set "dhcp.@domain[-1].ip=$LANIP" 2>/dev/null || true
+	uci commit dhcp 2>/dev/null || true
+	/etc/init.d/dnsmasq restart 2>/dev/null || true
+fi
+
 exit 0
