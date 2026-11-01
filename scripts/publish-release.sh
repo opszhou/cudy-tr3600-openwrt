@@ -91,7 +91,9 @@ MD
 echo "== 待发布资产 =="
 ls -lh assets
 
+# 标题全 ASCII（用户要求不出现中文）：snapshot <run号> (<日期>)
+TAG_ISO=$(printf '%s' "$TAG_DATE" | sed 's/^\(....\)\(..\)\(..\)$/\1-\2-\3/')
 gh release create "$TAG" assets/* \
-  --title "快照 ${RUN} · ${TAG_DATE}" \
+  --title "snapshot ${RUN} (${TAG_ISO})" \
   --notes-file "$NOTES" --latest
 echo "已发布: https://github.com/${GH_REPO}/releases/tag/${TAG}"
