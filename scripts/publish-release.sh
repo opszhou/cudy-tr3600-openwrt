@@ -39,12 +39,13 @@ asset_name() { # $1=原文件名 $2=设备 $3=组合
 
 # 版本标识取 OpenWrt 自己的 version.buildinfo（形如 r37983-382a2109c8），
 # 它比 CI 的 run 号更有意义：一眼看出这份固件基于哪个上游 revision。
+# 注意：文件在 fw/<artifact>/fw/<target>/<subtarget>/ 下多层深，必须 find，
+# 用 "$FW_DIR"/*/version.buildinfo 只扫一层会永远落空（run#28 标签 openwrt-unknown 的教训）
 VER=""
-for f in "$FW_DIR"/*/version.buildinfo; do
-  [ -f "$f" ] || continue
+while IFS= read -r f; do
   VER=$(head -n1 "$f" | tr -d '[:space:]')
   [ -n "$VER" ] && break
-done
+done < <(find "$FW_DIR" -name version.buildinfo | sort)
 VER=${VER:-unknown}
 
 TAG="openwrt-${VER}"
