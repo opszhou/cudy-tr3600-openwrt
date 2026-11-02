@@ -1,7 +1,7 @@
 acme-acmesh - 3.1.4-r2
 acme-common - 1.5.3
 apk-mbedtls - 3.0.5-r4
-base-files - 1719~382a2109c8
+base-files - 1719~d6a91d867b
 bc - 1.08.2-r2
 block-mount - 2026.10.18~907cf449-r1
 busybox - 1.38.0-r3
@@ -12,8 +12,9 @@ coreutils-stat - 9.11-r1
 coreutils-timeout - 9.11-r1
 curl - 8.23.0-r1
 ddns-go - 6.17.7-r1
-dnsmasq - 2.93-r9
+dnsmasq - 2.93-r10
 dropbear - 2026.94-r3
+dufs - 0.47.0-r1
 eip197-mini-firmware - 20261019-r1
 etherwake - 1.09-r5
 firewall4 - 2026.10.29~e6f600c4-r1
@@ -161,6 +162,7 @@ liblua5.1.5 - 5.1.5-r11
 liblucihttp-lua - 2023.03.15~9b5b683f-r1
 liblucihttp-ucode - 2023.03.15~9b5b683f-r1
 liblucihttp0 - 2023.03.15~9b5b683f-r1
+liblzma - 5.8.4-r2
 libmbedtls21 - 3.6.7-r1
 libmnl0 - 1.0.5-r2
 libncurses6 - 6.6.20260801-r2
@@ -175,7 +177,6 @@ libpthread - 1.2.6-r5
 libreadline8 - 8.3-r1
 librt - 1.2.6-r5
 libsodium - 1.0.22-r1
-libsqlite3-0 - 3.54.1-r1
 libubox20260721 - 2026.07.21~e7608b69-r1
 libubus-lua - 2026.10.28~db20eff5-r1
 libubus20261028 - 2026.10.28~db20eff5-r1
@@ -187,11 +188,6 @@ libudev-zero - 1.0.5-r2
 libusb-1.0-0 - 1.0.29-r2
 libustream-mbedtls20201210 - 2026.03.01~99f1c0db-r1
 libuuid1 - 2.42.2-r1
-libxml2-16 - 2.15.4-r1
-lighttpd - 1.4.85-r1
-lighttpd-mod-auth - 1.4.85-r1
-lighttpd-mod-authn_file - 1.4.85-r1
-lighttpd-mod-webdav - 1.4.85-r1
 logd - 2025.10.30~6f78fa49-r1
 lua - 5.1.5-r11
 luci - 26.304.33642~5599f42
@@ -256,9 +252,9 @@ openssl-util - 3.5.9-r2
 openwrt-keyring - 2025.12.10~f0670054-r1
 ppp - 2.5.4-r6
 ppp-mod-pppoe - 2.5.4-r6
-procd - 2026.10.18~5aef7c33-r1
-procd-seccomp - 2026.10.18~5aef7c33-r1
-procd-ujail - 2026.10.18~5aef7c33-r1
+procd - 2026.11.01~0d3c5dc1-r1
+procd-seccomp - 2026.11.01~0d3c5dc1-r1
+procd-ujail - 2026.11.01~0d3c5dc1-r1
 px5g-mbedtls - 14
 qmodem - 3.3.0-r1
 qmodem-seal - 3.3.0-r1
@@ -299,6 +295,8 @@ ucode-mod-uci - 2026.10.28~dfc64d41-r1
 ucode-mod-uloop - 2026.10.28~dfc64d41-r1
 uhttpd - 2026.10.19~ca796d7d-r1
 uhttpd-mod-ubus - 2026.10.19~ca796d7d-r1
+umbim - 2025.10.04~2939b7d0-r1
+uqmi - 2025.07.30~7914da43-r2
 urandom-seed - 3
 urngd - 2025.10.03~f17e33d9-r1
 usb-modeswitch - 2025.10.04~9b4d0a6e-r1
@@ -309,6 +307,7 @@ wget-ssl - 1.25.0-r5
 wifi-scripts - 1.0-r4
 wireless-regdb - 2026.09.03-r1
 wpad-mesh-openssl - 2026.08.07~831364bf-r5
+wwan - 2019.04.29-r7
 xxd - 2026.06.16-r1
 yq - 4.54.1-r1
 zlib - 2.3.3-r2
