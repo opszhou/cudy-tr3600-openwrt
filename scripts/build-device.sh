@@ -49,7 +49,9 @@ make defconfig 2>&1 | tee "$DEFCONFIG_LOG"
 echo "==== 必选项审计（=y 项必须全部幸存，防止被 defconfig 静默丢弃）===="
 # 差异清单（exclude.<upstream>.list）会用 "# X is not set" 覆盖前面清单里的 =y 项，
 # Kconfig 以最后一条为准；审计必须同步跳过这些显式关闭的符号，否则误报「被丢弃」并中止构建
-EXCLUDED_SYMS="$(grep -oE '^# (CONFIG_[A-Za-z0-9_]+) is not set' .config.wanted | awk '{print $2}')"
+# 注意字符集必须含 - . + ：包名形如 luci-app-argon-config、kmod-tcp-bbr，
+# 只用 [A-Za-z0-9_] 会一条都匹配不到（曾导致豁免失效、审计误报）
+EXCLUDED_SYMS="$(grep -oE '^# (CONFIG_[A-Za-z0-9_.+-]+) is not set' .config.wanted | awk '{print $2}')"
 missing=0
 while IFS= read -r setting; do
     case "$setting" in
