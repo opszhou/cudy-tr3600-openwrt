@@ -10,24 +10,23 @@
 | **ultimate** | 全能 | lite 全部 + tailscale + travelmate + ttyd + luci-app-statistics 轻量监控 + macvlan + transmission（BT 下载） |
 
 > **上游变更备注（2026-10 实测）**：官方 luci feed 已删除 `luci-app-vnstat` / `luci-app-autoreboot` / `luci-app-socat`，
-> 分别以 nlbwmon / crontab 预设 / socat 核心（CLI）替代；turboacc 与 netspeedtest 改用作者独立 feed；
+> 分别以 nlbwmon / crontab 预设 / socat 核心（CLI）替代；turboacc 面板用作者独立 feed；
 > wolplus 仓库无 feed 化结构（上游 siwind 2022-10 起停更），改用官方 `luci-app-wol`；
-> 多 WAN 由 mwan3 换为 NetPath（见下）。详见 `common/packages/*.list` 内注释。
->
-> **NetPath 说明**：Rust + nftables 重写的 mwan3（[HikaruChang/NetPath](https://github.com/HikaruChang/NetPath)，
-> 2026-10 仍在活跃开发），明确支持 OpenWrt 24.x/25.x。注意三点：
-> ① 依赖 `rust/host` 构建链，首次编译约多花 15~25 分钟；
-> ② LuCI 面板暂无中文语言包；③ 项目较新（v1.0.0），README 声明非商业使用，与 LICENSE 的 GPL-2.0 存在表述冲突，
-> 个人使用无影响，商用前需自行确认。
+> netspeedtest 依赖的上游 python3 子包已不存在，连同其 feed 一并移除；
+> NetPath 已试装后移除（上游无 init/uci 文件，仅 CLI 无面板），多 WAN 暂无面板方案。详见 `common/packages/*.list` 内注释。
 
 ## 开机预设（两档共用）
 
 `common/files/etc/uci-defaults/99-router-presets`，首次开机自动生效，LuCI 均可改：
 
-- 默认 LAN **192.168.10.1/24**，DHCP 池 **.100~.249**
+- 默认 LAN **192.168.10.1/24**，DHCP 池 **.100~.249**；主机名 **tr3600**
+- 时区 **Asia/Shanghai**（CST-8）；LuCI 时间显示 **24 小时制**（`clock_hourcycle=h23`）
+- 双频 WiFi 7（EHT）默认：国家码 **CN**（默认 00 会禁掉 5G 149~165 段）、ACS 自动信道（排除 DFS）、2.4G 20MHz / 5G 80MHz / 6G 160MHz；已设密钥接口升级为 **WPA2/WPA3 混合**（sae-mixed + PMF optional，无密钥接口不动避免起不来）
+- **5G SSID 自动加 `_5G` 后缀**（区分双频，幂等）
+- dufs 首启预设：**8080 端口**、根目录 `/mnt`、上传开 / 删除关；`webdav.openwrt.lan` DHCP 域名
 - UPnP 默认**安全模式**；BBR 拥塞控制默认启用
 - 每周一凌晨 04:30 自动重启（crontab 写入；上游 luci-app-autoreboot 已删除）
-- **5G SSID 自动加 `_5G` 后缀**（区分双频）
+- 测试：`scripts/test-router-presets.sh`（stub uci/crontab 沙箱实测，CI/local 均可跑）
 
 ### WED 关闭（MT7990 稳定性）
 
@@ -74,14 +73,12 @@ feeds 追加配置见 `common/feeds.append`，所有 feed 均标记 `;@latest`�
 - **nikki**（mihomo）— 代理内核与管理界面
 - **kenzok8/openwrt-packages + small** — argon-config、ddns-go 等
 - **turboacc**（chenmozhijin）— 网络加速面板
-- **netspeedtest**（sirpdboy）— 网络测速面板
-- **netpath**（HikaruChang）— 多 WAN 管理器
 
 `@latest` 语义（构建时由 `assemble.sh` 经 `git ls-remote` 实时解析，日志打印解析结果）：
 
 1. 有 release tag 的仓库 → 追踪**最新稳定版 tag**（自动过滤 `rc/beta/alpha` 等预发布 tag，如 QModem 会选 v3.3.0 而跳过 v3.4.0_rc3）
 2. 只有预发布 tag → 取最高 tag
-3. 完全无 tag（kenzok8 两个聚合仓库、turboacc、netpath）→ 回退默认分支
+3. 完全无 tag（kenzok8 两个聚合仓库、turboacc）→ 回退默认分支
 
 ### 公共定制脚本
 
