@@ -44,14 +44,7 @@ CONFIG_PACKAGE_miniupnpd-nftables=y
 # ---- 第三梯队：文件服务与存储 ----
 # SFTP
 CONFIG_PACKAGE_openssh-sftp-server=y
-# 网页文件管理器（kenzok8 源）
-CONFIG_PACKAGE_luci-app-filebrowser=y
-CONFIG_PACKAGE_filebrowser=y
-# WebDAV（lighttpd 本体官方源；独立 LuCI 面板如源中缺失会被忽略）
-CONFIG_PACKAGE_lighttpd=y
-CONFIG_PACKAGE_lighttpd-mod-webdav=y
-CONFIG_PACKAGE_lighttpd-mod-auth=y
-CONFIG_PACKAGE_lighttpd-mod-authn_file=y
+# 网页文件管理器 + WebDAV 已统一为 dufs（lite.list，双组合共用；filebrowser/lighttpd 移除）
 
 # ---- 第四梯队：网络质量、监控与维护 ----
 # 智能限速
