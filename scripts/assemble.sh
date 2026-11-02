@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # 组装 openwrt 源码树：补丁 → PR → feeds → 设备包 → files → .config → 定制脚本。
-# 用法: assemble.sh <repo-root> <device-id> <profile> <openwrt目录> [owner] [repo] [extra_prs]
-#   profile: lite | ultimate
-#   extra_prs: 临时追加合并的官方 PR 号（空格分隔，仅本次构建，不入库）
+# 用法: assemble.sh <repo-root> <device-id> <profile> <openwrt目录> [owner] [repo] [extra_prs] [branch]
+#   branch: 上游分支（CI 传 upstream_branch；留空则取 device.yml 的 branch）
 set -euo pipefail
 
 ROOT="${1:?缺少 repo root}"
@@ -12,13 +11,15 @@ OPENWRT="${4:?缺少 openwrt 目录}"
 OWNER="${5:-openwrt}"
 REPO="${6:-openwrt}"
 EXTRA_PRS="${7:-}"
+BRANCH_ARG="${8:-}"
 
 # 规范化为绝对路径：脚本内会 cd 进 openwrt 树，相对路径会解析错位
 ROOT="$(cd "$ROOT" && pwd)"
 
 # shellcheck disable=SC2046
 eval "$(bash "$ROOT/scripts/parse-device.sh" "$ROOT" "$DEV")"
-BRANCH="${DEV_BRANCH:-main}"
+# 显式传入的上游分支优先于 device.yml（否则切了 immortalwrt/master 却仍在找 patches/openwrt-main，run#29 教训）
+BRANCH="${BRANCH_ARG:-${DEV_BRANCH:-main}}"
 
 echo "==== 组装: 设备=$DEV target=$DEV_TARGET profile=$DEV_PROFILE 上游分支=$BRANCH ===="
 

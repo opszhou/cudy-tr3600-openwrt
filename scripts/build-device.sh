@@ -13,8 +13,10 @@ OPENWRT="$(cd "${4:?缺少 openwrt 目录}" && pwd)"
 OWNER="${5:-openwrt}"
 REPO="${6:-openwrt}"
 EXTRA_PRS="${7:-}"
+# 上游分支：显式参数 > CI 环境变量 DEV_BRANCH > device.yml（assemble.sh 内回退）
+BRANCH_ARG="${8:-${DEV_BRANCH:-}}"
 
-bash "$ROOT/scripts/assemble.sh" "$ROOT" "$DEV" "$PROFILE" "$OPENWRT" "$OWNER" "$REPO" "$EXTRA_PRS"
+bash "$ROOT/scripts/assemble.sh" "$ROOT" "$DEV" "$PROFILE" "$OPENWRT" "$OWNER" "$REPO" "$EXTRA_PRS" "$BRANCH_ARG"
 
 cd "$OPENWRT"
 echo "==== 更新并安装 feeds ===="
