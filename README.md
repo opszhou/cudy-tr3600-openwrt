@@ -39,7 +39,7 @@
 | 代理 | **nikki**（mihomo 内核）+ LuCI 管理界面 + TUN / nft-tproxy 内核模块 |
 | DDNS 与证书 | ddns-go + acme（acme-acmesh，LuCI 面板） |
 | 端口与服务 | UPnP（miniupnpd）+ WOL 网络唤醒 + socat（命令行）+ SFTP |
-| 文件服务 | lighttpd + WebDAV + 基础认证（**8080** 端口，80 保留给 LuCI；域名 `webdav.openwrt.lan:8080`） |
+| 文件服务 | dufs 网页文件浏览器 + WebDAV 一体（**8080** 端口，80 保留给 LuCI；域名 `webdav.openwrt.lan:8080`；默认只读，见下方「dufs 文件服务」） |
 | USB 存储 | UAS 高速协议 + ext4 / exFAT / NTFS3 / FAT32 文件系统 + 自动挂载（block-mount） |
 | 网络质量 | SQM 智能队列（消除 bufferbloat）+ nlbwmon 按主机流量统计 |
 
@@ -49,11 +49,26 @@
 |------|------|
 | 组网 | **tailscale**（异地组网）+ macvlan（单口多拨/虚拟网卡） |
 | 无线漫游 | travelmate（无线中继/酒店 WiFi 上行管理） |
-| 运维工具 | ttyd 网页终端 + filebrowser 网页文件管理器 + luci-app-statistics 轻量监控（CPU/内存/接口图表） |
+| 运维工具 | ttyd 网页终端 + luci-app-statistics 轻量监控（CPU/内存/接口图表） |
 | 网络 | ip-full / yq |
 
-## 下载固件
+### dufs 文件服务（网页文件管理 + WebDAV）
 
+- 访问：`http://192.168.10.1:8080` 或 `http://webdav.openwrt.lan:8080`；网页界面与 WebDAV 共用同一路径和端口
+- 默认**只读**：可浏览、下载、搜索、目录打包 zip 下载；支持上传（网页拖拽 / WebDAV PUT），但写权限默认关闭
+- 开启上传/删除（按需选择，改完重启服务）：
+
+  ```sh
+  uci set dufs.config.allow_upload='1'   # 仅上传
+  uci set dufs.config.allow_delete='1'   # 删除（危险，按需）
+  # 或一把梭：uci set dufs.config.allow_all='1'
+  uci commit dufs && /etc/init.d/dufs restart
+  ```
+
+- 开写后建议同时启用认证（否则同网段任何人可写）：`/etc/config/dufs` 里 `list auth '用户名:密码@/:rw'`，同样重启生效
+- 根目录 `/mnt`（U 盘/移动硬盘自动挂载点）；dufs 的 WebDAV 是 Class 1（无 LOCK），普通文件传输/播放没问题，不保证 Office 在线编辑等高级用法
+
+## 下载固件
 - **Releases**：勾选发布选项的构建会发布到仓库 [Releases](https://github.com/opszhou/cudy-tr3600-openwrt/releases) 页
 - **Artifacts**：每次构建产物为 `openwrt-cudy_tr3600-v1-<组合>-snapshot`（保留 14 天），含固件、manifest 与校验和
 

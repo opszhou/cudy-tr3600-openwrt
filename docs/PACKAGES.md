@@ -7,7 +7,7 @@
 | 组合 | 定位 | 内容 |
 |------|------|------|
 | **lite** | 精简实用（默认） | QModem 随身 WiFi 全套 + 中文化 LuCI + Argon 主题（默认）+ turboacc 硬件加速/BBR + nikki 代理 + ddns-go + acme 证书 + UPnP + WOL + SFTP + WebDAV + SQM + nlbwmon 流量统计 + USB 存储全驱动（UAS/ext4/exFAT/NTFS3/FAT32 + 自动挂载） |
-| **ultimate** | 全能 | lite 全部 + tailscale + travelmate + ttyd + filebrowser + netspeedtest + luci-app-statistics 轻量监控 + NetPath 多 WAN + macvlan |
+| **ultimate** | 全能 | lite 全部 + tailscale + travelmate + ttyd + luci-app-statistics 轻量监控 + macvlan |
 
 > **上游变更备注（2026-10 实测）**：官方 luci feed 已删除 `luci-app-vnstat` / `luci-app-autoreboot` / `luci-app-socat`，
 > 分别以 nlbwmon / crontab 预设 / socat 核心（CLI）替代；turboacc 与 netspeedtest 改用作者独立 feed；
@@ -72,7 +72,7 @@ feeds 追加配置见 `common/feeds.append`，所有 feed 均标记 `;@latest`�
 
 - **qmodem**（FUjr/QModem）— 随身 WiFi 管理
 - **nikki**（mihomo）— 代理内核与管理界面
-- **kenzok8/openwrt-packages + small** — argon-config、ddns-go、filebrowser 等
+- **kenzok8/openwrt-packages + small** — argon-config、ddns-go 等
 - **turboacc**（chenmozhijin）— 网络加速面板
 - **netspeedtest**（sirpdboy）— 网络测速面板
 - **netpath**（HikaruChang）— 多 WAN 管理器

@@ -1,6 +1,6 @@
 # ===== 精简实用型组合（lite）—— 需求清单的精简版 =====
-# = lite（不含 modem 基座）减去：ttyd / filebrowser / netspeedtest / statistics / mwan3 / macvlan
-# 保留：argon 主题、turboacc、nikki、ddns-go、acme、socat、UPnP、SFTP、WebDAV、SQM、vnstat、autoreboot
+# = lite（不含 modem 基座）减去：ttyd / netspeedtest / statistics / mwan3 / macvlan
+# 保留：argon 主题、turboacc、nikki、ddns-go、acme、socat、UPnP、SFTP、dufs（文件+WebDAV）、SQM、nlbwmon、定时重启
 # 额外依赖 feed：kenzok8 / small（argon-config、turboacc、ddns-go 所需）
 
 # ---- 基础与界面 ----
@@ -39,10 +39,9 @@ CONFIG_PACKAGE_miniupnpd-nftables=y
 
 # ---- 文件服务与存储 ----
 CONFIG_PACKAGE_openssh-sftp-server=y
-CONFIG_PACKAGE_lighttpd=y
-CONFIG_PACKAGE_lighttpd-mod-webdav=y
-CONFIG_PACKAGE_lighttpd-mod-auth=y
-CONFIG_PACKAGE_lighttpd-mod-authn_file=y
+# dufs：网页文件浏览器 + WebDAV 一体（官方源，Rust 单二进制，procd/uci 管理）
+# 首启预设 8080 端口、根目录 /mnt、只读；开写与认证见 README
+CONFIG_PACKAGE_dufs=y
 
 # ---- USB 存储（U 盘/移动硬盘开箱即挂载；基础 kmod-usb-storage 已在 modem.list）----
 # ⚠️ Kconfig 不支持行内注释（conf 会把 "y # ..." 整段当值导致包被静默丢弃），注释必须独立成行
