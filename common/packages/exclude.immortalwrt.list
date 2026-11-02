@@ -4,6 +4,13 @@
 # 而通用清单里有 kenzok8 源专属的包/子选项，immortalwrt 不加载 kenzok8 feeds，必须显式处理。
 # 后写覆盖前写：这里出现的项会覆盖 lite.list / extra.list 里的同名设置。
 
+# ---- TLS 栈去重（避免 openssl/mbedtls 双栈共存）----
+# 上游默认包已带 libustream-openssl + apk-openssl，但通用清单的 luci-ssl 集合
+# 硬依赖 libustream-mbedtls → 两套 TLS 库共存（约 1~2MB 纯浪费）。
+# 换成 luci-ssl-openssl 后只剩一套 openssl 栈（实测 libustream-mbedtls/libmbedtls 消失）
+# CONFIG_PACKAGE_luci-ssl is not set
+CONFIG_PACKAGE_luci-ssl-openssl=y
+
 # ---- argon 调色面板 ----
 # immortalwrt luci 源没有 luci-app-argon-config（themes/applications 路径 404 实查），
 # argon 主题本体在（luci-theme-argon ✓），关闭后主题照常可用，只少一个调音面板
