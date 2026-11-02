@@ -31,11 +31,13 @@ uci -q commit upnpd
 # ---- dufs：网页文件浏览器 + WebDAV（统一 8080，80 独占给 LuCI）----
 # dufs 替代 filebrowser（难看）+ lighttpd（抢 80 端口导致 LuCI 403 事故），两职一包，
 # 只监听 8080，端口冲突从根上消失（99-web-port-guard 已随之删除）。
-# 默认只读（浏览/下载/搜索/打包），开写与认证方式见 README「dufs 文件服务」。
+# 默认开放上传（网页拖拽 / WebDAV PUT）；删除权限默认关（防误删），要开改 /etc/config/dufs，
+# 见 README「dufs 文件服务」。同网段任意设备可写，介意就加 list auth 认证。
 if [ -f "$DUFS_CONF" ]; then
 	uci -q set dufs.config.enabled='1'
 	uci -q set dufs.config.port='8080'
 	uci -q set dufs.config.serve_path='/mnt'
+	uci -q set dufs.config.allow_upload='1'
 	uci -q set dufs.config.allow_search='1'
 	uci -q set dufs.config.allow_archive='1'
 	uci -q commit dufs

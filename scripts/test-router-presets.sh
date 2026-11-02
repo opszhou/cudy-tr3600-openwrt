@@ -119,6 +119,8 @@ assert_eq "24 小时制 h23" "h23" "$(get_val system.@system[0].clock_hourcycle)
 assert_eq "dufs 启用" "1" "$(get_val dufs.config.enabled)"
 assert_eq "dufs 端口 8080" "8080" "$(get_val dufs.config.port)"
 assert_eq "dufs 根目录 /mnt" "/mnt" "$(get_val dufs.config.serve_path)"
+assert_eq "dufs 默认开上传" "1" "$(get_val dufs.config.allow_upload)"
+assert_eq "dufs 删除权限默认关" "" "$(get_val dufs.config.allow_delete)"
 assert_eq "WebDAV 域名预设" "webdav.openwrt.lan" "$(get_val dhcp.webdav_domain.name)"
 assert_eq "5G SSID 加 _5G 后缀" "Home_5G" "$(get_val wireless.default_radio1.ssid)"
 assert_eq "2.4G SSID 保持不变" "OpenWrt" "$(get_val wireless.default_radio0.ssid)"
