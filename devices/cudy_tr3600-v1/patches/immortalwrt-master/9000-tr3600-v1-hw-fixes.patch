@@ -1,0 +1,101 @@
+# Cudy TR3600 v1 —— PR #25860 之后的硬件数据修正（9xxx 本地修正补丁）
+#
+# 依据（均经真机验证，与 PR #25860 作者 Ylarod 2026-08-08 在 PR #24596 的实测反馈一致，
+# 并与 Cudy 官方 GPL 包 R126.dts 交叉验证）：
+#   1. led-upgrade 使用红色 LED（boot/failsafe/upgrade=红、running=白；
+#      #25860 中 upgrade 仍为 white，按实测结论改为 red）
+#   2. WiFi MAC 布局：5 GHz = base+0x10（#25860 写为 base+2，实测厂商 bdinfo 布局为 0x10；
+#      2.4 GHz = base+0 与 LAN 共享，#25860 已正确，不改）
+#   3. 风扇温控：补充 cooling-levels 与 cpu_thermal 四档 active trip（65/72/80/88 °C）
+#      + cooling-maps，内核温控自动调速（Ylarod 实测 fan 所有 cooling states 基于 PWM0）
+# 注意：fan 节点不得带 pinctrl-0（PWM 核心自行 mux，重复申请会导致 pwm-fan probe 失败 -EINVAL）。
+# fan PWM0 通道 #25860 已正确，无需修改。
+#
+diff --git a/target/linux/mediatek/dts/mt7987b-cudy-tr3600-v1.dts b/target/linux/mediatek/dts/mt7987b-cudy-tr3600-v1.dts
+index d47e584..92149ed 100644
+--- a/target/linux/mediatek/dts/mt7987b-cudy-tr3600-v1.dts
++++ b/target/linux/mediatek/dts/mt7987b-cudy-tr3600-v1.dts
+@@ -13,7 +13,7 @@
+ 		led-boot = &led_sys_red;
+ 		led-failsafe = &led_sys_red;
+ 		led-running = &led_sys_white;
+-		led-upgrade = &led_sys_white;
++		led-upgrade = &led_sys_red;
+ 		label-mac-device = &gmac1;
+ 	};
+ 
+@@ -59,6 +59,7 @@
+ };
+ 
+ &fan {
++	cooling-levels = <0 64 128 192 255>;
+ 	pwms = <&pwm 0 50000 0>;
+ 	status = "okay";
+ };
+@@ -127,7 +128,7 @@
+ 
+ 			band@1 {
+ 				reg = <1>;
+-				nvmem-cells = <&macaddr_bdinfo_de00 2>;
++				nvmem-cells = <&macaddr_bdinfo_de00 16>;
+ 				nvmem-cell-names = "mac-address";
+ 			};
+ 		};
+@@ -235,3 +236,57 @@
+ 	pinctrl-0 = <&uart0_pins>;
+ 	status = "okay";
+ };
++
++&cpu_thermal {
++	trips {
++		cpu_trip_fan_low: fan-low {
++			temperature = <65000>;
++			hysteresis = <5000>;
++			type = "active";
++		};
++
++		cpu_trip_fan_med: fan-med {
++			temperature = <72000>;
++			hysteresis = <5000>;
++			type = "active";
++		};
++
++		cpu_trip_fan_high: fan-high {
++			temperature = <80000>;
++			hysteresis = <5000>;
++			type = "active";
++		};
++
++		cpu_trip_fan_max: fan-max {
++			temperature = <88000>;
++			hysteresis = <5000>;
++			type = "active";
++		};
++	};
++
++	cooling-maps {
++		map0 {
++			trip = <&cpu_trip_fan_low>;
++			cooling-device = <&fan 1 1>;
++			contribution = <1024>;
++		};
++
++		map1 {
++			trip = <&cpu_trip_fan_med>;
++			cooling-device = <&fan 2 2>;
++			contribution = <1024>;
++		};
++
++		map2 {
++			trip = <&cpu_trip_fan_high>;
++			cooling-device = <&fan 3 3>;
++			contribution = <1024>;
++		};
++
++		map3 {
++			trip = <&cpu_trip_fan_max>;
++			cooling-device = <&fan 4 4>;
++			contribution = <1024>;
++		};
++	};
++};
