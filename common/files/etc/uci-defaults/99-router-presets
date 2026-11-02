@@ -5,6 +5,7 @@
 # 测试钩子（scripts/test-router-presets.sh 用；默认值与生产行为完全一致）
 BBR_DIR="${BBR_SYS_DIR:-/sys/module/tcp_bbr}"
 SYSCTL_CONF="${SYSCTL_CONF:-/etc/sysctl.conf}"
+DUFS_CONF="${DUFS_CONF:-/etc/config/dufs}"
 
 # ---- 默认 LAN：192.168.10.1/24，DHCP 池 .100~.249 ----
 uci -q set network.lan.ipaddr='192.168.10.1'
@@ -14,9 +15,35 @@ uci -q set dhcp.lan.limit='150'    # start+limit-1 = .249
 uci -q commit network
 uci -q commit dhcp
 
+# ---- 主机名 / 时区 / 时间格式 ----
+# timezone 值必须与 zonename 对应（Asia/Shanghai = CST-8），LuCI 选时区就是这个映射
+uci -q set system.@system[0].hostname='tr3600'
+uci -q set system.@system[0].zonename='Asia/Shanghai'
+uci -q set system.@system[0].timezone='CST-8'
+# LuCI「Time Format」：h23 = 24 小时制（h12=12 小时制；Intl hourCycle 规范取值）
+uci -q set system.@system[0].clock_hourcycle='h23'
+uci -q commit system
+
 # ---- UPnP：默认启用安全模式（仅允许位于 DMZ/已映射主机的请求）
 uci -q set upnpd.config.secure_mode=1
 uci -q commit upnpd
+
+# ---- dufs：网页文件浏览器 + WebDAV（统一 8080，80 独占给 LuCI）----
+# dufs 替代 filebrowser（难看）+ lighttpd（抢 80 端口导致 LuCI 403 事故），两职一包，
+# 只监听 8080，端口冲突从根上消失（99-web-port-guard 已随之删除）。
+# 默认只读（浏览/下载/搜索/打包），开写与认证方式见 README「dufs 文件服务」。
+if [ -f "$DUFS_CONF" ]; then
+	uci -q set dufs.config.enabled='1'
+	uci -q set dufs.config.port='8080'
+	uci -q set dufs.config.serve_path='/mnt'
+	uci -q set dufs.config.allow_search='1'
+	uci -q set dufs.config.allow_archive='1'
+	uci -q commit dufs
+fi
+# 固定域名：客户端填 http://webdav.openwrt.lan:8080，不用记 IP
+uci -q set dhcp.webdav_domain=domain
+uci -q set dhcp.webdav_domain.name='webdav.openwrt.lan'
+uci -q commit dhcp
 
 # ---- 定时重启：每周一凌晨 04:30（crontab 实现；上游 luci-app-autoreboot 已删除）
 CRON_LINE="30 4 * * 1 sleep 70 && touch /etc/banner && reboot"
