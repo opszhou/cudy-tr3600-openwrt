@@ -1,0 +1,23 @@
+#!/bin/sh /etc/rc.common
+# 开机兜底：USB 网卡自动当 WAN
+#
+# 为什么要这个脚本：/etc/hotplug.d/net 只在设备「热」插拔时触发，开机时就已经插着的 USB 网卡
+# 不保证收到事件。这里在开机后扫一遍所有网卡，把已插着的 USB 以太网设备也交给同一套逻辑处理，
+# 真正做到「插上就通、开机就通」，不需要在 LuCI 里点连接。
+# 具体判定与建接口逻辑都在 /etc/hotplug.d/net/50-usb-wan（单一事实来源），本脚本只负责遍历调用。
+
+START=95
+STOP=10
+
+start() {
+	[ -x /etc/hotplug.d/net/50-usb-wan ] || return 0
+	for d in /sys/class/net/*; do
+		[ -e "$d" ] || continue
+		iface="${d##*/}"
+		INTERFACE="$iface" ACTION=add /etc/hotplug.d/net/50-usb-wan
+	done
+}
+
+stop() {
+	:
+}

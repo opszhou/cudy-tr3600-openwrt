@@ -1,0 +1,137 @@
+#!/bin/sh
+# USB 网卡 / 手机 USB 共享 / 免驱 5G CPE 插上后，自动拉起来当 WAN（2026-11）
+#
+# 触发：/etc/hotplug.d/net，$ACTION=add|remove，$INTERFACE=内核网卡名（如 eth2、usb0）
+#
+# 设计要点：**先等、再判、最后才动手**
+#   双拨冲突的根源是时序：热插拔事件瞬间触发，而 QModem / netifd 可能稍后才接管同一块网卡。
+#   所以这里不抢跑——先等 GRACE 秒（默认 5），再逐条确认「有没有别人已经把它接好了」，
+#   确认没人管才自己建 wanusb；已连通就完全不动。
+#
+# 接管范围：
+#   会接管：USB 有线网卡（r8152/ax88179/asix…）、手机 USB 共享（RNDIS）、
+#          免驱 4G/5G 上网卡与 CPE（HiLink 类，RNDIS/ECM/NCM，自带 DHCP）
+#   不接管：板载 eth0/eth1、桥成员、以及**需要拨号**的模组数据通道
+#          （名字 wwan*/rmnet*，或同设备接口驱动为 qmi_wwan*/cdc_mbim/cdc_wdm）
+#          —— 后者由 QModem 的 quectel-CM 拨号，抢过来会双拨失败
+#
+# 生成的接口：wanusb（proto=dhcp、metric=20、并入防火墙 wan 区）
+#   metric=20 让它比板载 WAN 低一级：两个都通时优先走网线，拔掉网线自动回落
+#   换一块网卡：改绑到新设备；拔掉：只 ifdown，配置留着下次插上复用
+#
+# 依赖：kmod-usb-net-* 各芯片驱动（lite/ultimate 已内置 rtl8152/8153/8156、asix、ax88179、rndis、cdc-*）
+
+IFACE="${INTERFACE:-}"
+[ -n "$IFACE" ] || exit 0
+
+# 可测试钩子（生产默认即真实路径/真实命令，scripts/test-usb-wan.sh 用它们跑沙箱）
+SYSFS="${SYSFS:-/sys}"
+QM_RUN="${QM_RUN:-/var/run/qmodem}"
+GRACE="${GRACE:-5}"
+IP_CMD="${IP_CMD:-ip}"
+
+UCI_IF="wanusb"
+
+case "$IFACE" in
+	lo|eth0|eth1|lan*|wan*|sfp*|dsa*|wwan*|rmnet*|br-*|wlan*|phy*|sit*|gre*|tun*|tap*)
+		exit 0 ;;
+esac
+
+# 必须在 USB 总线上：/sys/class/net/<if>/device -> .../usbN/<bus-port>/<iface>:<cfg>
+# 先判断链接本身存在——readlink -f 对「末级不存在」的路径也会返回结果，
+# 只靠字符串匹配会把非 USB 网卡误判成 USB（沙箱测试暴露过这个坑）。
+DEVLINK="$SYSFS/class/net/$IFACE/device"
+{ [ -e "$DEVLINK" ] || [ -L "$DEVLINK" ]; } || exit 0
+BUSPATH="$(readlink -f "$DEVLINK" 2>/dev/null)"
+case "$BUSPATH" in
+	*/usb[0-9]*/*) ;;
+	*) exit 0 ;;
+esac
+
+# 排除「需要拨号」的模组数据通道（QMI/MBIM）：同一 USB 设备下任一接口驱动为
+# qmi_wwan*（含 QModem 的 _q/_f/_s 变体）/ cdc_mbim / cdc_wdm 即视为模组，交给 QModem。
+# 纯以太协议的（rndis_host / cdc_ether / cdc_ncm / r8152 / ax88179_178a / asix …）才接管。
+IFDIR="$(dirname "$BUSPATH")"
+for p in "$IFDIR"/*/driver "$IFDIR"/*/*/driver; do
+	[ -e "$p" ] || continue
+	case "$(readlink -f "$p" 2>/dev/null | sed 's#.*/##')" in
+		qmi_wwan|qmi_wwan_*|cdc_mbim|cdc_wdm) exit 0 ;;
+	esac
+done
+
+# 必须是以太网类型（ARPHRD_ETHER=1），排除 PPP/modem 等非以太设备
+[ "$(cat "$SYSFS/class/net/$IFACE/type" 2>/dev/null)" = "1" ] || exit 0
+
+# 已经是某个桥的成员（例如被手工加进 br-lan）就不动它
+[ -e "$SYSFS/class/net/br-lan/brif/$IFACE" ] && exit 0
+
+if [ "$ACTION" = "remove" ]; then
+	[ "$(uci -q get "network.$UCI_IF.device")" = "$IFACE" ] && ifdown "$UCI_IF" 2>/dev/null
+	exit 0
+fi
+
+[ "$ACTION" = "add" ] || exit 0
+
+# QModem 的运行时标记目录：/var/run/qmodem/<bus>_<port>_dir（如 2-1 → 2_1_dir）
+USBPATH="$(basename "$IFDIR")"
+QMKEY="$(printf '%s' "$USBPATH" | sed 's/[-.]/_/g')"
+QMKEY2="$(printf '%s' "$USBPATH" | sed 's/-/_/g')"
+qmodem_claims() {
+	[ -d "$QM_RUN/${QMKEY}_dir" ] || [ -d "$QM_RUN/${QMKEY2}_dir" ]
+}
+
+# ---- 第一步：等一个窗口期，让 QModem / netifd / 其它热插拔脚本先动手 ----
+# 不等待的话，事件瞬间就抢先建接口，随后 QModem 再来接管同一块网卡 → 双拨打架。
+sleep "$GRACE"
+
+# ---- 第二步：判当前状态，任一条成立即「已经有人接好了」，直接退出 ----
+
+# 1) QModem 已接管（运行时目录出现）
+qmodem_claims && exit 0
+
+# 2) 这块网卡上已有 IPv4 地址（别的接口拿到租约了，或 wanusb 自己已连上）
+if "$IP_CMD" -4 addr show dev "$IFACE" 2>/dev/null | grep -q "inet "; then
+	exit 0
+fi
+
+# 3) 已被其它 uci 接口占用（手工配过 / QModem 写进配置）
+for s in $(uci -q show network 2>/dev/null | sed -n "s/^network\.\([^.=]*\)\.device='$IFACE'$/\1/p"); do
+	[ -n "$s" ] && exit 0
+done
+
+# 4) netifd 当前已有接口绑着这个设备（含运行时动态接口）；
+#    唯一例外是 wanusb 自己已经绑在它上面（换网卡/重复事件）
+if ubus -S call network.interface dump 2>/dev/null | grep -q "\"device\": *\"$IFACE\""; then
+	[ "$(uci -q get "network.$UCI_IF.device")" = "$IFACE" ] || exit 0
+fi
+
+# ---- 第三步：确认没人管，才建立并使用 wanusb ----
+
+# 已有 wanusb：同设备就只是重新拉起，不同设备就改绑
+if uci -q get "network.$UCI_IF" >/dev/null 2>&1; then
+	if [ "$(uci -q get "network.$UCI_IF.device")" != "$IFACE" ]; then
+		ifdown "$UCI_IF" 2>/dev/null
+		uci -q set "network.$UCI_IF.device=$IFACE"
+		uci -q commit network
+	fi
+	ifup "$UCI_IF" 2>/dev/null
+	exit 0
+fi
+
+uci -q set "network.$UCI_IF=interface"
+uci -q set "network.$UCI_IF.proto=dhcp"
+uci -q set "network.$UCI_IF.device=$IFACE"
+uci -q set "network.$UCI_IF.metric=20"
+uci -q commit network
+
+# 并入防火墙 wan 区（zone 名不是 wan 或找不到就跳过，只保留接口本身）
+ZONE="$(uci -q show firewall 2>/dev/null | sed -n "s/^firewall\.\(@zone\[[0-9]*\]\)\.name='wan'$/\1/p" | head -n1)"
+if [ -n "$ZONE" ]; then
+	uci -q add_list "firewall.$ZONE.network=$UCI_IF"
+	uci -q commit firewall
+fi
+
+ifup "$UCI_IF" 2>/dev/null
+/etc/init.d/firewall reload >/dev/null 2>&1
+
+exit 0
