@@ -127,11 +127,12 @@ TOTAL=$(awk '/^CONFIG_PACKAGE_.+=y/ && !/_INCLUDE_/' .config 2>/dev/null | wc -l
     while sleep "${HEARTBEAT_SEC:-600}"; do
         # 已编包数：优先数翻译后的「▶ 包：动作」事件；翻译器未生效时退回原始
         # 「make[N] -C <路径> <目标>」行，两种格式都能计数，且排除工具链/内核等非包目标。
+        # 行首允许空白：上游 sub-make 进度行带前导空格（run#28 取证）
         done_pkgs=$(awk '
-            /^▶ / { n=$0; sub(/^▶ /,"",n); sub(/：.*/,"",n);
+            /^[[:space:]]*▶ / { n=$0; sub(/^[[:space:]]*▶ /,"",n); sub(/：.*/,"",n);
                     if (n !~ /^(tools|toolchain|linux|target)(\/|$)/) print n; next }
-            /^make\[[0-9]+\] -C (package|feeds)\// {
-                    l=$0; sub(/^make\[[0-9]+\] -C /,"",l); split(l,a," ");
+            /^[[:space:]]*make\[[0-9]+\] -C (package|feeds)\// {
+                    l=$0; sub(/^[[:space:]]*make\[[0-9]+\] -C /,"",l); split(l,a," ");
                     if (l ~ /compile|install/) print a[1] }
         ' "$PROG" 2>/dev/null | sort -u | wc -l | tr -d ' ')
         last=$(tail -n 1 "$PROG" 2>/dev/null || true)

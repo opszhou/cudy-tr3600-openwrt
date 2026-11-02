@@ -47,8 +47,10 @@ function actions(tgt,   n, acts, j, t, out, known) {
 {
     line = $0
 
+    # 上游 toplevel 输出的 sub-make 进度行带一个前导空格（run#28 取证实锤，
+    # 老 writeup 无空格），两个格式都要容忍行首空白
     # 格式一：make[N] -C <路径> <目标...>
-    if (match(line, /^make\[[0-9]+\] -C /)) {
+    if (match(line, /^[[:space:]]*make\[[0-9]+\] -C /)) {
         rest = substr(line, RSTART + RLENGTH)
         sp = index(rest, " ")
         if (sp > 0) {
@@ -61,7 +63,7 @@ function actions(tgt,   n, acts, j, t, out, known) {
     }
 
     # 格式二：make[N]: <路径>/<目标>（冒号形式）
-    if (match(line, /^make\[[0-9]+\]: /)) {
+    if (match(line, /^[[:space:]]*make\[[0-9]+\]: /)) {
         tgt = substr(line, RSTART + RLENGTH)
         pos = 0
         for (i = length(tgt); i > 0; i--)
