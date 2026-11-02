@@ -49,6 +49,7 @@
 |------|------|
 | 组网 | **tailscale**（异地组网）+ macvlan（单口多拨/虚拟网卡） |
 | 无线漫游 | travelmate（无线中继/酒店 WiFi 上行管理） |
+| 下载 | **Transmission** BitTorrent 下载（LuCI 面板 + 自带 WebUI 9091 端口） |
 | 运维工具 | ttyd 网页终端 + luci-app-statistics 轻量监控（CPU/内存/接口图表） |
 | 网络 | ip-full / yq |
 
