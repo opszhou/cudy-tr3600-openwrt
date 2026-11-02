@@ -69,16 +69,18 @@ found=0
 for d in "$FW_DIR"/*/; do
   [ -d "$d" ] || continue
   A=$(basename "$d")                           # openwrt-<device>-<profile>-snapshot
-  case "$A" in openwrt-*-snapshot) ;; *) continue ;; esac
+  # artifact 目录名由本仓库 workflow 生成（openwrt-<设备>-<组合>-snapshot）；
+  # 目录内文件前缀取决于上游（openwrt-* 或 immortalwrt-*），所以下面一律用无前缀 glob
+  case "$A" in *-snapshot) ;; *) continue ;; esac
   X=${A#openwrt-}; X=${X%-snapshot}
   PROF=${X##*-}; DEV=${X%-*}
   while IFS= read -r f; do
     cp -f "$f" "assets/$(asset_name "$(basename "$f")" "$DEV" "$PROF")"
   done < <(find "$d" -type f ! -path "*/packages/*" \
-             \( -name 'openwrt-*.bin' -o -name 'openwrt-*.itb' -o -name 'openwrt-*.img' \
-                -o -name 'openwrt-*.manifest' -o -name '*.buildinfo' \) | sort)
-  SYS=$(find "$d" -name 'openwrt-*-sysupgrade.bin' -printf '%f\n' 2>/dev/null | head -n1)
-  MF=$(find "$d" -name 'openwrt-*.manifest' | head -n1)
+             \( -name '*.bin' -o -name '*.itb' -o -name '*.img' \
+                -o -name '*.manifest' -o -name '*.buildinfo' \) | sort)
+  SYS=$(find "$d" -name '*-sysupgrade.bin' -printf '%f\n' 2>/dev/null | head -n1)
+  MF=$(find "$d" -name '*.manifest' | head -n1)
   PKG=$( { [ -n "$MF" ] && grep -c . "$MF"; } || echo "?" )
   SYS_N=$( [ -n "$SYS" ] && asset_name "$SYS" "$DEV" "$PROF" )
   echo "| ${PROF} | ${DEV} | \`${SYS_N:-无}\` | ${PKG} |" >> "$NOTES"
@@ -86,7 +88,7 @@ for d in "$FW_DIR"/*/; do
 done
 
 if [ "$found" -eq 0 ]; then
-  echo "未在 $FW_DIR 中找到任何 openwrt-*-snapshot artifact"
+  echo "未在 $FW_DIR 中找到任何 *-snapshot artifact"
   exit 1
 fi
 
