@@ -23,7 +23,7 @@
 - 时区 **Asia/Shanghai**（CST-8）；LuCI 时间显示 **24 小时制**（`clock_hourcycle=h23`）
 - 双频 WiFi 7（EHT）默认：国家码 **CN**（默认 00 会禁掉 5G 149~165 段）、ACS 自动信道（排除 DFS）、2.4G 20MHz / 5G 80MHz / 6G 160MHz；已设密钥接口升级为 **WPA2/WPA3 混合**（sae-mixed + PMF optional，无密钥接口不动避免起不来）
 - **5G SSID 自动加 `_5G` 后缀**（区分双频，幂等）
-- dufs 首启预设：**8080 端口**、根目录 `/mnt`、上传开 / 删除关
+- dufs 首启预设：**8080 端口**、根目录 `/mnt`、仅第一块 USB 盘（`/mnt/sda1`）可写、其余挂载点只读、删除全局关
 - UPnP 默认**安全模式**；BBR 拥塞控制默认启用
 - 每周一凌晨 04:30 自动重启（crontab 写入；上游 luci-app-autoreboot 已删除）
 - 测试：`scripts/test-router-presets.sh`（stub uci/crontab 沙箱实测，CI/local 均可跑）
