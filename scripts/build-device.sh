@@ -47,10 +47,17 @@ DEFCONFIG_LOG="$PWD/.defconfig.log"
 make defconfig 2>&1 | tee "$DEFCONFIG_LOG"
 
 echo "==== 必选项审计（=y 项必须全部幸存，防止被 defconfig 静默丢弃）===="
+# 差异清单（exclude.<upstream>.list）会用 "# X is not set" 覆盖前面清单里的 =y 项，
+# Kconfig 以最后一条为准；审计必须同步跳过这些显式关闭的符号，否则误报「被丢弃」并中止构建
+EXCLUDED_SYMS="$(grep -oE '^# (CONFIG_[A-Za-z0-9_]+) is not set' .config.wanted | awk '{print $2}')"
 missing=0
 while IFS= read -r setting; do
     case "$setting" in
         CONFIG_*=y)
+            sym="${setting%=y}"
+            if [ -n "$EXCLUDED_SYMS" ] && printf '%s\n' "$EXCLUDED_SYMS" | grep -Fxq "$sym"; then
+                continue   # 该上游显式关闭，不算缺失
+            fi
             if ! grep -Fxq "$setting" .config; then
                 echo "  被丢弃: $setting"
                 # 提示同名前缀候选：区分「包被上游改名」与「包真被丢弃」

@@ -9,3 +9,10 @@
 
 # CONFIG_PACKAGE_luci-app-argon-config is not set
 # CONFIG_PACKAGE_luci-i18n-argon-config-zh-cn is not set
+
+# turboacc 面板：依赖 kmod-fast-classifier / kmod-shortcut-fe-cm / kmod-shortcut-fe-drv，
+# 这三个 SFE 内核模块在 immortalwrt 的 feeds 里不存在（2026-11-03 defconfig 实测），
+# 选了会在装 rootfs 阶段因 no such package 整体失败（同 kmod-nft-fullcone 的坑）。
+# 影响：失去 SFE/硬件分载开关面板；flow offload 由 firewall4 默认提供，BBR 仍由 kmod-tcp-bbr 提供。
+# CONFIG_PACKAGE_luci-app-turboacc is not set
+# CONFIG_PACKAGE_luci-i18n-turboacc-zh-cn is not set
