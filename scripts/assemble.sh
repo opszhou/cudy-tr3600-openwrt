@@ -73,6 +73,13 @@ done < "$FEEDS_FILE"
 #    不走 feed：绕开 scan.mk 对非标准 feed 布局的兼容问题
 if [ -d "$ROOT/common/package" ]; then
     cp -a "$ROOT/common/package/." "$OPENWRT/package/"
+    # luci-app-dufs 例外：它是从 immortalwrt/luci vendored 来的（openwrt 官方 luci 没有这个应用），
+    # 而 immortalwrt 自己的 luci feed 恰好自带同一个包——两份同名包会让 Kconfig 出现重复符号，
+    # 因此该上游删掉本地副本，直接用 feed 里那份（同一个仓库、同一份代码）。
+    if [ "$REPO" = "immortalwrt" ] && [ -d "$OPENWRT/package/luci-app-dufs" ]; then
+        rm -rf "$OPENWRT/package/luci-app-dufs"
+        echo "immortalwrt: 跳过本地 luci-app-dufs（改用其 luci feed 自带版本）"
+    fi
 fi
 if [ -d "$ROOT/devices/$DEV/package" ]; then
     cp -a "$ROOT/devices/$DEV/package/." "$OPENWRT/package/"
