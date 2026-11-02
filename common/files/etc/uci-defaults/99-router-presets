@@ -42,10 +42,6 @@ if [ -f "$DUFS_CONF" ]; then
 	uci -q set dufs.config.allow_archive='1'
 	uci -q commit dufs
 fi
-# 固定域名：客户端填 http://webdav.openwrt.lan:8080，不用记 IP
-uci -q set dhcp.webdav_domain=domain
-uci -q set dhcp.webdav_domain.name='webdav.openwrt.lan'
-uci -q commit dhcp
 
 # ---- 定时重启：每周一凌晨 04:30（crontab 实现；上游 luci-app-autoreboot 已删除）
 CRON_LINE="30 4 * * 1 sleep 70 && touch /etc/banner && reboot"
