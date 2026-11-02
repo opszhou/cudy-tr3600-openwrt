@@ -40,6 +40,11 @@ if [ -f "$DUFS_CONF" ]; then
 	uci -q set dufs.config.allow_upload='1'
 	uci -q set dufs.config.allow_search='1'
 	uci -q set dufs.config.allow_archive='1'
+	# 按路径权限：所有挂载点只读，仅第一块 USB 盘（/mnt/sda1）可读写；盘名不同改这一行
+	# dufs 嵌套规则自动从严（递归删除含只读子树的目录会被 403 拒绝）；
+	# 全局 allow_delete 未开兜底——即使 :rw 也删不掉东西
+	uci -q delete dufs.config.auth
+	uci -q add_list dufs.config.auth='@/:ro,/sda1:rw'
 	uci -q commit dufs
 fi
 

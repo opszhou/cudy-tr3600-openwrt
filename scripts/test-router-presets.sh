@@ -35,6 +35,20 @@ case "$cmd" in
     out="${line#*=}"; out="${out#\'}"; out="${out%\'}"
     printf '%s\n' "$out"
     ;;
+  add_list)
+    kv="$1"; key="${kv%%=*}"; val="${kv#*=}"
+    val="${val#\'}"; val="${val%\'}"
+    printf "%s='%s'\n" "$key" "$val" >> "$state"
+    ;;
+  del_list|delete)
+    kv="${1}"; key="${kv%%=*}"
+    if [ "$cmd" = "delete" ]; then
+      grep -v "^${key}" "$state" > "$state.t" 2>/dev/null || :
+    else
+      grep -vF "$kv" "$state" > "$state.t" 2>/dev/null || :
+    fi
+    mv "$state.t" "$state"
+    ;;
   show)
     grep "^${1}\." "$state" 2>/dev/null || :
     ;;
@@ -121,6 +135,7 @@ assert_eq "dufs 端口 8080" "8080" "$(get_val dufs.config.port)"
 assert_eq "dufs 根目录 /mnt" "/mnt" "$(get_val dufs.config.serve_path)"
 assert_eq "dufs 默认开上传" "1" "$(get_val dufs.config.allow_upload)"
 assert_eq "dufs 删除权限默认关" "" "$(get_val dufs.config.allow_delete)"
+assert_eq "dufs 仅 U 盘可写其余只读" "@/:ro,/sda1:rw" "$(get_val dufs.config.auth)"
 assert_eq "5G SSID 加 _5G 后缀" "Home_5G" "$(get_val wireless.default_radio1.ssid)"
 assert_eq "2.4G SSID 保持不变" "OpenWrt" "$(get_val wireless.default_radio0.ssid)"
 assert_eq "2.4G 默认 WiFi7 EHT20" "EHT20" "$(get_val wireless.radio0.htmode)"

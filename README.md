@@ -41,7 +41,7 @@
 | 代理 | **nikki**（mihomo 内核）+ LuCI 管理界面 + TUN / nft-tproxy 内核模块 |
 | DDNS 与证书 | ddns-go + acme（acme-acmesh，LuCI 面板） |
 | 端口与服务 | UPnP（miniupnpd）+ WOL 网络唤醒 + socat（命令行）+ SFTP |
-| 文件服务 | dufs 网页文件浏览器 + WebDAV 一体（**8080** 端口，80 保留给 LuCI；默认可上传，见下方「dufs 文件服务」） |
+| 文件服务 | dufs 网页文件浏览器 + WebDAV 一体（**8080** 端口，80 保留给 LuCI；仅 U 盘可写其余只读，见下方「dufs 文件服务」） |
 | USB 存储 | UAS 高速协议 + ext4 / exFAT / NTFS3 / FAT32 文件系统 + 自动挂载（block-mount） |
 | 网络质量 | SQM 智能队列（消除 bufferbloat）+ nlbwmon 按主机流量统计 |
 
@@ -58,14 +58,17 @@
 ### dufs 文件服务（网页文件管理 + WebDAV）
 
 - 访问：`http://192.168.10.1:8080`；网页界面与 WebDAV 共用同一路径和端口（不做本地域名——设备不把路由器当 DNS 时解析不了，IP 反正是固定的）
-- 默认**可上传**（网页拖拽 / WebDAV PUT）+ 下载、搜索、目录打包 zip；**删除权限默认关**（防误删），要开：
+- 权限模型：浏览/下载/搜索/打包 zip 对**所有挂载点**开放；**仅第一块 USB 盘 `/mnt/sda1` 可写**（上传，网页拖拽 / WebDAV PUT），其余一律只读；删除全局关闭（防误删）
+- 盘名不是 `sda1`（如 `sdb1`）时，改 `/etc/config/dufs` 里的路径后重启服务：
 
   ```sh
-  uci set dufs.config.allow_delete='1'
+  uci del_list dufs.config.auth='@/:ro,/sda1:rw'
+  uci add_list dufs.config.auth='@/:ro,/sdb1:rw'
   uci commit dufs && /etc/init.d/dufs restart
   ```
 
-- 默认无认证（同网段任意设备可写）；介意就加认证：`/etc/config/dufs` 里 `list auth '用户名:密码@/:rw'`，重启生效
+- 要开删除（危险）：`uci set dufs.config.allow_delete='1' && uci commit dufs && /etc/init.d/dufs restart`
+- 默认无认证（同网段设备可对 U 盘写入）；介意就加账号：`/etc/config/dufs` 里 `list auth '用户名:密码@/:rw'`（会覆盖匿名规则），重启生效
 - 根目录 `/mnt`（U 盘/移动硬盘自动挂载点）；dufs 的 WebDAV 是 Class 1（无 LOCK），普通文件传输/播放没问题，不保证 Office 在线编辑等高级用法
 
 ## 下载固件
