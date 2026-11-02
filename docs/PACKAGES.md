@@ -83,3 +83,21 @@ feeds 追加配置见 `common/feeds.append`，所有 feed 均标记 `;@latest`�
 ### 公共定制脚本
 
 `common/customize.sh` 在 feeds 安装后执行（默认主题 sed 依赖 feeds 目录），可在此追加构建期定制。
+
+## 多上游支持（openwrt / immortalwrt）
+
+同一套设备配置可编译两个上游，区别只在三处：
+
+| 项目 | openwrt | immortalwrt |
+|---|---|---|
+| 补丁目录 | `patches/openwrt-<分支>/` | `patches/immortalwrt-master/`（同补丁，实测零改动可用） |
+| feeds 追加 | `common/feeds.append`（含 kenzok8/small、turboacc） | `common/feeds.append.immortalwrt`（只加 qmodem + nikki） |
+| 清单差异 | 无 | `common/packages/exclude.immortalwrt.list`（关闭 upstream 缺失的包） |
+
+dispatch 参数：`upstream_owner=immortalwrt`、`upstream_repo=immortalwrt`、`upstream_branch=master`。
+
+**immortalwrt 已知差异**（2026-11-03 容器实测 lite/ultimate 双组合 defconfig + 审计均 missing=0）：
+
+- 自带 argon 主题、ddns-go、ttyd、transmission、travelmate、statistics → 不加 kenzok8 feed
+- **无 `luci-app-argon-config`**（argon 主题照常，无调色面板）
+- **无 SFE 三件套**（kmod-fast-classifier / kmod-shortcut-fe-{cm,drv}）→ turboacc 面板被排除；flow offload 与 BBR 不受影响

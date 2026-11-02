@@ -12,7 +12,7 @@
 │   └── cudy_tr3600-v1/
 │       ├── device.yml     # 元数据：target / profile / 上游分支 / 默认 PR 列表
 │       ├── default.seed   # .config 种子（目标机型 + 基础包）
-│       ├── patches/       # 补丁（openwrt-<分支>/，由合并 PR 工作流自动填充）
+│       ├── patches/       # 补丁（<上游仓库名>-<分支>/, 如 openwrt-main/ immortalwrt-master/）
 │       ├── package/       # 设备专属源码包（tr3600-dualslot-upgrade）
 │       └── files/         # 设备专属 /etc 覆盖
 ├── common/                # ── 全部设备共用 ──
@@ -67,13 +67,13 @@
 id: cudy_tr3600-v1        # 设备 ID = devices/ 目录名
 target: mediatek/filogic  # OpenWrt target/subtarget
 profile: cudy_tr3600-v1   # CONFIG_TARGET_..._DEVICE_<profile>
-branch: main              # 上游分支；补丁目录须对应 patches/openwrt-<branch>
+branch: main              # 上游分支；补丁目录须对应 patches/<上游仓库名>-<branch>
 default_prs:              # 「合并官方 PR」未填号时默认合并的 PR（可留空）
   - 25860
   - 25996
 ```
 
-> ⚠️ `branch` 与补丁目录名 `openwrt-<branch>` 必须一一对应。
+> ⚠️ `branch` 与补丁目录名 `<上游仓库名>-<branch>` 必须一一对应（上游仓库名即 build.yml 的 upstream_repo）。
 
 ## scripts/ 脚本清单
 
