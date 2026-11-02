@@ -33,7 +33,21 @@
 - Transmission 首启预设：**开机自启**，下载/未完成/配置目录从上游默认的 `/tmp`（内存盘，重启即丢）迁到 `/mnt/transmission/`；首启时若已插 U 盘（`/mnt/sda1`）则改落 `/mnt/sda1/transmission/`
 - UPnP 默认**安全模式**；BBR 拥塞控制默认启用
 - 每周一凌晨 04:30 自动重启（crontab 写入；上游 luci-app-autoreboot 已删除）
-- 测试：`scripts/test-router-presets.sh`（开机预设，stub uci/crontab 沙箱）、`scripts/test-usb-wan.sh`（USB 网卡当 WAN 的 10 个判定场景，假 sysfs + stub uci/ubus/ip/ifup）
+- 测试：`scripts/test-router-presets.sh`（开机预设，stub uci/crontab 沙箱）、`scripts/test-usb-wan.sh`（USB 网卡当 WAN 的 10 个判定场景，假 sysfs + stub uci/ubus/ip/ifup）、`scripts/test-hotfix.sh`（运行期补丁：语法、写入、幂等、失败不阻断）
+
+### 运行期补丁（hotfix）
+
+`common/files/etc/hotfix.d/*.sh` + `common/files/etc/init.d/hotfix`（START=98）。
+
+与 `uci-defaults` 的分工：
+
+| | uci-defaults | hotfix |
+|---|---|---|
+| 执行时机 | 仅首次开机，跑完即删 | 每次开机 |
+| 用途 | 一次性初始配置 | 配置被覆盖后自我收敛 |
+| 要求 | 幂等更保险 | **必须幂等** |
+
+同一份补丁既是固件内建，也能 `scp` 到设备 `/etc/hotfix.d/` 直接重放，避免"设备上改了、仓库没改"的漂移。
 
 ### WED 关闭（MT7990 稳定性）
 

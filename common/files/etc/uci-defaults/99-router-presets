@@ -29,6 +29,15 @@ uci -q commit system
 uci -q set upnpd.config.secure_mode=1
 uci -q commit upnpd
 
+# ---- 运行期补丁（hotfix）：开机重放 /etc/hotfix.d/*.sh ----
+# 配置级修复（兜底 DNS 等）统一放 /etc/hotfix.d/，好处是同一份脚本两处复用：
+#   随固件进镜像 → 每次开机自动收敛；不重编译 → 直接 scp 到设备同一目录即可重放。
+# uci-defaults 只在首次开机跑一次（跑完即删），配置被覆盖后不会自愈，所以这类修复不放这儿。
+if [ -x /etc/init.d/hotfix ]; then
+	/etc/init.d/hotfix enable >/dev/null 2>&1 || true
+	/etc/init.d/hotfix start >/dev/null 2>&1 || true
+fi
+
 # ---- dufs：网页文件浏览器 + WebDAV（统一 8080，80 独占给 LuCI）----
 # dufs 替代 filebrowser（难看）+ lighttpd（抢 80 端口导致 LuCI 403 事故），两职一包，
 # 只监听 8080，端口冲突从根上消失（99-web-port-guard 已随之删除）。

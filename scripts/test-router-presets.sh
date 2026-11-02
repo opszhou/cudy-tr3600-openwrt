@@ -136,6 +136,7 @@ assert_eq "LAN 掩码 /24" "255.255.255.0" "$(get_val network.lan.netmask)"
 assert_eq "DHCP 起始 .100" "100" "$(get_val dhcp.lan.start)"
 assert_eq "DHCP 数量 150（.100~.249）" "150" "$(get_val dhcp.lan.limit)"
 assert_eq "UPnP 安全模式开启" "1" "$(get_val upnpd.config.secure_mode)"
+# dnsmasq 上游兜底：蜂窝上行/WAN 空载时没有上游，必须固定两份，否则全部查询 REFUSED
 assert_eq "主机名 tr3600" "tr3600" "$(get_val system.@system[0].hostname)"
 assert_eq "时区 zonename Asia/Shanghai" "Asia/Shanghai" "$(get_val system.@system[0].zonename)"
 assert_eq "timezone 对应 CST-8" "CST-8" "$(get_val system.@system[0].timezone)"
