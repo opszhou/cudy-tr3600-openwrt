@@ -75,8 +75,9 @@ get_val() { # <键> -> 去引号的值
     local v="${line#*=}"; v="${v#\'}"; v="${v%\'}"; printf '%s' "$v"
 }
 
-# ---- 初始 fixture：双频 radio（radio0=2G、radio1=5G）+ 既有 cron 任务 ----
+# ---- 初始 fixture：system 节 + 双频 radio（radio0=2G、radio1=5G）+ 既有 cron 任务 + dufs 配置 ----
 cat > "$UCI_STATE_FILE" <<'FIX'
+system.@system[0]=system
 network.lan=interface
 network.lan.proto=static
 wireless.radio0=wifi-device
@@ -94,6 +95,13 @@ wireless.default_radio1.encryption=psk2
 wireless.default_radio1.key=secret123
 FIX
 printf '0 5 * * * /usr/bin/some-existing-job\n' > "$CRON_FILE"
+cat > "$SB/dufs.config" <<'FIX'
+config dufs 'config'
+	option enabled '0'
+	option port '5000'
+	option serve_path '/mnt'
+FIX
+export DUFS_CONF="$SB/dufs.config"
 
 # ===== 场景一：首次开机（BBR 模块在场）=====
 mkdir -p "$SB/bbr-present"
@@ -104,6 +112,14 @@ assert_eq "LAN 掩码 /24" "255.255.255.0" "$(get_val network.lan.netmask)"
 assert_eq "DHCP 起始 .100" "100" "$(get_val dhcp.lan.start)"
 assert_eq "DHCP 数量 150（.100~.249）" "150" "$(get_val dhcp.lan.limit)"
 assert_eq "UPnP 安全模式开启" "1" "$(get_val upnpd.config.secure_mode)"
+assert_eq "主机名 tr3600" "tr3600" "$(get_val system.@system[0].hostname)"
+assert_eq "时区 zonename Asia/Shanghai" "Asia/Shanghai" "$(get_val system.@system[0].zonename)"
+assert_eq "timezone 对应 CST-8" "CST-8" "$(get_val system.@system[0].timezone)"
+assert_eq "24 小时制 h23" "h23" "$(get_val system.@system[0].clock_hourcycle)"
+assert_eq "dufs 启用" "1" "$(get_val dufs.config.enabled)"
+assert_eq "dufs 端口 8080" "8080" "$(get_val dufs.config.port)"
+assert_eq "dufs 根目录 /mnt" "/mnt" "$(get_val dufs.config.serve_path)"
+assert_eq "WebDAV 域名预设" "webdav.openwrt.lan" "$(get_val dhcp.webdav_domain.name)"
 assert_eq "5G SSID 加 _5G 后缀" "Home_5G" "$(get_val wireless.default_radio1.ssid)"
 assert_eq "2.4G SSID 保持不变" "OpenWrt" "$(get_val wireless.default_radio0.ssid)"
 assert_eq "2.4G 默认 WiFi7 EHT20" "EHT20" "$(get_val wireless.radio0.htmode)"
