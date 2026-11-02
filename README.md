@@ -41,7 +41,7 @@
 | 代理 | **nikki**（mihomo 内核）+ LuCI 管理界面 + TUN / nft-tproxy 内核模块 |
 | DDNS 与证书 | ddns-go + acme（acme-acmesh，LuCI 面板） |
 | 端口与服务 | UPnP（miniupnpd）+ WOL 网络唤醒 + socat（命令行）+ SFTP |
-| 文件服务 | dufs 网页文件浏览器 + WebDAV 一体（**8080** 端口，80 保留给 LuCI；域名 `webdav.openwrt.lan:8080`；默认可上传，见下方「dufs 文件服务」） |
+| 文件服务 | dufs 网页文件浏览器 + WebDAV 一体（**8080** 端口，80 保留给 LuCI；默认可上传，见下方「dufs 文件服务」） |
 | USB 存储 | UAS 高速协议 + ext4 / exFAT / NTFS3 / FAT32 文件系统 + 自动挂载（block-mount） |
 | 网络质量 | SQM 智能队列（消除 bufferbloat）+ nlbwmon 按主机流量统计 |
 
@@ -57,7 +57,7 @@
 
 ### dufs 文件服务（网页文件管理 + WebDAV）
 
-- 访问：`http://192.168.10.1:8080` 或 `http://webdav.openwrt.lan:8080`；网页界面与 WebDAV 共用同一路径和端口
+- 访问：`http://192.168.10.1:8080`；网页界面与 WebDAV 共用同一路径和端口（不做本地域名——设备不把路由器当 DNS 时解析不了，IP 反正是固定的）
 - 默认**可上传**（网页拖拽 / WebDAV PUT）+ 下载、搜索、目录打包 zip；**删除权限默认关**（防误删），要开：
 
   ```sh
