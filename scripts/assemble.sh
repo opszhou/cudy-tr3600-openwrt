@@ -22,8 +22,8 @@ BRANCH="${DEV_BRANCH:-main}"
 
 echo "==== 组装: 设备=$DEV target=$DEV_TARGET profile=$DEV_PROFILE 上游分支=$BRANCH ===="
 
-# 1) 应用设备补丁（含已入库的官方 PR 补丁）
-bash "$ROOT/scripts/apply-device-patches.sh" "$ROOT" "$DEV" "$OPENWRT" "$BRANCH"
+# 1) 应用设备补丁（含已入库的官方 PR 补丁；目录按上游区分 patches/<upstream>-<branch>/）
+bash "$ROOT/scripts/apply-device-patches.sh" "$ROOT" "$DEV" "$OPENWRT" "$BRANCH" "$REPO"
 
 # 2) 临时追加合并官方 PR（不入库，仅本次构建生效）
 for pr in $EXTRA_PRS; do
@@ -31,8 +31,15 @@ for pr in $EXTRA_PRS; do
 done
 
 # 3) 追加公共 feeds（去重；只追加，不覆盖上游自带 feeds）
+#    按上游选变体：common/feeds.append.<upstream> 优先（如 immortalwrt 自带 argon/ddns-go，
+#    不能再拉 kenzok8 造成重复定义），缺失则用通用 common/feeds.append
 #    支持 ;@latest 标记：构建时解析该仓库「最新稳定 release tag」——
 #    过滤 rc/beta/alpha 等预发布 tag 取版本最高者；无稳定 tag 取最高 tag；完全无 tag 回退默认分支
+FEEDS_FILE="$ROOT/common/feeds.append"
+if [ -f "$ROOT/common/feeds.append.$REPO" ]; then
+    FEEDS_FILE="$ROOT/common/feeds.append.$REPO"
+fi
+echo "feed 追加来源: ${FEEDS_FILE#$ROOT/}"
 resolve_latest_tag() {
     local tags stable
     tags=$(git ls-remote --tags "$1" 2>/dev/null | awk '{print $2}' | sed 's|refs/tags/||' | grep -v '\^{}' || true)
@@ -59,7 +66,7 @@ while IFS= read -r line; do
         fi
     fi
     grep -qxF "$line" "$OPENWRT/feeds.conf.default" || echo "$line" >> "$OPENWRT/feeds.conf.default"
-done < "$ROOT/common/feeds.append"
+done < "$FEEDS_FILE"
 
 # 4) 源码树内包：公共 vendor 包（如 netpath）+ 设备专属包（如 tr3600-dualslot-upgrade）
 #    不走 feed：绕开 scan.mk 对非标准 feed 布局的兼容问题
@@ -99,6 +106,12 @@ case "$PROFILE" in
         exit 1
         ;;
 esac
+
+# 按上游的清单差异修正（显式关闭该上游没有的包；审计致命，缺失包必须在这里关掉）
+if [ -f "$ROOT/common/packages/exclude.$REPO.list" ]; then
+    echo "应用上游差异清单: common/packages/exclude.$REPO.list"
+    cat "$ROOT/common/packages/exclude.$REPO.list" >> "$OPENWRT/.config"
+fi
 
 # 定制脚本（customize.sh）在 build-device.sh 的 feeds 安装之后执行——
 # 部分定制（如默认主题 sed）需要操作 feeds 里的文件，早于 feeds 会报文件不存在

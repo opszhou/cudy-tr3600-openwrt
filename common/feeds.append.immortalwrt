@@ -1,0 +1,16 @@
+# immortalwrt 专用 feeds 追加（通用那份 common/feeds.append 不适用于它）
+#
+# 为什么不用通用版：immortalwrt 自带 feeds 已覆盖大部分需求——
+#   已内置（2026-11-03 实查 immortalwrt/luci master）：
+#     luci-theme-argon、luci-app-ddns-go、luci-app-ttyd、luci-app-transmission、
+#     luci-app-travelmate、luci-app-statistics
+#   因此不再拉 kenzok8/small（会与自带包重名，且它的 argon-config 在本仓库被排除）
+#
+# ;@latest 语义同通用版（assemble.sh resolve_latest_tag 解析）
+
+# 蜂窝模组（QModem，官方无此包）
+src-git qmodem https://github.com/FUjr/QModem.git;@latest
+# 代理（mihomo 内核 + LuCI）
+src-git nikki https://github.com/nikkinikki-org/OpenWrt-nikki.git;@latest
+# 加速面板（immortalwrt 未收录 luci-app-turboacc，作者独立仓库）
+src-git turboacc https://github.com/chenmozhijin/turboacc.git;@latest
