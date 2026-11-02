@@ -4,13 +4,15 @@
 #   0xxx-<描述>.patch        本地基础补丁（不依赖任何 PR）
 #   1pr<PR号5位补零>.patch   官方 PR 补丁（由「合并官方 PR」工作流生成，如 1pr25860.patch）
 #   9xxx-<描述>.patch        PR 之后的本地修正
-# 用法: apply-device-patches.sh <repo-root> <device-id> <openwrt目录> [branch]
+# 用法: apply-device-patches.sh <repo-root> <device-id> <openwrt目录> [branch] [upstream]
+#   upstream: 上游仓库名（openwrt | immortalwrt），决定补丁目录 patches/<upstream>-<branch>/
 set -euo pipefail
 
 ROOT="${1:?缺少 repo root}"
 DEV="${2:?缺少设备ID}"
 OPENWRT="${3:?缺少 openwrt 目录}"
 BRANCH="${4:-}"
+UPSTREAM="${5:-openwrt}"
 
 if [ -z "$BRANCH" ]; then
     # shellcheck disable=SC2046
@@ -18,7 +20,7 @@ if [ -z "$BRANCH" ]; then
     BRANCH="${DEV_BRANCH:-main}"
 fi
 
-PDIR="$ROOT/devices/$DEV/patches/openwrt-$BRANCH"
+PDIR="$ROOT/devices/$DEV/patches/${UPSTREAM}-$BRANCH"
 COUNT=0
 
 if [ -d "$PDIR" ]; then
