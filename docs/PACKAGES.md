@@ -119,4 +119,5 @@ dispatch 参数：`upstream_owner=immortalwrt`、`upstream_repo=immortalwrt`、`
 
 - 自带 argon 主题、ddns-go、ttyd、transmission、travelmate、statistics → 不加 kenzok8 feed
 - **无 `luci-app-argon-config`**（argon 主题照常，无调色面板）
-- **无 SFE 三件套**（kmod-fast-classifier / kmod-shortcut-fe-{cm,drv}）→ turboacc 面板被排除；flow offload 与 BBR 不受影响
+- **无 SFE 三件套**（kmod-fast-classifier / kmod-shortcut-fe-{cm,drv}）→ 只关这三个条件子选项，turboacc 面板本体保留（OFFLOADING/BBR 可用）
+- **保留了 `kmod-nft-fullcone`**（openwrt main 已删除）→ 全锥形 NAT 在 immortalwrt 版里反而可用，差异清单里显式打开
