@@ -6,6 +6,8 @@ branch: main                        # 上游 OpenWrt 分支；补丁目录须对
 
 # 「合并官方 PR」工作流未手动填 PR 号时默认合并的 PR
 # 注意：24581 与 25860 都是 TR3600 设备支持 PR，互斥，只能启用其一
+# ⚠️ 本列表仅对 **openwrt** 上游生效；immortalwrt 不支持从这里拉 PR，
+#    它的设备补丁是 devices/<设备>/patches/immortalwrt-*/ 下的静态补丁
 default_prs:
   - 25860                           # mediatek: add Cudy TR3600 v1 support（目标 main；实测对最新 main 干净应用）
   # - 24581                         # 备选: add support for Cudy TR3600 v1（实测对最新 main 的 02_network 冲突，待 PR 作者 rebase）
