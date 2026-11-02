@@ -19,6 +19,8 @@
 - **硬件数据校准**：在 PR 基础上按真机实测与 Cudy 官方 GPL 源码修正了 LED 颜色（boot/failsafe/upgrade=红、运行=白）、5G MAC 布局（base+0x10），并补充**风扇四档温控**（65/72/80/88 °C 自动调速）
 - **开箱即用的开机预设**（首次开机自动生效，LuCI 均可再改）：
   - LAN 地址 **192.168.10.1/24**，DHCP 池 .100~.249
+  - 主机名 **tr3600**；时区 **Asia/Shanghai**，LuCI 时间显示 **24 小时制**
+  - 双频 WiFi 7（EHT）默认：国家码 CN、ACS 自动信道、2.4G 20MHz / 5G 80MHz；已设密钥的接口升级为 **WPA2/WPA3 混合**
   - 5G SSID 自动加 `_5G` 后缀（双频同名会导致终端漫游到错误频段）
   - 每周一凌晨 04:30 自动重启；UPnP 默认安全模式；BBR 拥塞控制默认启用
 - **全套中文 LuCI** + Argon 主题（默认主题，含 argon-config 配置器）
@@ -39,7 +41,7 @@
 | 代理 | **nikki**（mihomo 内核）+ LuCI 管理界面 + TUN / nft-tproxy 内核模块 |
 | DDNS 与证书 | ddns-go + acme（acme-acmesh，LuCI 面板） |
 | 端口与服务 | UPnP（miniupnpd）+ WOL 网络唤醒 + socat（命令行）+ SFTP |
-| 文件服务 | dufs 网页文件浏览器 + WebDAV 一体（**8080** 端口，80 保留给 LuCI；域名 `webdav.openwrt.lan:8080`；默认只读，见下方「dufs 文件服务」） |
+| 文件服务 | dufs 网页文件浏览器 + WebDAV 一体（**8080** 端口，80 保留给 LuCI；域名 `webdav.openwrt.lan:8080`；默认可上传，见下方「dufs 文件服务」） |
 | USB 存储 | UAS 高速协议 + ext4 / exFAT / NTFS3 / FAT32 文件系统 + 自动挂载（block-mount） |
 | 网络质量 | SQM 智能队列（消除 bufferbloat）+ nlbwmon 按主机流量统计 |
 
