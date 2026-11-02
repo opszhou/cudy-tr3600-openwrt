@@ -1,18 +1,25 @@
-# immortalwrt 清单差异修正：在通用清单（lite/ultimate）之后追加，显式关闭上游没有的包
+# immortalwrt 清单差异修正：在通用清单（lite/ultimate）之后追加，显式关闭或改写上游差异项
 #
 # 机制：build-device.sh 的必选项审计是致命的（被 defconfig 丢弃的 =y 项直接中止构建），
-# 而通用清单里有 kenzok8 源专属的包，immortalwrt 不加载 kenzok8 feeds，必须显式关闭。
-#
-# 已核实（2026-11-03 immortalwrt/luci master，themes/applications 路径 404）：
-#   luci-app-argon-config 不在 immortalwrt luci 源，argon 主题本体在（luci-theme-argon ✓）
-# 关闭后 argon 主题照常可用，只是没有那个调色面板。
+# 而通用清单里有 kenzok8 源专属的包/子选项，immortalwrt 不加载 kenzok8 feeds，必须显式处理。
+# 后写覆盖前写：这里出现的项会覆盖 lite.list / extra.list 里的同名设置。
 
+# ---- argon 调色面板 ----
+# immortalwrt luci 源没有 luci-app-argon-config（themes/applications 路径 404 实查），
+# argon 主题本体在（luci-theme-argon ✓），关闭后主题照常可用，只少一个调音面板
 # CONFIG_PACKAGE_luci-app-argon-config is not set
 # CONFIG_PACKAGE_luci-i18n-argon-config-zh-cn is not set
 
-# turboacc 面板：依赖 kmod-fast-classifier / kmod-shortcut-fe-cm / kmod-shortcut-fe-drv，
-# 这三个 SFE 内核模块在 immortalwrt 的 feeds 里不存在（2026-11-03 defconfig 实测），
-# 选了会在装 rootfs 阶段因 no such package 整体失败（同 kmod-nft-fullcone 的坑）。
-# 影响：失去 SFE/硬件分载开关面板；flow offload 由 firewall4 默认提供，BBR 仍由 kmod-tcp-bbr 提供。
-# CONFIG_PACKAGE_luci-app-turboacc is not set
-# CONFIG_PACKAGE_luci-i18n-turboacc-zh-cn is not set
+# ---- turboacc：保留本体，只关 SFE 三件套 ----
+# 实测（2026-11-03 容器 defconfig）：SFE 三个模块在 immortalwrt feeds 里不存在，
+# 但它们是**条件依赖**（INCLUDE_SHORTCUT_FE* 需要 INCLUDE_OFFLOADING=n 才生效），
+# mediatek 上 OFFLOADING 默认 y，所以只要显式关掉这三项，turboacc 本体可正常安装。
+# 之前"整个排除 turboacc"的判断是错的（被 Makefile 的无条件 DEPENDS 警告误导），此处纠正。
+# CONFIG_PACKAGE_luci-app-turboacc_INCLUDE_SHORTCUT_FE is not set
+# CONFIG_PACKAGE_luci-app-turboacc_INCLUDE_SHORTCUT_FE_CM is not set
+# CONFIG_PACKAGE_luci-app-turboacc_INCLUDE_SHORTCUT_FE_DRV is not set
+
+# 全锥 NAT：openwrt main 已删除 kmod-nft-fullcone，通用清单因此关闭该子特性；
+# immortalwrt 保留（package/network/utils/fullconenat-nft），这里重新打开——
+# 这是「同名包在两个上游存在性不同」的典型例子
+CONFIG_PACKAGE_luci-app-turboacc_INCLUDE_NFT_FULLCONE=y
