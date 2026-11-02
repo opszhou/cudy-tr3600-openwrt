@@ -21,6 +21,16 @@ if [ -z "$BRANCH" ]; then
 fi
 
 PDIR="$ROOT/devices/$DEV/patches/${UPSTREAM}-$BRANCH"
+
+# 补丁目录缺失 = 上游/分支组合写错（如 upstream=immortalwrt 但 branch 仍取 device.yml 的 main），
+# 静默 0 补丁会让后续 defconfig 把整个 target 丢掉（run#29 教训），必须硬失败
+if [ ! -d "$PDIR" ]; then
+    echo "错误: 补丁目录不存在: ${PDIR#$ROOT/}" >&2
+    echo "       上游=$UPSTREAM 分支=$BRANCH（补丁目录规则: patches/<上游仓库名>-<分支>/）" >&2
+    echo "       现有可用目录:" >&2
+    ls -d "$ROOT/devices/$DEV/patches/"*/ 2>/dev/null | sed "s|$ROOT/|         |" >&2
+    exit 1
+fi
 COUNT=0
 
 if [ -d "$PDIR" ]; then
