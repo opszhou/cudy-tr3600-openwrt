@@ -131,23 +131,13 @@ echo "==== 开始编译 ===="
 PROG="$PWD/.build-progress.log"
 T0=$(date +%s)
 : > "$PROG"
-# 进度分母：defconfig 后的真实包符号数（排除 PACKAGE_x_INCLUDE_y 这类子选项，否则分母虚高）
-TOTAL=$(awk '/^CONFIG_PACKAGE_.+=y/ && !/_INCLUDE_/' .config 2>/dev/null | wc -l | tr -d ' ')
-: "${TOTAL:=0}"
+# 心跳只报「已进行 N 分钟 + 最近事件」，不再统计包数：
+# 分母/分子的口径随上游 make 输出格式漂移（前导空格、目标名变化）反复出错，
+# 数字错了比没有更误导人。真实进度看「▶ 包：动作」事件流水即可。
 (
     while sleep "${HEARTBEAT_SEC:-600}"; do
-        # 已编包数：优先数翻译后的「▶ 包：动作」事件；翻译器未生效时退回原始
-        # 「make[N] -C <路径> <目标>」行，两种格式都能计数，且排除工具链/内核等非包目标。
-        # 行首允许空白：上游 sub-make 进度行带前导空格（run#28 取证）
-        done_pkgs=$(awk '
-            /^[[:space:]]*▶ / { n=$0; sub(/^[[:space:]]*▶ /,"",n); sub(/：.*/,"",n);
-                    if (n !~ /^(tools|toolchain|linux|target)(\/|$)/) print n; next }
-            /^[[:space:]]*make\[[0-9]+\] -C (package|feeds)\// {
-                    l=$0; sub(/^[[:space:]]*make\[[0-9]+\] -C /,"",l); split(l,a," ");
-                    if (l ~ /compile|install/) print a[1] }
-        ' "$PROG" 2>/dev/null | sort -u | wc -l | tr -d ' ')
         last=$(tail -n 1 "$PROG" 2>/dev/null || true)
-        echo "[心跳 $(date '+%H:%M:%S')] 已编 ${done_pkgs}/${TOTAL} 个包，已进行 $(( ($(date +%s) - T0) / 60 )) 分钟，最近事件: ${last:-（暂无输出）}"
+        echo "[心跳 $(date '+%H:%M:%S')] 已进行 $(( ($(date +%s) - T0) / 60 )) 分钟，最近事件: ${last:-（暂无输出）}"
     done
 ) &
 HB_PID=$!
