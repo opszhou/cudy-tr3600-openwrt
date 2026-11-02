@@ -12,5 +12,7 @@
 src-git qmodem https://github.com/FUjr/QModem.git;@latest
 # 代理（mihomo 内核 + LuCI）
 src-git nikki https://github.com/nikkinikki-org/OpenWrt-nikki.git;@latest
-# 加速面板（immortalwrt 未收录 luci-app-turboacc，作者独立仓库）
-src-git turboacc https://github.com/chenmozhijin/turboacc.git;@latest
+
+# 不拉 turboacc：其依赖的 kmod-fast-classifier / kmod-shortcut-fe-{cm,drv} 在 immortalwrt
+# feeds 中不存在，选装必炸 rootfs（详见 common/packages/exclude.immortalwrt.list）
+# 不拉 kenzok8/small：immortalwrt 自带 argon 主题 / ddns-go 等，重复引入有重名风险
