@@ -93,6 +93,27 @@
   - 也就是说：**QMI/MBIM 模组（你现在这块 RM500U）走 QModem 拨号；RNDIS/ECM/NCM 模式的 5G CPE 或上网卡则自动当 WAN**，两者井水不犯河水
   - 查看状态：`ubus call network.interface.wanusb status` 或 LuCI → 网络 → 接口
 
+### 运行期补丁（hotfix）——不重新编译也能修配置
+
+`uci-defaults` 只在首次开机执行一次，执行完就被删除；之后某个配置项如果被覆盖或改坏，它**不会自愈**。所以「配置级修复」统一放在 `/etc/hotfix.d/*.sh`，由 `/etc/init.d/hotfix` 在**每次开机**重放。
+
+- 补丁约定：**必须幂等**（跑一次和跑十次结果一致），单条失败不会阻断后续，失败会写进 `logread -t hotfix`
+- 自带的补丁：
+  - `10-dns-upstream.sh` — 兜底上游 DNS。上行是 QModem 模组（`proto='none'`，`quectel-CM` 自己配地址）或 WAN 没插线时，netifd 不提供任何 DNS，`/tmp/resolv.conf.d/resolv.conf.auto` 为空，dnsmasq 会对**所有**查询回 `REFUSED` → 表现是「路由器 ping 得通、手机已连接但无互联网」（iOS 的联网探测就是一次域名解析）
+- 不重新编译也能落地——把仓库里这两个文件推到设备即可（内容与固件内置的完全一致）：
+
+  ```sh
+  # 在电脑上（仓库根目录）
+  scp common/files/etc/init.d/hotfix                root@192.168.10.1:/etc/init.d/hotfix
+  scp common/files/etc/hotfix.d/10-dns-upstream.sh  root@192.168.10.1:/etc/hotfix.d/
+
+  # 在路由器上
+  chmod +x /etc/init.d/hotfix /etc/hotfix.d/*.sh
+  /etc/init.d/hotfix enable && /etc/init.d/hotfix start
+  ```
+
+- 加新补丁：在 `common/files/etc/hotfix.d/` 放一个 `NN-名字.sh`（写清「问题现象 + 为什么这样修 + 幂等实现」），固件与设备两端自动共用
+
 ## 下载固件
 - **Releases**：勾选发布选项的构建会发布到仓库 [Releases](https://github.com/opszhou/cudy-tr3600-openwrt/releases) 页
 - **Artifacts**：每次构建产物为 `openwrt-cudy_tr3600-v1-<组合>-snapshot`（保留 14 天），含固件、manifest 与校验和
