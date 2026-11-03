@@ -307,4 +307,6 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RUN: ${{ github.run_number }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
+          # 标签前缀按上游区分（immortalwrt 构建不能叫 openwrt-*）
+          UPSTREAM_LABEL: ${{ inputs.upstream_repo }}
         run: bash scripts/publish-release.sh
