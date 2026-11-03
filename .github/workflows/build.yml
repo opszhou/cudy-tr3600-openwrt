@@ -164,6 +164,17 @@ jobs:
           path: openwrt
           fetch-depth: 0
 
+      - name: 缓存源码包（dl）
+        uses: actions/cache@v5
+        with:
+          path: openwrt/dl
+          # dl 只是源码 tarball 缓存，损坏会自动重新下载，风险极低；
+          # 冷缓存时 make download 是整轮耗时大头，命中率接近 100%。
+          # key 带月份滚动防无限膨胀（GitHub 按 LRU 自动淘汰）。
+          key: dl-${{ env.UPSTREAM_REPO }}-${{ env.DEV_BRANCH }}-202611
+          restore-keys: |
+            dl-${{ env.UPSTREAM_REPO }}-${{ env.DEV_BRANCH }}-
+
       - name: 缓存 ccache
         uses: actions/cache@v5
         with:

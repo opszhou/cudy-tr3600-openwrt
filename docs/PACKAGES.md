@@ -13,7 +13,7 @@
 > 分别以 nlbwmon / crontab 预设 / socat 核心（CLI）替代；turboacc 面板用作者独立 feed；
 > wolplus 仓库无 feed 化结构（上游 siwind 2022-10 起停更），改用官方 `luci-app-wol`；
 > netspeedtest 依赖的上游 python3 子包已不存在，连同其 feed 一并移除；
-> NetPath 已试装后移除（上游无 init/uci 文件，仅 CLI 无面板），多 WAN 暂无面板方案。详见 `common/packages/*.list` 内注释。
+> NetPath 已试装后移除（上游无 init/uci 文件，仅 CLI 无面板），多 WAN 暂无面板方案。详见 `common/configs/*.list` 内注释。
 >
 > **luci-app-dufs（2026-11 起）**：openwrt 官方 luci、kenzok8、small 三个源都没有 dufs 的 LuCI 面板（只有后端 `dufs`）。
 > 面板取自 **immortalwrt/luci**，原样 vendored 到 `common/package/luci-app-dufs`（Apache-2.0）；
@@ -70,7 +70,7 @@ mt76 当前 main 默认就是 `false`，显式写入防止上游翻转默认值�
 
 ### 改包清单
 
-包清单按功能拆分在 `common/packages/`：
+包清单按功能拆分在 `common/configs/`：
 
 | 文件 | 内容 |
 |------|------|
@@ -125,7 +125,7 @@ feeds 追加配置见 `common/feeds.append`，所有 feed 均标记 `;@latest`�
 |---|---|---|
 | 补丁目录 | `patches/openwrt-<分支>/` | `patches/immortalwrt-master/`（同补丁，实测零改动可用） |
 | feeds 追加 | `common/feeds.append`（含 kenzok8/small、turboacc） | `common/feeds.append.immortalwrt`（只加 qmodem + nikki） |
-| 清单差异 | 无 | `common/packages/exclude.immortalwrt.list`（关闭 upstream 缺失的包） |
+| 清单差异 | 无 | `upstreams/immortalwrt/exclude.list`（关闭 upstream 缺失的包） |
 
 dispatch 参数：`upstream_owner=immortalwrt`、`upstream_repo=immortalwrt`、`upstream_branch=master`。
 

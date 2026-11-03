@@ -14,7 +14,7 @@ if grep -q '^CONFIG_PACKAGE_luci-theme-argon=y' .config 2>/dev/null \
     sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/Makefile
 fi
 
-# ---- ndisc6：已在 common/packages/modem.list 用 choice 关闭（不再参与构建）----
+# ---- ndisc6：已在 common/configs/modem.list 用 choice 关闭（不再参与构建）----
 # 背景：qmodem feed 的 ndisc6 1.0.2 源 remlab.net 已 410；升到 Debian 池 1.0.8 后
 #       又因 src/trace-tcp.c 用 C11 alignas、而该包带 -std=c99 编译失败（run#17）。
 # 恢复：修 trace-tcp.c 的 alignas（改 __attribute__((aligned))），choice 改回 INCLUDE_ndisc6。
