@@ -67,6 +67,9 @@ NOTES=$(mktemp)
   echo "| --- | --- | --- | --- |"
 } > "$NOTES"
 
+echo "== fw 布局（扫描前） =="
+find "$FW_DIR" -mindepth 1 -maxdepth 2 -type d | head -10 || true
+
 found=0
 for d in "$FW_DIR"/*/; do
   [ -d "$d" ] || continue
