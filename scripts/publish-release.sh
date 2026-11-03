@@ -16,6 +16,8 @@ RUN=${RUN:-0}   # 仅用于极端情况下的标签去重，不再进标签
 RUN_ATTEMPT=${RUN_ATTEMPT:-1}
 FW_DIR=${FW_DIR:-fw}
 TAG_DATE=${TAG_DATE:-$(date -u +%Y%m%d)}
+# 上游标识（openwrt | immortalwrt）：进标签前缀与标题，避免 immortalwrt 构建被打成 openwrt-*
+UPSTREAM_LABEL=${UPSTREAM_LABEL:-openwrt}
 
 cd "$(dirname "$0")/.."
 
@@ -48,18 +50,18 @@ while IFS= read -r f; do
 done < <(find "$FW_DIR" -name version.buildinfo | sort)
 VER=${VER:-unknown}
 
-TAG="openwrt-${VER}"
+TAG="${UPSTREAM_LABEL}-${VER}"
 if gh release view "$TAG" >/dev/null 2>&1; then
-  TAG="openwrt-${VER}-${TAG_DATE}"          # 同一 revision 二次构建：补日期
+  TAG="${UPSTREAM_LABEL}-${VER}-${TAG_DATE}"          # 同一 revision 二次构建：补日期
 fi
 if gh release view "$TAG" >/dev/null 2>&1; then
-  TAG="openwrt-${VER}-${TAG_DATE}-a${RUN_ATTEMPT}"   # 再撞：补尝试号
+  TAG="${UPSTREAM_LABEL}-${VER}-${TAG_DATE}-a${RUN_ATTEMPT}"   # 再撞：补尝试号
 fi
 
 rm -rf assets && mkdir -p assets
 NOTES=$(mktemp)
 {
-  echo "本页是**同一次构建的全部固件**（OpenWrt \`${VER}\`，${TAG_DATE}）：lite 与 ultimate 都在这里，资产名里的组合名紧跟设备名（如 openwrt-…-cudy_tr3600-v1-lite-squashfs-sysupgrade.bin）。"
+  echo "本页是**同一次构建的全部固件**（${UPSTREAM_LABEL} \`${VER}\`，${TAG_DATE}）：lite 与 ultimate 都在这里，资产名里的组合名紧跟设备名（如 ${UPSTREAM_LABEL}-…-cudy_tr3600-v1-lite-squashfs-sysupgrade.bin）。"
   echo
   echo "| 组合 | 设备 | 主固件 | 包数量 |"
   echo "| --- | --- | --- | --- |"
@@ -102,7 +104,7 @@ cat >> "$NOTES" <<'MD'
 
 ### 刷机步骤（务必按顺序）
 1. 原厂固件 → 先刷 Cudy 官方**中间固件**（见 Cudy 下载页说明），**不要**直接刷 OpenWrt
-2. 进入 OpenWrt 后，用「系统 → 备份/升级」刷入 `openwrt-…-<组合>-sysupgrade.bin`
+2. 进入系统后，用「系统 → 备份/升级」刷入 `<上游>-…-<组合>-sysupgrade.bin`
 3. 救砖：`openwrt-…-<组合>-initramfs-kernel.bin` 可引导进内存系统抢救
 
 ### 校验
@@ -127,6 +129,6 @@ ls -lh assets
 # 标题全 ASCII（用户要求不出现中文）：snapshot <run号> (<日期>)
 TAG_ISO=$(printf '%s' "$TAG_DATE" | sed 's/^\(....\)\(..\)\(..\)$/\1-\2-\3/')
 gh release create "$TAG" assets/* \
-  --title "OpenWrt ${VER} (${TAG_ISO})" \
+  --title "${UPSTREAM_LABEL} ${VER} (${TAG_ISO})" \
   --notes-file "$NOTES" --latest
 echo "已发布: https://github.com/${GH_REPO}/releases/tag/${TAG}"
