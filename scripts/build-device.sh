@@ -149,6 +149,13 @@ if ! stdbuf -oL -eL make "-j$(nproc)" 2>&1 | awk -f "$ROOT/scripts/translate-mak
     make -j1 V=s
 fi
 
+# ccache 命中率：判断缓存是否真的有用（决定要不要进一步缓存工具链目录）
+CCBIN="$OPENWRT/staging_dir/host/bin/ccache"
+if [ -x "$CCBIN" ]; then
+    echo "==== ccache 统计 ===="
+    CCACHE_DIR="$OPENWRT/.ccache" "$CCBIN" -s 2>/dev/null | grep -Ei "cache hit|cache miss|hit rate|cache size|files in cache" | head -8 || true
+fi
+
 echo "==== 编译完成，产物位于: $OPENWRT/bin/targets ===="
 # 此处 cwd 已是 openwrt 树，用相对路径列出产物
 ls -lh bin/targets/*/
