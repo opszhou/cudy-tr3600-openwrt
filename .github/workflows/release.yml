@@ -15,6 +15,10 @@ on:
         description: "标签日期 YYYYMMDD（留空=取该 run 的创建日期）"
         required: false
         default: ""
+      upstream_label:
+        description: "标签前缀（openwrt / immortalwrt，留空=openwrt）"
+        required: false
+        default: "openwrt"
 
 permissions:
   contents: write
@@ -70,6 +74,7 @@ jobs:
           RUN: ${{ steps.target.outputs.run_number }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           IN_TAG_DATE: ${{ inputs.tag_date }}
+          UPSTREAM_LABEL: ${{ inputs.upstream_label }}
           RUN_CREATED: ${{ steps.target.outputs.created }}
         run: |
           set -euo pipefail
