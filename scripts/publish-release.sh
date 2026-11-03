@@ -70,7 +70,7 @@ for d in "$FW_DIR"/*/; do
   # artifact 目录名由本仓库 workflow 生成（<上游>-<设备>-<组合>-snapshot）；
   # 目录内文件前缀取决于上游，所以一律用无前缀 glob
   case "$A" in *-snapshot) ;; *) continue ;; esac
-  X=${A%-snapshot}; X=${X#${UPSTREAM_LABEL}-}
+  X=${A%-snapshot}; X=${X#${UPSTREAM_LABEL}-}; X=${X#openwrt-}
   PROF=${X##*-}; DEV=${X%-*}
   case " $PROFS " in *" $PROF "*) ;; *) PROFS="$PROFS $PROF" ;; esac
   while IFS= read -r f; do
@@ -124,7 +124,7 @@ if [ "$APPEND" = 1 ]; then
   ROWS=$(mktemp)
   TMPD=$(mktemp -d)
   for prof in $PROFS; do
-    SYS=$(printf '%s\n' "${ALL[@]}" | grep -- "-${prof}-" | grep -- "sysupgrade\.bin" | head -n1 || true)
+    SYS=$(printf '%s\n' "${ALL[@]}" | grep "sysupgrade\.bin" | grep -- "-${prof}[.-]" | head -n1 || true)
     MAN=$(printf '%s\n' "${ALL[@]}" | grep -- "-${prof}.manifest" | head -n1 || true)
     DEV="?"
     for dd in devices/*/; do
