@@ -77,7 +77,8 @@ for d in "$FW_DIR"/*/; do
     cp -f "$f" "assets/$(asset_name "$(basename "$f")" "$DEV" "$PROF")"
   done < <(find "$d" -type f ! -path "*/packages/*" \
              \( -name '*.bin' -o -name '*.itb' -o -name '*.img' \
-                -o -name '*.manifest' -o -name '*.buildinfo' \) | sort)
+                -o -name '*.manifest' -o -name '*.buildinfo' \) \
+             ! -name 'mt*-ram-*bl2*.bin' | sort)
   SYS=$(find "$d" -name '*-sysupgrade.bin' -printf '%f\n' 2>/dev/null | head -n1)
   MF=$(find "$d" -name '*.manifest' | head -n1)
   PKG=$( { [ -n "$MF" ] && grep -c . "$MF"; } || echo "?" )
@@ -172,6 +173,7 @@ sha256sum -c sha256sums
 ### 包含内容
 - `*-sysupgrade.bin`：主固件（系统内升级/刷机）
 - `*-initramfs-kernel.bin`：救砖 / 内存调试
+- 不含 `mt*-ram-*-bl2`（UART 芯片级救砖用 BL2，mediatek 全平台搭车产物，与本设备日常刷机无关）
 - `*.manifest`：包清单（纯文本，精确到每个包的版本）
 - `*.buildinfo`：构建配置与 feed 版本（可复现）
 - 不提供压缩包，也不提供 `packages/*.apk`
