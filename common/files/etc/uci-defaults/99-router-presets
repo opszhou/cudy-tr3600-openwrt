@@ -70,10 +70,13 @@ if [ -f "$TRANS_CONF" ]; then
 	if [ -d "$TRANS_SDA1" ]; then
 		TRANS_DL_ROOT="$TRANS_SDA1/transmission"
 	fi
-	mkdir -p "$TRANS_DL_ROOT/done" "$TRANS_DL_ROOT/incomplete" "$TRANS_DL_ROOT/config"
+	# config 放点前缀隐藏目录：dufs 以 /mnt 为根做网页共享，而 settings.json 里有 RPC 凭据、
+	# resume/ 里有任务元数据——暴露在网页文件浏览器里既难看又可能被 WebDAV 覆写。
+	# dufs 不开 --show-hidden 就不会列出点目录，配置从此对共享界面隐身。
+	mkdir -p "$TRANS_DL_ROOT/done" "$TRANS_DL_ROOT/incomplete" "$TRANS_DL_ROOT/.config"
 	chown -R transmission:transmission "$TRANS_DL_ROOT" 2>/dev/null || true
 	uci -q set transmission.@transmission[0].enabled='1'
-	uci -q set transmission.@transmission[0].config_dir="$TRANS_DL_ROOT/config"
+	uci -q set transmission.@transmission[0].config_dir="$TRANS_DL_ROOT/.config"
 	uci -q set transmission.@transmission[0].download_dir="$TRANS_DL_ROOT/done"
 	uci -q set transmission.@transmission[0].incomplete_dir="$TRANS_DL_ROOT/incomplete"
 	uci -q set transmission.@transmission[0].incomplete_dir_enabled='1'

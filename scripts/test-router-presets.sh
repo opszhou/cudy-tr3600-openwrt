@@ -150,7 +150,7 @@ assert_eq "dufs 仅 U 盘可写其余只读" "@/:ro,/sda1:rw" "$(get_val dufs.co
 # Transmission：默认 /tmp 是内存盘，预设必须迁出；无 U 盘时落 overlay
 assert_eq "Transmission 开机自启" "1" "$(get_val 'transmission.@transmission[0].enabled')"
 assert_eq "Transmission 下载目录迁出 /tmp（无 U 盘落 overlay）" "$SB/mnt/transmission/done" "$(get_val 'transmission.@transmission[0].download_dir')"
-assert_eq "Transmission 配置目录持久化" "$SB/mnt/transmission/config" "$(get_val 'transmission.@transmission[0].config_dir')"
+assert_eq "Transmission 配置目录持久化且对 dufs 隐藏" "$SB/mnt/transmission/.config" "$(get_val 'transmission.@transmission[0].config_dir')"
 assert_eq "Transmission 未完成目录启用" "1" "$(get_val 'transmission.@transmission[0].incomplete_dir_enabled')"
 assert_eq "5G SSID 加 _5G 后缀" "Home_5G" "$(get_val wireless.default_radio1.ssid)"
 assert_eq "2.4G SSID 保持不变" "OpenWrt" "$(get_val wireless.default_radio0.ssid)"
