@@ -124,7 +124,9 @@ if [ "$APPEND" = 1 ]; then
   ROWS=$(mktemp)
   TMPD=$(mktemp -d)
   for prof in $PROFS; do
-    SYS=$(printf '%s\n' "${ALL[@]}" | grep "sysupgrade\.bin" | grep -- "-${prof}[.-]" | head -n1 || true)
+    # 组合名可能是中缀（-lite-…-sysupgrade.bin）或后缀（…-sysupgrade-ultimate.bin），
+    # 所以不能搜 "sysupgrade.bin" 字面量，要分别匹配组合名与 sysupgrade 关键字
+    SYS=$(printf '%s\n' "${ALL[@]}" | grep -- "-${prof}[.-]" | grep "sysupgrade" | head -n1 || true)
     MAN=$(printf '%s\n' "${ALL[@]}" | grep -- "-${prof}.manifest" | head -n1 || true)
     DEV="?"
     for dd in devices/*/; do
