@@ -117,6 +117,16 @@ config dufs 'config'
 FIX
 export DUFS_CONF="$SB/dufs.config"
 
+# transmission 配置（匿名节，模拟上游 /etc/config/transmission 的首行结构）
+cat > "$SB/transmission.config" <<'FIX'
+config transmission
+	option enabled '0'
+	option download_dir '/tmp/transmission/done'
+FIX
+export TRANS_CONF="$SB/transmission.config"
+export TRANS_DL_ROOT="$SB/mnt/transmission"
+export TRANS_SDA1="$SB/mnt/sda1"
+
 # ===== 场景一：首次开机（BBR 模块在场）=====
 mkdir -p "$SB/bbr-present"
 PATH="$SB/bin:$PATH" BBR_SYS_DIR="$SB/bbr-present" sh "$PRESET"
@@ -126,6 +136,7 @@ assert_eq "LAN 掩码 /24" "255.255.255.0" "$(get_val network.lan.netmask)"
 assert_eq "DHCP 起始 .100" "100" "$(get_val dhcp.lan.start)"
 assert_eq "DHCP 数量 150（.100~.249）" "150" "$(get_val dhcp.lan.limit)"
 assert_eq "UPnP 安全模式开启" "1" "$(get_val upnpd.config.secure_mode)"
+# dnsmasq 上游兜底：蜂窝上行/WAN 空载时没有上游，必须固定两份，否则全部查询 REFUSED
 assert_eq "主机名 tr3600" "tr3600" "$(get_val system.@system[0].hostname)"
 assert_eq "时区 zonename Asia/Shanghai" "Asia/Shanghai" "$(get_val system.@system[0].zonename)"
 assert_eq "timezone 对应 CST-8" "CST-8" "$(get_val system.@system[0].timezone)"
@@ -136,6 +147,11 @@ assert_eq "dufs 根目录 /mnt" "/mnt" "$(get_val dufs.config.serve_path)"
 assert_eq "dufs 默认开上传" "1" "$(get_val dufs.config.allow_upload)"
 assert_eq "dufs 删除权限默认关" "" "$(get_val dufs.config.allow_delete)"
 assert_eq "dufs 仅 U 盘可写其余只读" "@/:ro,/sda1:rw" "$(get_val dufs.config.auth)"
+# Transmission：默认 /tmp 是内存盘，预设必须迁出；无 U 盘时落 overlay
+assert_eq "Transmission 开机自启" "1" "$(get_val 'transmission.@transmission[0].enabled')"
+assert_eq "Transmission 下载目录迁出 /tmp（无 U 盘落 overlay）" "$SB/mnt/transmission/done" "$(get_val 'transmission.@transmission[0].download_dir')"
+assert_eq "Transmission 配置目录持久化" "$SB/mnt/transmission/config" "$(get_val 'transmission.@transmission[0].config_dir')"
+assert_eq "Transmission 未完成目录启用" "1" "$(get_val 'transmission.@transmission[0].incomplete_dir_enabled')"
 assert_eq "5G SSID 加 _5G 后缀" "Home_5G" "$(get_val wireless.default_radio1.ssid)"
 assert_eq "2.4G SSID 保持不变" "OpenWrt" "$(get_val wireless.default_radio0.ssid)"
 assert_eq "2.4G 默认 WiFi7 EHT20" "EHT20" "$(get_val wireless.radio0.htmode)"
@@ -146,7 +162,12 @@ assert_eq "5G 信道自动（ACS）" "auto" "$(get_val wireless.radio1.channel)"
 assert_eq "5G 排除 DFS 信道" "1" "$(get_val wireless.radio1.acs_exclude_dfs)"
 assert_eq "有密钥接口升级为 WPA2/WPA3 混合" "sae-mixed" "$(get_val wireless.default_radio1.encryption)"
 assert_eq "混合模式 PMF 为可选" "1" "$(get_val wireless.default_radio1.ieee80211w)"
-assert_eq "无密钥接口保持原样（避免起不来）" "psk2" "$(get_val wireless.default_radio0.encryption)"
+# 默认开热点（开放网络）：radio 与 AP 接口都要启用，无密钥接口清掉残留加密设置
+assert_eq "2.4G radio 默认启用" "0" "$(get_val wireless.radio0.disabled)"
+assert_eq "5G radio 默认启用" "0" "$(get_val wireless.radio1.disabled)"
+assert_eq "2.4G AP 接口默认启用" "0" "$(get_val wireless.default_radio0.disabled)"
+assert_eq "5G AP 接口默认启用" "0" "$(get_val wireless.default_radio1.disabled)"
+assert_eq "无密钥接口保持开放（清掉残留加密设置）" "none" "$(get_val wireless.default_radio0.encryption)"
 assert_count "BBR 行写入 sysctl" 1 "tcp_congestion_control=bbr" "$SYSCTL_CONF"
 assert_count "既有 cron 任务保留" 1 "some-existing-job" "$CRON_FILE"
 assert_count "定时重启 cron 恰好 1 条" 1 "touch /etc/banner && reboot" "$CRON_FILE"
@@ -169,6 +190,12 @@ FIX
 : > "$SYSCTL_CONF"
 PATH="$SB/bin:$PATH" BBR_SYS_DIR="$SB/bbr-present" sh "$PRESET"
 assert_eq "已带 _5G 后缀的 SSID 原样保留" "MyWiFi_5G" "$(get_val wireless.default_radio1.ssid)"
+
+# ===== 场景四：首启时 U 盘已在场（transmission 下载目录应落在盘上而不是 overlay）=====
+mkdir -p "$SB/mnt/sda1"
+PATH="$SB/bin:$PATH" BBR_SYS_DIR="$SB/bbr-present" sh "$PRESET"
+assert_eq "有 U 盘时下载目录落在 /mnt/sda1" "$SB/mnt/sda1/transmission/done" "$(get_val 'transmission.@transmission[0].download_dir')"
+if [ -d "$SB/mnt/sda1/transmission/incomplete" ]; then echo "PASS: 下载/未完成/配置目录已创建"; else echo "FAIL: 目录未创建" >&2; fails=$((fails + 1)); fi
 
 # ===== 汇总 =====
 if [ "$fails" -ne 0 ]; then

@@ -1,5 +1,6 @@
 #!/bin/sh
-# 通用默认配置预设（lite/ultimate 共用：LAN IP、UPnP 安全模式、定时重启、BBR、WiFi7 模式与带宽、5G SSID 后缀）
+# 通用默认配置预设（lite/ultimate 共用：LAN IP、UPnP 安全模式、dufs 端口与权限、Transmission 下载目录、
+# 定时重启、BBR、WiFi7 模式与带宽、5G SSID 后缀）
 # （uci-defaults，首次开机执行一次；WED 关闭在 /etc/modules.conf，模块参数层面固化）
 
 # 测试钩子（scripts/test-router-presets.sh 用；默认值与生产行为完全一致）
@@ -28,6 +29,15 @@ uci -q commit system
 uci -q set upnpd.config.secure_mode=1
 uci -q commit upnpd
 
+# ---- 运行期补丁（hotfix）：开机重放 /etc/hotfix.d/*.sh ----
+# 配置级修复（兜底 DNS 等）统一放 /etc/hotfix.d/，好处是同一份脚本两处复用：
+#   随固件进镜像 → 每次开机自动收敛；不重编译 → 直接 scp 到设备同一目录即可重放。
+# uci-defaults 只在首次开机跑一次（跑完即删），配置被覆盖后不会自愈，所以这类修复不放这儿。
+if [ -x /etc/init.d/hotfix ]; then
+	/etc/init.d/hotfix enable >/dev/null 2>&1 || true
+	/etc/init.d/hotfix start >/dev/null 2>&1 || true
+fi
+
 # ---- dufs：网页文件浏览器 + WebDAV（统一 8080，80 独占给 LuCI）----
 # dufs 替代 filebrowser（难看）+ lighttpd（抢 80 端口导致 LuCI 403 事故），两职一包，
 # 只监听 8080，端口冲突从根上消失（99-web-port-guard 已随之删除）。
@@ -48,6 +58,28 @@ if [ -f "$DUFS_CONF" ]; then
 	uci -q commit dufs
 fi
 
+# ---- Transmission：下载目录从 /tmp（内存盘，重启全丢）迁到持久存储 ----
+# 上游默认 download_dir=/tmp/transmission/done、config_dir=/tmp/transmission，而 /tmp 是内存盘，
+# 下载完成的文件和任务列表重启即消失。首启改为 /mnt 下：检测到第一块 USB 盘（/mnt/sda1）就落在盘上，
+# 否则落 overlay（空间有限，建议插盘）。注意该配置是**匿名节**，必须用 @transmission[0] 定位，
+# 写 transmission.transmission.* 会因节不存在而静默失败。端口/认证仍在 LuCI「服务 → Transmission」改。
+TRANS_CONF="${TRANS_CONF:-/etc/config/transmission}"
+TRANS_DL_ROOT="${TRANS_DL_ROOT:-/mnt/transmission}"
+TRANS_SDA1="${TRANS_SDA1:-/mnt/sda1}"
+if [ -f "$TRANS_CONF" ]; then
+	if [ -d "$TRANS_SDA1" ]; then
+		TRANS_DL_ROOT="$TRANS_SDA1/transmission"
+	fi
+	mkdir -p "$TRANS_DL_ROOT/done" "$TRANS_DL_ROOT/incomplete" "$TRANS_DL_ROOT/config"
+	chown -R transmission:transmission "$TRANS_DL_ROOT" 2>/dev/null || true
+	uci -q set transmission.@transmission[0].enabled='1'
+	uci -q set transmission.@transmission[0].config_dir="$TRANS_DL_ROOT/config"
+	uci -q set transmission.@transmission[0].download_dir="$TRANS_DL_ROOT/done"
+	uci -q set transmission.@transmission[0].incomplete_dir="$TRANS_DL_ROOT/incomplete"
+	uci -q set transmission.@transmission[0].incomplete_dir_enabled='1'
+	uci -q commit transmission
+fi
+
 # ---- 定时重启：每周一凌晨 04:30（crontab 实现；上游 luci-app-autoreboot 已删除）
 CRON_LINE="30 4 * * 1 sleep 70 && touch /etc/banner && reboot"
 CRON_TMP="${CRON_TMP:-/tmp/cron.tmp}"   # 测试钩子：CI 测试中重定向到沙箱
@@ -61,11 +93,14 @@ if [ -d "$BBR_DIR" ]; then
 	echo "net.ipv4.tcp_congestion_control=bbr" >> "$SYSCTL_CONF"
 fi
 
-# ---- 无线：国家码 + 自动信道 + WiFi 7（EHT）带宽 ----
+# ---- 无线：默认开启 + 国家码 + 自动信道 + WiFi 7（EHT）带宽 ----
+# OpenWrt 出厂 radio 是 disabled=1，不开就不出信号；这里默认启用所有 radio 与 AP 接口。
+# ⚠️ 没有密钥时就是**开放热点**（无密码），同覆盖范围内可随意接入——需安全性请自行设 WPA2/WPA3。
 # country 必须显式设：默认 00（世界域）会把 5GHz 149~165 整段禁用，选 149 会直接没信号。
 # channel=auto 走 hostapd ACS 开机择优选信道；acs_exclude_dfs 排除 52~64，避免雷达跳频断流。
 # 带宽按频段给：2.4G 20MHz（开宽只增干扰）、5G 80MHz（160 需 DFS 且覆盖差）、6G 160MHz。
 for dev in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p'); do
+	uci -q set wireless.$dev.disabled='0'
 	uci -q set wireless.$dev.country='CN'
 	uci -q set wireless.$dev.channel='auto'
 	uci -q set wireless.$dev.acs_exclude_dfs='1'
@@ -79,10 +114,15 @@ done
 # ---- 无线安全：升级为 WPA2/WPA3 混合（sae-mixed，老设备走 WPA2、新设备走 WPA3）----
 # ⚠️ 仅对「已设置密钥」的接口生效：没有密钥时设 sae-mixed 会让 hostapd 起不来（无线直接消失）。
 # PMF 设为 optional(1)，否则 WPA2 老设备无法关联。
+# 无密钥接口显式保持开放（encryption=none），避免继承到不该有的加密设置。
 for ifc in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-iface$/\1/p'); do
-	[ -n "$(uci -q get wireless.$ifc.key)" ] || continue
-	uci -q set wireless.$ifc.encryption='sae-mixed'
-	uci -q set wireless.$ifc.ieee80211w='1'
+	uci -q set wireless.$ifc.disabled='0'
+	if [ -n "$(uci -q get wireless.$ifc.key)" ]; then
+		uci -q set wireless.$ifc.encryption='sae-mixed'
+		uci -q set wireless.$ifc.ieee80211w='1'
+	else
+		uci -q set wireless.$ifc.encryption='none'
+	fi
 done
 
 # ---- 5G SSID 自动加 _5G 后缀（区分双频，规避同名漫游到错误频段）----
@@ -96,5 +136,10 @@ for dev in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$
 	done
 done
 uci -q commit wireless
+
+# ---- USB 网卡自动当 WAN：开机兜底脚本设为自启 ----
+# 热插拔建接口在 /etc/hotplug.d/net/50-usb-wan（插上即 ifup，自动 DHCP，无需点任何按钮）；
+# 这里只负责把「开机时已插着」的兜底脚本挂进 rc.d，否则开机会漏掉这种场景。
+[ -x /etc/init.d/usb-wan ] && /etc/init.d/usb-wan enable 2>/dev/null || true
 
 exit 0
