@@ -120,12 +120,12 @@ fi
 if [ "$APPEND" = 1 ]; then
   mapfile -t ALL < <(gh api "repos/$GH_REPO/releases/tags/$TAG" --jq '.assets[].name')
   PROFS=$(printf '%s\n' "${ALL[@]}" \
-    | sed -nE 's/.*-([^-]+)\.(bin|manifest|buildinfo)$/\1/p' | sort -u | tr '\n' ' ')
+    | sed -nE 's/.*-([^-]+)\.manifest$/\1/p' | sort -u | tr '\n' ' ')
   ROWS=$(mktemp)
   TMPD=$(mktemp -d)
   for prof in $PROFS; do
-    SYS=$(printf '%s\n' "${ALL[@]}" | grep -- "-sysupgrade-${prof}.bin" | head -n1)
-    MAN=$(printf '%s\n' "${ALL[@]}" | grep -- "-${prof}.manifest" | head -n1)
+    SYS=$(printf '%s\n' "${ALL[@]}" | grep -- "-sysupgrade-${prof}.bin" | head -n1 || true)
+    MAN=$(printf '%s\n' "${ALL[@]}" | grep -- "-${prof}.manifest" | head -n1 || true)
     DEV="?"
     for dd in devices/*/; do
       dv=$(basename "$dd")
@@ -133,8 +133,8 @@ if [ "$APPEND" = 1 ]; then
     done
     PKG="?"
     if [ -n "$MAN" ]; then
-      gh release download "$TAG" -p "$MAN" -D "$TMPD" --clobber >/dev/null 2>&1
-      [ -s "$TMPD/$MAN" ] && PKG=$(grep -c . "$TMPD/$MAN")
+      gh release download "$TAG" -p "$MAN" -D "$TMPD" --clobber >/dev/null 2>&1 || true
+      [ -s "$TMPD/$MAN" ] && PKG=$(grep -c . "$TMPD/$MAN") || true
     fi
     echo "| ${prof} | ${DEV} | \`${SYS:-无}\` | ${PKG} |" >> "$ROWS"
   done
