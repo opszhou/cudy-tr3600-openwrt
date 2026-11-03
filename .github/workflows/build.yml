@@ -170,10 +170,12 @@ jobs:
           path: openwrt/.ccache
           # key 不再掺 hashFiles：ccache 自身按源码内容寻址，配置/清单改动不该让缓存整体失效。
           # （曾因每改一次 common/ 就换 key，导致当天多次构建全部冷编，单次多耗 60~90 分钟）
-          key: ccache-${{ matrix.device }}-${{ env.DEV_BRANCH }}
+          # key 带上游名：openwrt 与 immortalwrt 的源码树/编译参数不同，
+          # 混用缓存只会白下载（run#30 就拉了 openwrt 的 856MB 缓存，命中率≈0）
+          key: ccache-${{ matrix.device }}-${{ env.UPSTREAM_REPO }}-${{ env.DEV_BRANCH }}
           restore-keys: |
-            ccache-${{ matrix.device }}-${{ env.DEV_BRANCH }}-
-            ccache-${{ matrix.device }}-
+            ccache-${{ matrix.device }}-${{ env.UPSTREAM_REPO }}-${{ env.DEV_BRANCH }}-
+            ccache-${{ matrix.device }}-${{ env.UPSTREAM_REPO }}-
 
       - name: 组装并编译
         run: |
