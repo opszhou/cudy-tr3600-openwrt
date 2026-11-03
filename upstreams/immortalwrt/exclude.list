@@ -30,3 +30,9 @@ CONFIG_PACKAGE_luci-ssl-openssl=y
 # immortalwrt 保留（package/network/utils/fullconenat-nft），这里重新打开——
 # 这是「同名包在两个上游存在性不同」的典型例子
 CONFIG_PACKAGE_luci-app-turboacc_INCLUDE_NFT_FULLCONE=y
+
+# ---- transmission 网页面板 ----
+# immortalwrt 的 luci-app-transmission 硬依赖 transmission-web-control（中文增强版 UI），
+# 与通用清单里的原版 transmission-web 抢同一个 usr/share/transmission/public_html/index.html，
+# 装 rootfs 必炸（run#31 实测）。该上游用 web-control，openwrt 侧保持不变。
+# CONFIG_PACKAGE_transmission-web is not set
