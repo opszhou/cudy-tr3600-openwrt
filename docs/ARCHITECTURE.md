@@ -12,12 +12,15 @@
 │   └── cudy_tr3600-v1/
 │       ├── device.yml     # 元数据：target / profile / 上游分支 / 默认 PR 列表
 │       ├── default.seed   # .config 种子（目标机型 + 基础包）
+│       ├── configs/       # 设备级差异清单 add.list / remove.list（可选，后写覆盖前写）
 │       ├── patches/       # 补丁（<上游仓库名>-<分支>/, 如 openwrt-main/ immortalwrt-master/）
 │       ├── package/       # 设备专属源码包（tr3600-dualslot-upgrade）
 │       └── files/         # 设备专属 /etc 覆盖
-├── common/                # ── 全部设备共用 ──
-│   ├── feeds.append       # 追加 feeds（qmodem / nikki / kenzok8 / small）
-│   ├── packages/          # 包清单：modem(随身WiFi) / lite(精简) / proxy(出行) / extra(全能增量)
+├── upstreams/             # ── 上游层：仅上游不同的东西 ──
+│   ├── openwrt/feeds.append
+│   └── immortalwrt/{feeds.append, exclude.list}
+├── common/                # ── 全局层：所有设备、所有上游共用 ──
+│   ├── configs/           # 包清单(.config 片段)：modem(随身WiFi)/lite/proxy/extra
 │   ├── customize.sh       # 公共定制脚本（feeds 安装后执行）
 │   ├── package/           # 源码树 vendor 包（luci-app-dufs，不走 feed）
 │   └── files/             # 公共 /etc 覆盖（开机预设 uci-defaults / hotplug.d / init.d）

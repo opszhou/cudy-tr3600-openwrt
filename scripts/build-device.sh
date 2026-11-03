@@ -117,10 +117,15 @@ rm -f "$DEFCONFIG_LOG"
 
 echo "==== 下载源码包 ===="
 # 每个文件的 Downloading/Checking 行全部吞掉，只留失败信息（curl 错误、Download failed 不在这些前缀里）
-if ! make download "-j$(nproc)" 2>&1 | awk '{ if ($0 !~ /^(Downloading|Checking) /) { print; fflush() } }'; then
-    echo "错误: 源码包下载失败（见上方错误行）" >&2
-    exit 1
-fi
+dl_ok=0
+for attempt in 1 2; do
+    if make download "-j$(nproc)" 2>&1 | awk '{ if ($0 !~ /^(Downloading|Checking) /) { print; fflush() } }'; then
+        dl_ok=1; break
+    fi
+    echo "⚠ 源码包下载失败（第 $attempt 次）$([ $attempt = 1 ] && echo '，10 秒后重试' || echo '，放弃')" >&2
+    [ $attempt = 1 ] && sleep 10
+done
+[ "$dl_ok" = 1 ] || { echo "错误: 源码包下载失败（重试后仍失败，见上方错误行）" >&2; exit 1; }
 echo "✅ 源码包下载完成"
 
 echo "==== 开始编译 ===="
@@ -154,6 +159,13 @@ CCBIN="$OPENWRT/staging_dir/host/bin/ccache"
 if [ -x "$CCBIN" ]; then
     echo "==== ccache 统计 ===="
     CCACHE_DIR="$OPENWRT/.ccache" "$CCBIN" -s 2>/dev/null | grep -Ei "cache hit|cache miss|hit rate|cache size|files in cache" | head -8 || true
+fi
+
+# ccache 命中率：判断缓存是否真的有用（决定要不要进一步缓存工具链目录）
+CCBIN="$OPENWRT/staging_dir/host/bin/ccache"
+if [ -x "$CCBIN" ]; then
+    echo "==== ccache 统计 ===="
+    CCACHE_DIR="$OPENWRT/.ccache" "$CCBIN" -s 2>/dev/null | grep -Ei "hit rate|cache hit|cache miss|cache size" | head -6 || true
 fi
 
 echo "==== 编译完成，产物位于: $OPENWRT/bin/targets ===="

@@ -31,14 +31,15 @@ for pr in $EXTRA_PRS; do
     bash "$ROOT/scripts/apply-pr.sh" "$OPENWRT" "$pr" "/tmp/pr$pr.diff" "$OWNER" "$REPO"
 done
 
-# 3) 追加公共 feeds（去重；只追加，不覆盖上游自带 feeds）
-#    按上游选变体：common/feeds.append.<upstream> 优先（如 immortalwrt 自带 argon/ddns-go，
-#    不能再拉 kenzok8 造成重复定义），缺失则用通用 common/feeds.append
+# 3) 追加 feeds（去重；只追加，不覆盖上游自带 feeds）
+#    三层来源：upstreams/<上游>/feeds.append（必需）→ devices/<设备>/feeds.append（可选）
+#    如 immortalwrt 自带 argon/ddns-go，它的 feeds.append 就不拉 kenzok8，避免重复定义
 #    支持 ;@latest 标记：构建时解析该仓库「最新稳定 release tag」——
 #    过滤 rc/beta/alpha 等预发布 tag 取版本最高者；无稳定 tag 取最高 tag；完全无 tag 回退默认分支
-FEEDS_FILE="$ROOT/common/feeds.append"
-if [ -f "$ROOT/common/feeds.append.$REPO" ]; then
-    FEEDS_FILE="$ROOT/common/feeds.append.$REPO"
+FEEDS_FILE="$ROOT/upstreams/$REPO/feeds.append"
+if [ ! -f "$FEEDS_FILE" ]; then
+    echo "错误: 找不到上游 feed 配置: ${FEEDS_FILE#$ROOT/}（每个上游目录必须有 feeds.append）" >&2
+    exit 1
 fi
 echo "feed 追加来源: ${FEEDS_FILE#$ROOT/}"
 resolve_latest_tag() {
@@ -94,20 +95,22 @@ if [ -d "$ROOT/devices/$DEV/files" ]; then
     cp -a "$ROOT/devices/$DEV/files/." "$OPENWRT/files/"
 fi
 
-# 6) 组装 .config：设备种子 + 包组合（make defconfig 会解析补全）
+# 6) 组装 .config：种子 → 全局清单 → 上游差异 → 设备差异（后写覆盖前写）
+#    审计是致命的：任何被 defconfig 丢弃的 =y 项都会中止构建，
+#    所以"上游没有的包"必须在对应层显式关闭，不能指望静默跳过。
 cp "$ROOT/devices/$DEV/default.seed" "$OPENWRT/.config"
 case "$PROFILE" in
     lite)
         # 精简实用型：随身WiFi(QModem) + 需求清单精简版
-        cat "$ROOT/common/packages/modem.list" >> "$OPENWRT/.config"
-        cat "$ROOT/common/packages/lite.list" >> "$OPENWRT/.config"
+        cat "$ROOT/common/configs/modem.list" >> "$OPENWRT/.config"
+        cat "$ROOT/common/configs/lite.list" >> "$OPENWRT/.config"
         ;;
     ultimate)
-        # 全能型：lite 全部 + tailscale/travelmate/ttyd/filebrowser/statistics/macvlan
-        cat "$ROOT/common/packages/modem.list" >> "$OPENWRT/.config"
-        cat "$ROOT/common/packages/lite.list" >> "$OPENWRT/.config"
-        cat "$ROOT/common/packages/proxy.list" >> "$OPENWRT/.config"
-        cat "$ROOT/common/packages/extra.list" >> "$OPENWRT/.config"
+        # 全能型：lite 全部 + tailscale/travelmate/ttyd/statistics/macvlan 等
+        cat "$ROOT/common/configs/modem.list" >> "$OPENWRT/.config"
+        cat "$ROOT/common/configs/lite.list" >> "$OPENWRT/.config"
+        cat "$ROOT/common/configs/proxy.list" >> "$OPENWRT/.config"
+        cat "$ROOT/common/configs/extra.list" >> "$OPENWRT/.config"
         ;;
     *)
         echo "错误: 未知 profile: $PROFILE（可选 lite/ultimate）" >&2
@@ -115,11 +118,19 @@ case "$PROFILE" in
         ;;
 esac
 
-# 按上游的清单差异修正（显式关闭该上游没有的包；审计致命，缺失包必须在这里关掉）
-if [ -f "$ROOT/common/packages/exclude.$REPO.list" ]; then
-    echo "应用上游差异清单: common/packages/exclude.$REPO.list"
-    cat "$ROOT/common/packages/exclude.$REPO.list" >> "$OPENWRT/.config"
+# 上游差异：显式关闭该上游没有/冲突的包，或改写子选项
+if [ -f "$ROOT/upstreams/$REPO/exclude.list" ]; then
+    echo "应用上游差异清单: upstreams/$REPO/exclude.list"
+    cat "$ROOT/upstreams/$REPO/exclude.list" >> "$OPENWRT/.config"
 fi
+
+# 设备差异：add 可重新启用被 exclude 关掉的包，remove 拥有最终决定权
+for f in add remove; do
+    if [ -f "$ROOT/devices/$DEV/configs/$f.list" ]; then
+        echo "应用设备差异清单: devices/$DEV/configs/$f.list"
+        cat "$ROOT/devices/$DEV/configs/$f.list" >> "$OPENWRT/.config"
+    fi
+done
 
 # 定制脚本（customize.sh）在 build-device.sh 的 feeds 安装之后执行——
 # 部分定制（如默认主题 sed）需要操作 feeds 里的文件，早于 feeds 会报文件不存在
