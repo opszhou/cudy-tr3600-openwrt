@@ -63,7 +63,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p fw
-          gh run download "$RID" -p 'openwrt-*-snapshot' -D fw
+          gh run download "$RID" -p '*-snapshot' -D fw
           echo "== 下载到的 artifact =="
           find fw -mindepth 1 -maxdepth 1 -type d | sort
 

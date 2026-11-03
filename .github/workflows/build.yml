@@ -313,6 +313,27 @@ jobs:
           pattern: '*-snapshot'
           path: fw
 
+      - name: 归一化 artifact 目录布局（v5 单 artifact 会平铺到 path）
+        # download-artifact v5 在只匹配到一个 artifact 时直接解压到 fw/（不建 <名字>/ 子目录），
+        # 多个 artifact 则各建 <名字>/ 子目录。publish-release.sh 依赖后者，
+        # 这里检测到平铺就按 API 查到的 artifact 名补建子目录。
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if compgen -G "fw/*-snapshot" >/dev/null; then
+            echo "fw 已是 <artifact>/ 布局，无需归一化"
+          else
+            NAME=$(gh api "repos/$GH_REPO/actions/runs/${{ github.run_id }}/artifacts" \
+              --jq '[.artifacts[].name | select(endswith("-snapshot"))][0]')
+            echo "平铺布局，归一化到 fw/$NAME/"
+            mkdir -p "fw/$NAME"
+            find fw -mindepth 1 -maxdepth 1 ! -path "fw/$NAME" -exec mv {} "fw/$NAME/" \;
+          fi
+          echo "== fw 布局 =="
+          find fw -mindepth 1 -maxdepth 2 -type d | sort
+
       # 发布逻辑集中在 scripts/publish-release.sh，release.yml 手动补发复用同一份
       - name: 汇总发布（lite + ultimate 同页）
         env:
