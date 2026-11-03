@@ -19,7 +19,8 @@
 │   ├── feeds.append       # 追加 feeds（qmodem / nikki / kenzok8 / small）
 │   ├── packages/          # 包清单：modem(随身WiFi) / lite(精简) / proxy(出行) / extra(全能增量)
 │   ├── customize.sh       # 公共定制脚本（feeds 安装后执行）
-│   └── files/             # 公共 /etc 覆盖（开机预设 uci-defaults）
+│   ├── package/           # 源码树 vendor 包（luci-app-dufs，不走 feed）
+│   └── files/             # 公共 /etc 覆盖（开机预设 uci-defaults / hotplug.d / init.d）
 └── scripts/               # 组装/合并/编译脚本（CI 与本地通用）
 ```
 

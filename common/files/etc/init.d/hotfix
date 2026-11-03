@@ -1,0 +1,29 @@
+#!/bin/sh /etc/rc.common
+# 运行期补丁（hotfix）执行器
+#
+# 用途：把「配置级修复」从一次性动作变成每次开机自动收敛。
+#   - 随固件进镜像：文件在 /etc/hotfix.d/，开机自动执行
+#   - 不重新编译：把同一份 .sh 直接 scp 到设备的 /etc/hotfix.d/，重启或手动 start 即生效
+# 约定：hotfix.d 下的脚本必须幂等（跑一次和跑十次结果一致），按文件名顺序执行。
+#
+# 与 uci-defaults 的区别：uci-defaults 只在首次开机执行一次（执行后删除），
+# 一旦某个配置项后来被改坏/被覆盖，它不会自我修复；hotfix 每次开机都重放。
+
+START=98
+STOP=05
+
+start() {
+	[ -d /etc/hotfix.d ] || return 0
+	for f in /etc/hotfix.d/*.sh; do
+		[ -f "$f" ] || continue
+		if sh "$f"; then
+			logger -t hotfix "applied: ${f##*/}"
+		else
+			logger -t hotfix "FAILED: ${f##*/}"
+		fi
+	done
+}
+
+stop() {
+	:
+}
