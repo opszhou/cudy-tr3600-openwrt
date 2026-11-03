@@ -223,7 +223,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          NAME: ${{ matrix.device }}-${{ matrix.profile }}.manifest
+          # 必须含上游：否则 openwrt 与 immortalwrt 的清单会互相覆盖（同名文件）
+          NAME: ${{ env.UPSTREAM_REPO }}-${{ matrix.device }}-${{ matrix.profile }}.manifest
         run: |
           MF=$(find openwrt/bin/targets -name '*.manifest' | head -n1)
           if [ -z "$MF" ]; then echo "未找到 manifest，跳过包清单对比"; exit 0; fi
@@ -281,13 +282,13 @@ jobs:
       - name: 上传固件 Artifact
         uses: actions/upload-artifact@v6
         with:
-          name: openwrt-${{ matrix.device }}-${{ matrix.profile }}-snapshot
+          name: ${{ env.UPSTREAM_REPO }}-${{ matrix.device }}-${{ matrix.profile }}-snapshot
           path: openwrt/bin/targets
           retention-days: 14
           include-hidden-files: true
 
-  # 所有组合（lite/ultimate）跑完后，汇总成「一个」Release：同页、资产以组合名作前缀。
-  # 标签：snapshot-<UTC日期>-r<run号>，如 snapshot-20261101-r21。
+  # 所有组合（lite/ultimate）跑完后，汇总成「一个」Release：同页、资产名带组合名。
+  # 标签由 publish-release.sh 生成：<上游>-<OpenWrt 版本号>，如 immortalwrt-r42943-89f1ef18c8。
   release:
     needs: build
     if: ${{ inputs.create_release && success() }}
@@ -298,7 +299,7 @@ jobs:
       - name: 下载全部固件 artifact
         uses: actions/download-artifact@v5
         with:
-          pattern: openwrt-*-snapshot
+          pattern: '*-snapshot'
           path: fw
 
       # 发布逻辑集中在 scripts/publish-release.sh，release.yml 手动补发复用同一份
