@@ -17,19 +17,12 @@ CONFIG_PACKAGE_luci-ssl-openssl=y
 # CONFIG_PACKAGE_luci-app-argon-config is not set
 # CONFIG_PACKAGE_luci-i18n-argon-config-zh-cn is not set
 
-# ---- turboacc：保留本体，只关 SFE 三件套 ----
-# 实测（2026-11-03 容器 defconfig）：SFE 三个模块在 immortalwrt feeds 里不存在，
-# 但它们是**条件依赖**（INCLUDE_SHORTCUT_FE* 需要 INCLUDE_OFFLOADING=n 才生效），
-# mediatek 上 OFFLOADING 默认 y，所以只要显式关掉这三项，turboacc 本体可正常安装。
-# 之前"整个排除 turboacc"的判断是错的（被 Makefile 的无条件 DEPENDS 警告误导），此处纠正。
-# CONFIG_PACKAGE_luci-app-turboacc_INCLUDE_SHORTCUT_FE is not set
-# CONFIG_PACKAGE_luci-app-turboacc_INCLUDE_SHORTCUT_FE_CM is not set
-# CONFIG_PACKAGE_luci-app-turboacc_INCLUDE_SHORTCUT_FE_DRV is not set
-
-# 全锥 NAT：openwrt main 已删除 kmod-nft-fullcone，通用清单因此关闭该子特性；
-# immortalwrt 保留（package/network/utils/fullconenat-nft），这里重新打开——
-# 这是「同名包在两个上游存在性不同」的典型例子
-CONFIG_PACKAGE_luci-app-turboacc_INCLUDE_NFT_FULLCONE=y
+# ---- turboacc：整体不装 ----
+# immortalwrt 防火墙默认配置已开 flow_offloading + fullcone（firewall.config 实测，无需面板），
+# BBR 模块在但默认不用；面板的 SFE 模式依赖的三个模块这里没有 → 整包没有存在价值。
+# （曾尝试"保留面板只关 SFE"，后确认上游默认已覆盖其全部有效功能，遂整体移除）
+# CONFIG_PACKAGE_luci-app-turboacc is not set
+# CONFIG_PACKAGE_luci-i18n-turboacc-zh-cn is not set
 
 # ---- transmission 网页面板 ----
 # immortalwrt 的 luci-app-transmission 硬依赖 transmission-web-control（中文增强版 UI），
