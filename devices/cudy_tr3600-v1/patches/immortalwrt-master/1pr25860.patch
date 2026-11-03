@@ -1,8 +1,8 @@
 diff --git a/package/boot/uboot-tools/uboot-envtools/files/mediatek_filogic b/package/boot/uboot-tools/uboot-envtools/files/mediatek_filogic
-index 5fe5752ebab365..d19289d1aed942 100644
+index 644b3d8..4c13479 100644
 --- a/package/boot/uboot-tools/uboot-envtools/files/mediatek_filogic
 +++ b/package/boot/uboot-tools/uboot-envtools/files/mediatek_filogic
-@@ -141,6 +141,13 @@ comfast,cf-e393ax|\
+@@ -147,6 +147,13 @@ comfast,cf-e393ax|\
  iptime,ax3000m)
  	ubootenv_add_uci_config "/dev/mtd1" "0x0" "0x20000" "0x80000"
  	;;
@@ -16,7 +16,7 @@ index 5fe5752ebab365..d19289d1aed942 100644
  dlink,aquila-pro-ai-e30-a1|\
  dlink,aquila-pro-ai-m30-a1|\
  dlink,aquila-pro-ai-m60-a1)
-@@ -159,12 +166,6 @@ jiorouter,ax6000-jidu6j01)
+@@ -165,12 +172,6 @@ jiorouter,ax6000-jidu6j01)
  	envdev=/dev/$(nand_find_volume "$envubi" u-boot-env)
  	ubootenv_add_uci_config "$envdev" "0x0" "0x80000" "0x1f000" "5"
  	;;
@@ -30,7 +30,7 @@ index 5fe5752ebab365..d19289d1aed942 100644
  	ubootenv_add_uci_config "/dev/mtd1" "0x0" "0x80000" "0x80000"
  	ubootenv_add_uci_sys_config "/dev/mtd3" "0x0" "0x100000" "0x100000"
 diff --git a/package/network/config/wifi-scripts/files-ucode/usr/share/wifi_devices.json b/package/network/config/wifi-scripts/files-ucode/usr/share/wifi_devices.json
-index 7c46dfc86f5b8e..24664f9f5cfc0b 100644
+index 7c46dfc..24664f9 100644
 --- a/package/network/config/wifi-scripts/files-ucode/usr/share/wifi_devices.json
 +++ b/package/network/config/wifi-scripts/files-ucode/usr/share/wifi_devices.json
 @@ -1,5 +1,5 @@
@@ -53,7 +53,7 @@ index 7c46dfc86f5b8e..24664f9f5cfc0b 100644
  		[ "0x02d0", "0xa9a6", "0x0000", "0x0000", 0, 0, "Cypress", "CYW43455" ],
  		[ "0x02d0", "0x4345", "0x0000", "0x0000", 0, 0, "Cypress", "CYW43455" ],
 diff --git a/target/linux/mediatek/base-files/lib/preinit/05_set_preinit_iface b/target/linux/mediatek/base-files/lib/preinit/05_set_preinit_iface
-index 007fb5463f23c7..40618963b9a1f3 100644
+index 007fb54..4061896 100644
 --- a/target/linux/mediatek/base-files/lib/preinit/05_set_preinit_iface
 +++ b/target/linux/mediatek/base-files/lib/preinit/05_set_preinit_iface
 @@ -6,6 +6,7 @@ set_preinit_iface() {
@@ -66,10 +66,10 @@ index 007fb5463f23c7..40618963b9a1f3 100644
  	glinet,gl-mt3000|\
 diff --git a/target/linux/mediatek/dts/mt7987b-cudy-tr3600-v1.dts b/target/linux/mediatek/dts/mt7987b-cudy-tr3600-v1.dts
 new file mode 100644
-index 00000000000000..d47e58414f631a
+index 0000000..00cdc4d
 --- /dev/null
 +++ b/target/linux/mediatek/dts/mt7987b-cudy-tr3600-v1.dts
-@@ -0,0 +1,237 @@
+@@ -0,0 +1,240 @@
 +// SPDX-License-Identifier: (GPL-2.0 OR MIT)
 +
 +/dts-v1/;
@@ -162,6 +162,9 @@ index 00000000000000..d47e58414f631a
 +		reset-gpios = <&pio 42 GPIO_ACTIVE_LOW>;
 +		interrupts = <41 IRQ_TYPE_LEVEL_LOW>;
 +		interrupt-parent = <&pio>;
++		/* RTL8221B-VB-CG: EEE 协商导致 1G 链路丢包 41%~100%（PR 25996 同款问题），禁用 EEE */
++		eee-broken-100tx;
++		eee-broken-1000t;
 +	};
 +
 +	phy15: phy@15 {
@@ -308,10 +311,10 @@ index 00000000000000..d47e58414f631a
 +	status = "okay";
 +};
 diff --git a/target/linux/mediatek/filogic/base-files/etc/board.d/02_network b/target/linux/mediatek/filogic/base-files/etc/board.d/02_network
-index bc26dc42ae2dc2..a320c769e9a042 100644
+index cd2aebb..d31c080 100644
 --- a/target/linux/mediatek/filogic/base-files/etc/board.d/02_network
 +++ b/target/linux/mediatek/filogic/base-files/etc/board.d/02_network
-@@ -180,6 +180,7 @@ mediatek_setup_interfaces()
+@@ -187,6 +187,7 @@ mediatek_setup_interfaces()
  	cudy,tr3000-256mb-v1|\
  	cudy,tr3000-v1|\
  	cudy,tr3000-v1-ubootmod|\
@@ -320,10 +323,10 @@ index bc26dc42ae2dc2..a320c769e9a042 100644
  	glinet,gl-mt2500|\
  	glinet,gl-mt2500-airoha|\
 diff --git a/target/linux/mediatek/image/filogic.mk b/target/linux/mediatek/image/filogic.mk
-index 112b1decedcda7..49f5aac2d66cba 100644
+index 16bcaf9..e17ab80 100644
 --- a/target/linux/mediatek/image/filogic.mk
 +++ b/target/linux/mediatek/image/filogic.mk
-@@ -1549,6 +1549,25 @@ define Device/cudy_tr3000-v1-ubootmod
+@@ -1611,6 +1611,25 @@ define Device/cudy_tr3000-v1-ubootmod
  endef
  TARGET_DEVICES += cudy_tr3000-v1-ubootmod
  
