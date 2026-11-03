@@ -124,7 +124,7 @@ if [ "$APPEND" = 1 ]; then
   ROWS=$(mktemp)
   TMPD=$(mktemp -d)
   for prof in $PROFS; do
-    SYS=$(printf '%s\n' "${ALL[@]}" | grep -- "-sysupgrade-${prof}.bin" | head -n1 || true)
+    SYS=$(printf '%s\n' "${ALL[@]}" | grep -- "-${prof}-" | grep -- "sysupgrade\.bin" | head -n1 || true)
     MAN=$(printf '%s\n' "${ALL[@]}" | grep -- "-${prof}.manifest" | head -n1 || true)
     DEV="?"
     for dd in devices/*/; do
