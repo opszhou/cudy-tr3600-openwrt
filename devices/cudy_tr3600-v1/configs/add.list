@@ -1,0 +1,2 @@
+# 设备级加包清单：这台设备比全局清单多要的包（CONFIG_PACKAGE_xxx=y）。
+# 追加顺序：全局清单 → 上游 exclude.list → 本文件（可重新启用被 exclude 关掉的包）。

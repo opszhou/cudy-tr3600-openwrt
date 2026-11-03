@@ -1,0 +1,2 @@
+# 设备级减包清单：这台设备明确不要的包（# CONFIG_PACKAGE_xxx is not set）。
+# 追加顺序在 add.list 之后，本文件的设置拥有最终决定权。

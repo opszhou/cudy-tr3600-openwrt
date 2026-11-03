@@ -16,10 +16,25 @@ field() {
         | tr -d "\"'" | xargs
 }
 
-echo "DEV_ID=$(field id)"
-echo "DEV_TARGET=$(field target)"
-echo "DEV_PROFILE=$(field profile)"
-echo "DEV_BRANCH=$(field branch)"
+DEV_ID=$(field id); DEV_TARGET=$(field target)
+DEV_PROFILE=$(field profile); DEV_BRANCH=$(field branch)
+
+# 必填字段校验：缺失时给出明确指引（run#29 教训——静默错位比崩溃贵）
+MISSING=""
+[ -n "$DEV_ID" ]      || MISSING="$MISSING id"
+[ -n "$DEV_TARGET" ]  || MISSING="$MISSING target"
+[ -n "$DEV_PROFILE" ] || MISSING="$MISSING profile"
+[ -n "$DEV_BRANCH" ]  || MISSING="$MISSING branch"
+if [ -n "$MISSING" ]; then
+    echo "错误: $YML 缺少必填字段:$MISSING" >&2
+    echo "       device.yml 至少需要: id / target / profile / branch" >&2
+    exit 1
+fi
+
+echo "DEV_ID=$DEV_ID"
+echo "DEV_TARGET=$DEV_TARGET"
+echo "DEV_PROFILE=$DEV_PROFILE"
+echo "DEV_BRANCH=$DEV_BRANCH"
 
 # default_prs 列表：仅取未注释的 "- <数字>" 行
 PRS="$(sed -nE 's/^[[:space:]]*-[[:space:]]*([0-9]+)[[:space:]]*(#.*)?$/\1/p' "$YML")"
