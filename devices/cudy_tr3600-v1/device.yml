@@ -11,8 +11,10 @@ branch: main                        # 上游 OpenWrt 分支；补丁目录须对
 default_prs:
   - 25860                           # mediatek: add Cudy TR3600 v1 support（目标 main；实测对最新 main 干净应用）
   # - 24581                         # 备选: add support for Cudy TR3600 v1（实测对最新 main 的 02_network 冲突，待 PR 作者 rebase）
-  - 25996                           # mediatek: filogic: mark RTL8221B EEE as broken（TR3600 同款 2.5G PHY 的 1G 丢包修复）
+  # ⚠️ 25996（RTL8221B EEE）不要再放进来：上游 main 已吸收该修复，
+  #    对应改动已并入 1pr25860.patch（给 TR3600 自身 phy1 加 eee-broken-*）。
+  #    重新拉它会 3-way 冲突并让「合并官方 PR」失败（run#34 实测）。
 
 # 分支组合备忘：
-#   main         + 24581（或 25860）+ 25996
+#   main         + 25860（或互斥的 24581）
 #   openwrt-25.12 + 24596（稳定分支 backport；25.12 下注释掉上面两个 main 专属 PR）
