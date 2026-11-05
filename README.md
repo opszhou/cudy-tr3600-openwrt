@@ -26,6 +26,7 @@
   - 5G SSID 自动加 `_5G` 后缀（双频同名会导致终端漫游到错误频段）
   - 每周一凌晨 04:30 自动重启；UPnP 默认安全模式；BBR 拥塞控制默认启用
   - **dufs** 默认 8080 端口、根目录 `/mnt`、仅 U 盘可写；**Transmission** 下载目录迁出内存盘（插着 U 盘则落在盘上）并开机自启
+  - **系统仪表盘是登录默认首页**（只读）：在线终端 / 连接数 / 运行时长 / 负载、实时流量曲线、CPU·内存·温度·风扇圆环、接口与终端列表。温度与转速直接读 sysfs，**不接管内核温控**（详见下方「系统仪表盘」）
 - **全套中文 LuCI** + Argon 主题（默认主题，含 argon-config 配置器）
 - **随身 WiFi 场景拉满**：QModem 管理 UI，USB RNDIS / QMI / NCM / MBIM / 串口全驱动，即插即用
 - **插件永远新鲜**：所有第三方插件 feed 构建时自动追踪上游最新稳定版（自动跳过 rc/beta 预发布）
@@ -47,6 +48,7 @@
 | 文件服务 | dufs 网页文件浏览器 + WebDAV 一体（**8080** 端口，80 保留给 LuCI；仅 U 盘可写其余只读；LuCI 面板「服务 → Dufs」，见下方「dufs 文件服务」） |
 | USB 存储 | UAS 高速协议 + ext4 / exFAT / NTFS3 / FAT32 文件系统 + 自动挂载（block-mount） |
 | 网络质量 | SQM 智能队列（消除 bufferbloat）+ nlbwmon 按主机流量统计 |
+| 系统界面 | **系统仪表盘**（登录默认首页，只读）：实时流量 / 在线终端 / 连接数 / CPU·内存·温度·风扇 |
 
 ### ultimate（全能 = lite 全部，再加：）
 
@@ -57,6 +59,17 @@
 | 下载 | **Transmission** BitTorrent 下载（LuCI「服务 → Transmission」+ 自带 WebUI 9091；默认开机自启，下载目录已迁出内存盘，见下方「Transmission 下载」） |
 | 运维工具 | ttyd 网页终端 + luci-app-statistics 轻量监控（CPU/内存/接口图表） |
 | 网络 | ip-full / yq |
+
+### 系统仪表盘（只读首页）
+
+登录后默认进入「仪表盘」（侧边栏第一项），原生页面仍可从「状态 → 概况」进入。
+
+- **展示**：在线终端数（DHCP 租约）、连接跟踪数、运行时长、1/5/15 分钟负载；实时上下行曲线与每接口速率；CPU / 内存 / 温度 / 风扇圆环；接口与终端列表（主机名、IP、MAC）。3 秒刷新。
+- **数据来源**：`luci-app-sysdashboard` 自带一个 rpcd **只读**脚本，从 `/proc`（uptime / loadavg / stat / meminfo / net/dev / conntrack）、`/sys`（thermal_zone、hwmon 的 `fan1_input`·`pwm1`、cooling_device 档位）、`/tmp/dhcp.leases` 取一次快照；前端对相邻两次快照差分算速率与 CPU 使用率。
+- **不做什么**：不写任何 sysfs、不装常驻守护进程、不识别 App/URL、不记录上网行为。TR3600 风扇由内核 thermal 框架按 65/72/80/88 °C 四档自动调速（见 `9000-tr3600-v1-hw-fixes.patch`），本页只显示转速/PWM，⛔ 不装 `fancontrol` 之类用户态调速器去抢 PWM 控制权。
+- **无风扇/无温度传感器的设备**：对应圆环显示「不可用」，其余功能照常。
+- **测试**：`bash scripts/test-sysdashboard.sh`（沙箱注入假数据，校验 JSON 合法性与缺失降级）。
+- **想改回原生概况当首页**：把 `common/package/luci-app-sysdashboard/root/usr/share/luci/menu.d/luci-app-sysdashboard.json` 里的 `order` 改成大于 10，或删掉该菜单文件后重新构建。
 
 ### dufs 文件服务（网页文件管理 + WebDAV）
 
@@ -146,3 +159,4 @@
 本仓库自身内容遵循 [GPL-2.0](LICENSES/GPL-2.0)。
 第三方组件：QModem 为 MPL-2.0，Nikki 为 GPL-3.0，其余以各自仓库为准。
 `common/package/luci-app-dufs` 为原样 vendored 的 immortalwrt/luci 组件（Apache-2.0，作者 Tianling Shen），仅改动 luci.mk 的 include 路径。
+`common/package/luci-app-sysdashboard` 为本仓库自研组件（Apache-2.0），无第三方代码依赖。
