@@ -1,0 +1,94 @@
+msgid ""
+msgstr ""
+"Language: zh_Hans\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Dashboard"
+msgstr "仪表盘"
+
+msgid "System Dashboard"
+msgstr "系统仪表盘"
+
+msgid "Collecting data…"
+msgstr "正在采集数据…"
+
+msgid "Updated"
+msgstr "更新于"
+
+msgid "Data unavailable"
+msgstr "数据暂不可用"
+
+msgid "Online clients"
+msgstr "在线终端"
+
+msgid "DHCP leases"
+msgstr "DHCP 租约数"
+
+msgid "Connections"
+msgstr "连接数"
+
+msgid "Tracked connections"
+msgstr "连接跟踪表条目"
+
+msgid "Uptime"
+msgstr "运行时长"
+
+msgid "Since last boot"
+msgstr "自上次启动"
+
+msgid "Load average"
+msgstr "系统负载"
+
+msgid "Realtime traffic"
+msgstr "实时流量"
+
+msgid "Download"
+msgstr "下载"
+
+msgid "Upload"
+msgstr "上传"
+
+msgid "System load"
+msgstr "系统状态"
+
+msgid "CPU"
+msgstr "处理器"
+
+msgid "Memory"
+msgstr "内存"
+
+msgid "Temperature"
+msgstr "温度"
+
+msgid "Fan"
+msgstr "风扇"
+
+msgid "N/A"
+msgstr "不可用"
+
+msgid "Thermal level"
+msgstr "温控档位"
+
+msgid "Interfaces"
+msgstr "网络接口"
+
+msgid "Interface"
+msgstr "接口"
+
+msgid "Online terminals"
+msgstr "在线终端列表"
+
+msgid "Hostname"
+msgstr "主机名"
+
+msgid "IP address"
+msgstr "IP 地址"
+
+msgid "MAC address"
+msgstr "MAC 地址"
+
+msgid "No data"
+msgstr "暂无数据"
+
+msgid "Read-only view. Fan speed is controlled by the kernel thermal framework; this page only displays it."
+msgstr "本页只读。风扇转速由内核温控框架自动调节，这里仅作展示，不会改写任何 PWM 值。"

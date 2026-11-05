@@ -22,7 +22,7 @@
 ├── common/                # ── 全局层：所有设备、所有上游共用 ──
 │   ├── configs/           # 包清单(.config 片段)：modem(随身WiFi)/lite/proxy/extra
 │   ├── customize.sh       # 公共定制脚本（feeds 安装后执行）
-│   ├── package/           # 源码树 vendor 包（luci-app-dufs，不走 feed）
+│   ├── package/           # 源码树 vendor 包（luci-app-dufs / luci-app-sysdashboard，不走 feed）
 │   └── files/             # 公共 /etc 覆盖（开机预设 uci-defaults / hotplug.d / init.d）
 └── scripts/               # 组装/合并/编译脚本（CI 与本地通用）
 ```
@@ -74,8 +74,11 @@ profile: cudy_tr3600-v1   # CONFIG_TARGET_..._DEVICE_<profile>
 branch: main              # 上游分支；补丁目录须对应 patches/<上游仓库名>-<branch>
 default_prs:              # 「合并官方 PR」未填号时默认合并的 PR（可留空）
   - 25860
-  - 25996
 ```
+
+> ⚠️ 只列**当前仍需要、且上游未吸收**的 PR。已并入上游的 PR 必须从 `default_prs` 删掉，
+> 否则 sync-pr 重新拉 diff 时会与现有源码 3-way 冲突（run#34 的 25996 教训）。
+> 24581 与 25860 是互斥的设备支持 PR，同一补丁栈只能启用其一。
 
 > ⚠️ `branch` 与补丁目录名 `<上游仓库名>-<branch>` 必须一一对应（上游仓库名即 build.yml 的 upstream_repo）。
 
@@ -90,3 +93,4 @@ default_prs:              # 「合并官方 PR」未填号时默认合并的 PR�
 | `sync-pr.sh` | 批量合并 PR（需收集失败而非中断，不用 `set -e`） |
 | `assemble.sh` | 组装源码树：上游 + feeds + 包清单 + files + 补丁 |
 | `build-device.sh` | 一条龙：组装 → defconfig → make |
+| `test-sysdashboard.sh` | 仪表盘 rpcd 脚本的沙箱冒烟测试（假 /proc、/sys、租约，校验 JSON 与降级） |
