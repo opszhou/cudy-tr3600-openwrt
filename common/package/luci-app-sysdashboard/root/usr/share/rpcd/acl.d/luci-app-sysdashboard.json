@@ -1,0 +1,10 @@
+{
+	"luci-app-sysdashboard": {
+		"description": "Grant read-only access to the system dashboard snapshot",
+		"read": {
+			"ubus": {
+				"sysdashboard": [ "get" ]
+			}
+		}
+	}
+}
