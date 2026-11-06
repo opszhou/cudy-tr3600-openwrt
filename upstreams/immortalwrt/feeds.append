@@ -1,4 +1,4 @@
-# immortalwrt 专用 feeds 追加（通用那份 common/feeds.append 不适用于它）
+# immortalwrt 专用 feeds 追加（不用 upstreams/openwrt/feeds.append：那份含 kenzok8/small/turboacc）
 #
 # 为什么不用通用版：immortalwrt 自带 feeds 已覆盖大部分需求——
 #   已内置（2026-11-03 实查 immortalwrt/luci master）：
@@ -9,7 +9,9 @@
 # ;@latest 语义同通用版（assemble.sh resolve_latest_tag 解析）
 
 # 蜂窝模组（QModem，官方无此包）
-src-git qmodem https://github.com/FUjr/QModem.git;@latest
+# 固定 commit 的原因与 ^ 语法见 upstreams/openwrt/feeds.append 顶部说明；
+# 两份 feeds.append 的 QModem SHA 必须保持一致。
+src-git qmodem https://github.com/FUjr/QModem.git^99553e5a4cdf577a678e8fa3d4aac5f4de1d2f36
 # 代理（mihomo 内核 + LuCI）
 src-git nikki https://github.com/nikkinikki-org/OpenWrt-nikki.git;@latest
 # 不拉 turboacc：immortalwrt 防火墙默认已开 flow_offloading + fullcone（firewall.config 实测），

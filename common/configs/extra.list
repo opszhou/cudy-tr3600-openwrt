@@ -1,5 +1,5 @@
 # ===== 全能型增量包（extra）—— 在 lite 之上追加的部分 =====
-# 需要额外 feed：kenzok8 / small（已在 common/feeds.append 启用）
+# 需要额外 feed：kenzok8 / small（已在 upstreams/openwrt/feeds.append 启用）
 # 不确定包名的行若在源中不存在，make defconfig 会忽略并告警，构建不受阻
 
 # ---- 第一梯队：核心基础设施 ----
