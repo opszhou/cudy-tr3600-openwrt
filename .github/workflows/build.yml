@@ -341,6 +341,7 @@ jobs:
           # 显式给仓库：gh 在缺少 .git 时推断不出仓库（run#27 因此失败）
           GH_REPO: ${{ github.repository }}
           RUN: ${{ github.run_number }}
+          RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           # 标签前缀按上游区分（immortalwrt 构建不能叫 openwrt-*）
           UPSTREAM_LABEL: ${{ inputs.upstream_repo }}
