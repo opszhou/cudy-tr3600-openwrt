@@ -93,18 +93,26 @@ mt76 当前 main 默认就是 `false`，显式写入防止上游翻转默认值�
 
 ### 第三方插件源
 
-feeds 追加配置见 `common/feeds.append`，所有 feed 均标记 `;@latest`：
+feeds 追加配置见 `upstreams/<上游>/feeds.append`。除 QModem 外，所有 feed 均标记 `;@latest`：
 
-- **qmodem**（FUjr/QModem）— 随身 WiFi 管理
+- **qmodem**（FUjr/QModem）— 随身 WiFi 管理，**例外：pin 到 main 固定 commit**
 - **nikki**（mihomo）— 代理内核与管理界面
-- **kenzok8/openwrt-packages + small** — argon-config、ddns-go 等
-- **turboacc**（chenmozhijin）— 网络加速面板
+- **kenzok8/openwrt-packages + small** — argon-config、ddns-go 等（仅 openwrt 上游）
+- **turboacc**（chenmozhijin）— 网络加速面板（仅 openwrt 上游）
 
 `@latest` 语义（构建时由 `assemble.sh` 经 `git ls-remote` 实时解析，日志打印解析结果）：
 
-1. 有 release tag 的仓库 → 追踪**最新稳定版 tag**（自动过滤 `rc/beta/alpha` 等预发布 tag，如 QModem 会选 v3.3.0 而跳过 v3.4.0_rc3）
+1. 有 release tag 的仓库 → 追踪**最新稳定版 tag**（自动过滤 `rc/beta/alpha` 等预发布 tag）
 2. 只有预发布 tag → 取最高 tag
 3. 完全无 tag（kenzok8 两个聚合仓库、turboacc）→ 回退默认分支
+
+**QModem 为什么不用 `@latest`**：它会稳定解析到 `v3.3.0`（跳过 `v3.4.0_rc3`），
+而 rc3 把 `luci-app-qmodem-next` 改成手写 `BuildPackage`，不再生成中文语言包
+`luci-i18n-qmodem-next-zh-cn`。改用 main 固定 commit 既保留中文包，又比 rc3 新约 7 周，
+且避免裸 `;main` 的不可复现。`^<sha>` 是 OpenWrt `scripts/feeds` 的固定 commit 语法
+（clone 后 fetch + checkout，检测到 hash 后该 feed 不再 update）；⛔ 不能写成
+`url;main^<sha>`，因为 feeds 先判 branch 再判 commit，有 `;` 时 commit 会被忽略。
+升级时只改一行 SHA、显式提交后重新构建。两份 `feeds.append` 的 SHA 必须保持一致。
 
 ### 公共定制脚本
 
@@ -150,7 +158,7 @@ feeds 追加配置见 `common/feeds.append`，所有 feed 均标记 `;@latest`�
 | 项目 | openwrt | immortalwrt |
 |---|---|---|
 | 补丁目录 | `patches/openwrt-<分支>/` | `patches/immortalwrt-master/`（同补丁，实测零改动可用） |
-| feeds 追加 | `common/feeds.append`（含 kenzok8/small、turboacc） | `common/feeds.append.immortalwrt`（只加 qmodem + nikki） |
+| feeds 追加 | `upstreams/openwrt/feeds.append`（含 kenzok8/small、turboacc） | `upstreams/immortalwrt/feeds.append`（只加 qmodem + nikki） |
 | 清单差异 | 无 | `upstreams/immortalwrt/exclude.list`（关闭 upstream 缺失的包） |
 
 dispatch 参数：`upstream_owner=immortalwrt`、`upstream_repo=immortalwrt`、`upstream_branch=master`。
