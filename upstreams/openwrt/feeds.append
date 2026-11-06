@@ -2,7 +2,18 @@
 # ;@latest = 每次构建自动解析该仓库「最新稳定 release tag」：
 #            优先过滤 rc/beta/alpha 后取版本最高的稳定 tag；无稳定 tag 时取最高 tag；
 #            仓库完全无 tag 时回退默认分支（解析逻辑见 scripts/assemble.sh resolve_latest_tag）
-src-git qmodem https://github.com/FUjr/QModem.git;@latest
+#
+# QModem 例外：固定到 main 的某次提交，不追 tag、不指向裸 main。
+#   - 原因：最新正式预发布 v3.4.0_rc3 把 luci-app-qmodem-next 改成手写 BuildPackage，
+#     不再生成 luci-i18n-qmodem-next-zh-cn（中文面板会变英文）；main 仍走 luci.mk，中文保留。
+#   - ^<sha> 是 OpenWrt scripts/feeds 的固定 commit 语法（clone 后 fetch + checkout），
+#     feeds 检测到 hash 后不再 update 该 feed，因此构建可复现、可回滚。
+#   - ⛔ 禁止写成 url;main^<sha>：scripts/feeds 先判 branch 再判 commit，
+#     有 ; 时走 init_branch，^<sha> 会被静默忽略，等于没有固定。
+#   - 该行不以 ;@latest 结尾，assemble.sh 原样透传，无需改脚本。
+#   - 升级方式：只改这一行 SHA，显式提交后重新构建。
+#   pin: 99553e5a4cdf577a678e8fa3d4aac5f4de1d2f36 (main, 2026-11-04, PR #293 AW1000 VoIP fixes)
+src-git qmodem https://github.com/FUjr/QModem.git^99553e5a4cdf577a678e8fa3d4aac5f4de1d2f36
 src-git nikki https://github.com/nikkinikki-org/OpenWrt-nikki.git;@latest
 src-git kenzok8 https://github.com/kenzok8/openwrt-packages.git;@latest
 src-git small https://github.com/kenzok8/small.git;@latest

@@ -36,6 +36,8 @@ done
 #    如 immortalwrt 自带 argon/ddns-go，它的 feeds.append 就不拉 kenzok8，避免重复定义
 #    支持 ;@latest 标记：构建时解析该仓库「最新稳定 release tag」——
 #    过滤 rc/beta/alpha 等预发布 tag 取版本最高者；无稳定 tag 取最高 tag；完全无 tag 回退默认分支
+#    ^<sha> 固定 commit 行原样透传（OpenWrt scripts/feeds 原生支持，可复现、可回滚）；
+#    ⛔ 同一行不得同时写 ;branch 与 ^commit（feeds 优先 branch，commit 会被忽略）
 FEEDS_FILE="$ROOT/upstreams/$REPO/feeds.append"
 if [ ! -f "$FEEDS_FILE" ]; then
     echo "错误: 找不到上游 feed 配置: ${FEEDS_FILE#$ROOT/}（每个上游目录必须有 feeds.append）" >&2
@@ -55,6 +57,12 @@ touch "$OPENWRT/feeds.conf.default"
 while IFS= read -r line; do
     [ -z "$line" ] && continue
     case "$line" in \#*) continue ;; esac
+    # ⛔ ;branch 与 ^commit 不能混用：scripts/feeds 先判 branch 再判 commit，
+    # 有 ; 时走 init_branch，^<sha> 会被静默忽略，等于没有固定版本。
+    if [[ "$line" == *";"* && "$line" == *"^"* ]]; then
+        echo "错误: feed 行不能同时使用 ;branch 与 ^commit: $line" >&2
+        exit 1
+    fi
     if [[ "$line" == *";@latest" ]]; then
         _name=$(echo "$line" | awk '{print $2}')
         _url=$(echo "$line" | awk '{print $3}' | sed 's|;@latest$||')
