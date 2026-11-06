@@ -72,6 +72,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           RUN: ${{ steps.target.outputs.run_number }}
+          RUN_ID: ${{ steps.target.outputs.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           IN_TAG_DATE: ${{ inputs.tag_date }}
           UPSTREAM_LABEL: ${{ inputs.upstream_label }}
