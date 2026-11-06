@@ -269,7 +269,7 @@ jobs:
 
       - name: 上传错误摘要（无论成败）
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: errors-${{ matrix.device }}-${{ matrix.profile }}-run${{ github.run_number }}
           path: build-errors.log
@@ -278,7 +278,7 @@ jobs:
 
       - name: 上传构建诊断（仅失败时）
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: diag-${{ matrix.device }}-${{ matrix.profile }}-run${{ github.run_number }}
           path: |
@@ -291,7 +291,7 @@ jobs:
           include-hidden-files: true
 
       - name: 上传固件 Artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.UPSTREAM_REPO }}-${{ matrix.device }}-${{ matrix.profile }}-snapshot
           path: openwrt/bin/targets
@@ -308,15 +308,16 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: 下载全部固件 artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           pattern: '*-snapshot'
           path: fw
 
-      - name: 归一化 artifact 目录布局（v5 单 artifact 会平铺到 path）
-        # download-artifact v5 在只匹配到一个 artifact 时直接解压到 fw/（不建 <名字>/ 子目录），
+      - name: 归一化 artifact 目录布局（单 artifact 会平铺到 path）
+        # download-artifact 在只匹配到一个 artifact 时直接解压到 fw/（不建 <名字>/ 子目录），
         # 多个 artifact 则各建 <名字>/ 子目录。publish-release.sh 依赖后者，
         # 这里检测到平铺就按 API 查到的 artifact 名补建子目录。
+        # v7 与 upload-artifact@v7 配套（同为 node24），行为与旧版一致。
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
