@@ -22,6 +22,10 @@ on:
       upstream_ref:
         description: "上游 checkout 的 ref（tag/commit，可留空）"
         default: ""
+      with_qmanager:
+        description: "启用 QManager 载荷（验 qmanager-bundle 能否被选中）"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -62,6 +66,7 @@ jobs:
       - name: 组装 + defconfig + 审计（CONFIG_ONLY）
         env:
           CONFIG_ONLY: "1"
+          QMANAGER: ${{ inputs.with_qmanager }}
         run: |
           bash scripts/verify-device.sh . openwrt "${{ inputs.device }}" "" openwrt
           bash scripts/build-device.sh . "${{ inputs.device }}" "${{ inputs.profile }}" openwrt openwrt openwrt "" "${{ env.DEV_BRANCH }}" 2>&1 | tee config-check.log
