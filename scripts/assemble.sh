@@ -103,55 +103,10 @@ if [ -d "$ROOT/devices/$DEV/files" ]; then
     cp -a "$ROOT/devices/$DEV/files/." "$OPENWRT/files/"
 fi
 
-# 6) 组装 .config：种子 → 全局清单 → 上游差异 → 设备差异（后写覆盖前写）
-#    审计是致命的：任何被 defconfig 丢弃的 =y 项都会中止构建，
-#    所以"上游没有的包"必须在对应层显式关闭，不能指望静默跳过。
-cp "$ROOT/devices/$DEV/default.seed" "$OPENWRT/.config"
-case "$PROFILE" in
-    lite)
-        # 精简实用型：随身WiFi(QModem) + 需求清单精简版
-        cat "$ROOT/common/configs/modem.list" >> "$OPENWRT/.config"
-        cat "$ROOT/common/configs/lite.list" >> "$OPENWRT/.config"
-        ;;
-    ultimate)
-        # 全能型：lite 全部 + tailscale/travelmate/ttyd/statistics/macvlan 等
-        cat "$ROOT/common/configs/modem.list" >> "$OPENWRT/.config"
-        cat "$ROOT/common/configs/lite.list" >> "$OPENWRT/.config"
-        cat "$ROOT/common/configs/proxy.list" >> "$OPENWRT/.config"
-        cat "$ROOT/common/configs/extra.list" >> "$OPENWRT/.config"
-        ;;
-    *)
-        echo "错误: 未知 profile: $PROFILE（可选 lite/ultimate）" >&2
-        exit 1
-        ;;
-esac
-
-# 上游差异：显式关闭该上游没有/冲突的包，或改写子选项
-if [ -f "$ROOT/upstreams/$REPO/exclude.list" ]; then
-    echo "应用上游差异清单: upstreams/$REPO/exclude.list"
-    cat "$ROOT/upstreams/$REPO/exclude.list" >> "$OPENWRT/.config"
-fi
-
-# 设备差异：add 可重新启用被 exclude 关掉的包，remove 拥有最终决定权
-for f in add remove; do
-    if [ -f "$ROOT/devices/$DEV/configs/$f.list" ]; then
-        echo "应用设备差异清单: devices/$DEV/configs/$f.list"
-        cat "$ROOT/devices/$DEV/configs/$f.list" >> "$OPENWRT/.config"
-    fi
-done
-
-# 可选增强：QManager 载荷（Quectel 专用独立 Web 控制台，默认关闭）
-# 开关来自 CI 输入 with_qmanager；与 QModem 抢同一 AT 口，二者只能选一个当主界面。
-case "${QMANAGER:-0}" in
-    1|true|TRUE|yes)
-        if [ -f "$ROOT/devices/$DEV/configs/qmanager.list" ]; then
-            echo "启用 QManager 载荷: devices/$DEV/configs/qmanager.list"
-            cat "$ROOT/devices/$DEV/configs/qmanager.list" >> "$OPENWRT/.config"
-        else
-            echo "警告: QMANAGER=1 但 devices/$DEV/configs/qmanager.list 不存在" >&2
-        fi
-        ;;
-esac
+# 6) 组装 .config：交给 assemble-config.sh（单一真源）
+#    注意：feeds update 会静默触发一次 make defconfig，那时 feed 包还不可见 → 必须由
+#    build-device.sh 在 feeds 安装完成后再调一次同一个脚本（见那里的注释）。
+UPSTREAM_REPO="$REPO" bash "$ROOT/scripts/assemble-config.sh" "$ROOT" "$DEV" "$PROFILE" "$OPENWRT"
 
 # 定制脚本（customize.sh）在 build-device.sh 的 feeds 安装之后执行——
 # 部分定制（如默认主题 sed）需要操作 feeds 里的文件，早于 feeds 会报文件不存在
