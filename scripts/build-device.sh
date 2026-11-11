@@ -47,7 +47,8 @@ echo "==== 生成最终 .config ===="
 cp .config .config.wanted
 # 快照留档：审计若"什么都查不到"，唯一能证明组装产物里到底有没有这些包的就是这两个文件
 cp .config .config.assembled
-echo "组装产物统计: =y 项 $(grep -cE '^CONFIG_[A-Za-z0-9_.+-]+=y
+COUNT_ASSEMBLED=$(grep -c "=y$" .config || true)
+echo "组装产物统计: =y 项 $COUNT_ASSEMBLED 个（快照 .config.assembled）"
 DEFCONFIG_LOG="$PWD/.defconfig.log"
 make defconfig 2>&1 | tee "$DEFCONFIG_LOG"
 
