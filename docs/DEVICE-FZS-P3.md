@@ -146,3 +146,43 @@ ssh root@192.168.x.x 'sysupgrade -n /tmp/openwrt-mediatek-filogic-fzs_5gcpe-p3-s
 - [ ] LuCI → 网络 → QModem：能选到模组、能拨号、`ip a` 出现 `wwan0`/`usb0` 并拿到地址
 - [ ] `reboot` 后配置保留、模组自动重连
 - [ ] （可选）`with_qmanager=true` 的固件：`cat /etc/qmanager-install.log` 无致命错误，页面能打开
+
+## 8. 与 RK3566 的内联口：现状、风险与取证方法
+
+**现状（必读）**：本移植是"现网 LEDE 设备树的 1:1 主线化"，只描述了
+
+- MT7531 `port@1`→`lan1`、`port@2`→`lan2`、`port@3`→`wan`、`port@6`→cpu（→`gmac0`，2500base-x）
+- `02_network`：LAN = `lan1 lan2`，WAN = `wan`
+
+**没有描述**的部分：MT7531 的 `port0/4/5`、MT7981 的第二路 GMAC（`gmac1` + 内部 GPHY `int_gbe_phy`）。
+如果机上 RK3566 是通过其中之一与本板相连，那么：
+
+- 现网 LEDE 同样没有描述它 → **换固件不会更差，但也不会多出这个口**；
+- 若 RK3566 走的是**物理 RJ45**，把它插到 `lan1`/`lan2` 就在 LAN 桥里，功能不受影响；
+- 若走**板内直连**（switch port 或 gmac1），需要额外补一段设备树 + `02_network` 才会出现在 OpenWrt 里。
+
+### 取证：在现网 LEDE 上跑一次（不改配置）
+
+固件已内置 `fzs-p3-diag`（`/usr/bin/fzs-p3-diag`，输出 `/tmp/fzs-p3-diag.txt`）。
+老 LEDE 上没有这个脚本时，直接整段粘贴下面这条等价命令：
+
+```sh
+{ cat /proc/device-tree/model; echo; tr '\0' '\n' </proc/device-tree/compatible; \
+  for d in /sys/class/net/*; do n=${d##*/}; echo "$n $(cat $d/operstate) $(cat $d/speed 2>/dev/null)"; done; \
+  ip -d link show | grep -E '^[0-9]+:|dsa|master'; ip -br addr; ip neigh; \
+  dmesg | grep -iE 'mt7531|mtk_soc_eth|gmac|mdio|link is up|link is down' | tail -40; \
+  cat /proc/mtd; } > /tmp/p3-diag.txt 2>&1; cat /tmp/p3-diag.txt
+```
+
+判读：
+
+| 现象 | 结论 | 需要做的 |
+|---|---|---|
+| `/sys/class/net` 只有 `lan1 lan2 wan`（+ lo） | 没有第 4 个 DSA 口 | RK3566 走物理口 → 插 lan1 即可，或本就没有内联 |
+| 多出 `lan3`/`lan4` 或 `port@4/5` 出现在 `ip -d link` | 内联口在 MT7531 上 | 补 dts `port@4/5 { label = "lan3"; ... }` + `02_network` 加进 LAN 桥 |
+| `dmesg` 出现 `15100000.ethernet`/`eth1` 或 `int_gbe_phy` link up | 走的是 `gmac1` | 补 `gmac1 + int_gbe_phy` 节点，再按需给 DHCP/桥接 |
+| RK3566 有 IP 且 `ip neigh` 能看到它 | 二层已通 | 同上表对号入座，若在 lan1/lan2 上则无需改动 |
+
+拿到 `/tmp/p3-diag.txt` 后按上表补丁即可；补丁同样放
+`devices/fzs_5gcpe-p3/patches/openwrt-25.12/`（命名 `0002-...`），CI 的
+`verify-device.sh` 会先做 `git apply` 与 DTS 结构校验再编译。
