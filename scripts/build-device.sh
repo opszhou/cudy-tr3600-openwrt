@@ -132,6 +132,25 @@ fi
 rm -f .config.preindex
 echo "✅ 包索引预热完成，.config 未被改写"
 
+# ---- CONFIG_ONLY：只跑配置链路，不编译 ----
+# 用途：把"清单里写的包到底有没有进最终 .config"这件事从 3 小时缩短到 ~10 分钟。
+# CI 上出现过"审计通过、镜像里却没有 qmodem"的情况，用这个模式可以在每次改清单后先验一遍。
+if [ "${CONFIG_ONLY:-0}" = "1" ]; then
+    echo "==== CONFIG_ONLY: 跳过下载与编译 ===="
+    echo "---- 关键包在最终 .config 里的状态 ----"
+    for p in qmodem luci-app-qmodem-next luci-ssl luci-app-package-manager htop curl luci-i18n-base-zh-cn luci-app-dufs luci-app-sysdashboard; do
+        if grep -Fxq "CONFIG_PACKAGE_$p=y" .config; then
+            echo "  OK      $p"
+        else
+            echo "  MISSING $p"
+        fi
+    done
+    echo "---- 被写成 is-not-set 的包（数量）----"
+    grep -c '^# CONFIG_PACKAGE_.* is not set' .config || true
+    echo "CONFIG_ONLY_DONE"
+    exit 0
+fi
+
 echo "==== 下载源码包 ===="
 # 每个文件的 Downloading/Checking 行全部吞掉，只留失败信息（curl 错误、Download failed 不在这些前缀里）
 dl_ok=0
