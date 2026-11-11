@@ -154,8 +154,15 @@ jobs:
           eval "$(bash scripts/parse-device.sh . "${{ matrix.device }}")"
           BRANCH="${{ inputs.upstream_branch }}"
           [ -n "$BRANCH" ] || BRANCH="${DEV_BRANCH:-main}"
+          # checkout 用哪个 ref：手动指定 > device.yml 的 ref（可为 tag）> 分支名。
+          # 补丁目录仍按分支解析，所以"锁 tag 出稳定版"和"跟分支出滚动版"共用同一套补丁。
+          REF="${{ inputs.upstream_branch }}"
+          [ -n "$REF" ] || REF="${DEV_REF:-}"
+          [ -n "$REF" ] || REF="$BRANCH"
+          echo "上游 checkout ref: $REF（补丁目录按分支 $BRANCH）"
           {
             echo "DEV_BRANCH=$BRANCH"
+            echo "CHECKOUT_REF=$REF"
             echo "UPSTREAM_OWNER=${{ inputs.upstream_owner }}"
             echo "UPSTREAM_REPO=${{ inputs.upstream_repo }}"
           } >> "$GITHUB_ENV"
@@ -164,7 +171,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: ${{ env.UPSTREAM_OWNER }}/${{ env.UPSTREAM_REPO }}
-          ref: ${{ env.DEV_BRANCH }}
+          ref: ${{ env.CHECKOUT_REF }}
           path: openwrt
           fetch-depth: 0
 
