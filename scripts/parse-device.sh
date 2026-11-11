@@ -18,6 +18,10 @@ field() {
 
 DEV_ID=$(field id); DEV_TARGET=$(field target)
 DEV_PROFILE=$(field profile); DEV_BRANCH=$(field branch)
+# 可选 ref：checkout 用的具体 Git ref（可以是 tag，如 v25.12.6）。
+# 补丁目录仍按 branch 命名（patches/<上游>-<branch>/）：这样"锁 tag 的固件"与"跟分支的固件"
+# 共用同一套补丁，不必为每个 tag 复制一份补丁目录。
+DEV_REF=$(field ref)
 
 # 必填字段校验：缺失时给出明确指引（run#29 教训——静默错位比崩溃贵）
 MISSING=""
@@ -35,6 +39,7 @@ echo "DEV_ID=$DEV_ID"
 echo "DEV_TARGET=$DEV_TARGET"
 echo "DEV_PROFILE=$DEV_PROFILE"
 echo "DEV_BRANCH=$DEV_BRANCH"
+echo "DEV_REF=$DEV_REF"
 
 # default_prs 列表：仅取未注释的 "- <数字>" 行
 PRS="$(sed -nE 's/^[[:space:]]*-[[:space:]]*([0-9]+)[[:space:]]*(#.*)?$/\1/p' "$YML")"
