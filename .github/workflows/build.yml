@@ -119,19 +119,41 @@ jobs:
           remove-docker-images: "true"
 
       - name: 安装编译依赖
+        # 2026-11-11 事故：runner 镜像换代后 apt 源里"什么都找不到"
+        #   E: Unable to locate package build-essential / clang / cmake / device-tree-compiler …
+        # 连 build-essential 都没候选 —— 说明是镜像源本身不可用（不是包改名）。
+        # 这里改成：清空源 → 逐个候选镜像试到 apt-cache 真的能看到 build-essential 为止 → 再装。
         run: |
-          export TMPDIR=$RUNNER_TEMP
-          sudo mkdir -p $TMPDIR
-          sudo apt-get clean
-          sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/*
-          # 输出压缩成事件：成功只留一行摘要，失败才倒出错误行（apt 的 Setting up/Unpacking 行全是噪音）
-          sudo apt-get update -y > "$RUNNER_TEMP/apt-update.log" 2>&1 || { tail -20 "$RUNNER_TEMP/apt-update.log"; exit 1; }
-          echo "✅ apt update 完成"
-          # apt 缓存目录指到大容量数据盘（只有工作区目录挂在 LVM 上，RUNNER_TEMP 仍在根分区）
-          sudo mkdir -p "$GITHUB_WORKSPACE/.apt-archives/partial"
-          # 必需依赖：装不上就直接失败（缺这些 OpenWrt 编不了）
+          set -uo pipefail
+          export TMPDIR="$RUNNER_TEMP"
+          . /etc/os-release
+          CODENAME="${VERSION_CODENAME:-noble}"
+          echo "runner: $(lsb_release -ds 2>/dev/null || echo unknown) / codename=$CODENAME"
+
+          try_mirror() {
+            local mirror="$1"
+            sudo rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/* 2>/dev/null || true
+            if [ -n "$mirror" ]; then
+              sudo sh -c "printf 'deb $mirror $CODENAME main restricted universe multiverse\ndeb $mirror $CODENAME-updates main restricted universe multiverse\n' > /etc/apt/sources.list"
+            fi
+            sudo apt-get update -y > "$RUNNER_TEMP/apt-update.log" 2>&1 || return 1
+            apt-cache policy build-essential 2>/dev/null | grep -q 'Candidate:' || return 1
+            return 0
+          }
+
+          ok=0
+          for m in "" "http://archive.ubuntu.com/ubuntu" "http://azure.archive.ubuntu.com/ubuntu" "https://mirrors.tuna.tsinghua.edu.cn/ubuntu"; do
+            echo "== 尝试 apt 源: ${m:-镜像自带}"
+            if try_mirror "$m"; then echo "✅ apt 源可用: ${m:-镜像自带}"; ok=1; break; fi
+            echo "  ✗ 不可用，换下一个"
+          done
+          if [ "$ok" -ne 1 ]; then
+            echo "错误: 所有 apt 源都不可用（build-essential 无候选），update 日志尾部：" >&2
+            tail -20 "$RUNNER_TEMP/apt-update.log" >&2
+            exit 1
+          fi
+
           if ! sudo apt-get install -y --no-install-recommends \
-            -o Dir::Cache::archives="$GITHUB_WORKSPACE/.apt-archives" \
             ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
             bzip2 ccache clang cmake cpio curl device-tree-compiler flex gawk gettext genisoimage \
             git gperf haveged libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev \
@@ -140,21 +162,18 @@ jobs:
             python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo \
             unzip vim wget xmlto xxd zlib1g-dev \
             > "$RUNNER_TEMP/apt-install.log" 2>&1; then
-            echo "错误: apt 安装必需依赖失败:" >&2
+            echo "错误: 必需依赖安装失败:" >&2
             grep -aE "^E:|No space left|Unable to locate|no installation candidate" "$RUNNER_TEMP/apt-install.log" | head -20 >&2
             exit 1
           fi
-          # 可选依赖：新版本 Ubuntu 里部分包被改名/移除（2026-11-11：ubuntu-latest 换镜像后
-          # help2man/intltool/libc6-dev-i386/libelf-dev/libfuse-dev 全部 "no installation candidate"，
-          # 直接把构建卡在第一步）。这些对 aarch64 目标不是硬需求，装不上就跳过并记录。
+          echo "✅ 必需依赖安装完成（@@(grep -ac '^Setting up' "$RUNNER_TEMP/apt-install.log" || true) 个包）"
+
+          # 可选依赖：新版本 Ubuntu 里可能被改名/移除，缺失不影响 aarch64 目标出固件
           sudo apt-get install -y --no-install-recommends \
-            -o Dir::Cache::archives="$GITHUB_WORKSPACE/.apt-archives" \
-            help2man intltool libc6-dev-i386 gcc-multilib g++-multilib libfuse-dev uglifyjs upx-ucl \
+            help2man intltool libc6-fuse-dev libfuse-dev uglifyjs upx-ucl gcc-multilib g++-multilib \
             > "$RUNNER_TEMP/apt-optional.log" 2>&1 \
-            || echo "⚠ 可选依赖有缺失（不影响 aarch64 目标）：$(grep -aE '^E:' "$RUNNER_TEMP/apt-optional.log" | head -5 | tr '\n' ' ')"
-          echo "✅ 编译依赖安装完成（$(grep -ac '^Setting up' "$RUNNER_TEMP/apt-install.log" || true) 个包）"
-          sudo apt-get clean
-          sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* "$GITHUB_WORKSPACE/.apt-archives"
+            || echo "⚠ 可选依赖有缺失（不影响构建）：@@(grep -aE '^E:' "$RUNNER_TEMP/apt-optional.log" | head -3 | tr '\n' ' ')"
+          sudo apt-get clean || true
 
       - name: Checkout 本仓库
         uses: actions/checkout@v5
