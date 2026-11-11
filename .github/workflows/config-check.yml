@@ -1,0 +1,71 @@
+name: "🧪 配置闸门 (Config Check)"
+# 只跑「组装 → feeds → defconfig → 审计 → 索引预热复验」，不编译。
+# 目的：把"清单里的包有没有真正进入最终 .config"从 3 小时压到 ~10 分钟。
+# 背景：2026-11-11 fzs-p3 首轮构建成功，但镜像 manifest 里没有 qmodem/luci-ssl/htop/curl，
+#       而按 .config 的写法它们本该在 —— 必须能在几分钟内复现并定位，而不是等一整轮编译。
+on:
+  workflow_dispatch:
+    inputs:
+      device:
+        description: "设备ID（devices/ 目录名）"
+        required: true
+        default: "fzs_5gcpe-p3"
+      profile:
+        description: "包组合"
+        required: true
+        default: "lite"
+        type: choice
+        options: [lite, ultimate]
+      upstream_branch:
+        description: "上游分支（留空用 device.yml）"
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  config-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 安装最小依赖（只要跑得动 Kconfig）
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            build-essential bison flex libncurses5-dev libssl-dev zlib1g-dev \
+            gawk gettext python3 python3-pyelftools rsync unzip wget git ca-certificates \
+            libelf-dev cpio file
+
+      - uses: actions/checkout@v5
+
+      - name: 解析设备配置
+        run: |
+          eval "$(bash scripts/parse-device.sh . "${{ inputs.device }}")"
+          BRANCH="${{ inputs.upstream_branch }}"
+          [ -n "$BRANCH" ] || BRANCH="${DEV_BRANCH:-main}"
+          echo "DEV_BRANCH=$BRANCH" >> "$GITHUB_ENV"
+          echo "上游分支: $BRANCH"
+
+      - uses: actions/checkout@v5
+        with:
+          repository: openwrt/openwrt
+          ref: ${{ env.DEV_BRANCH }}
+          path: openwrt
+          fetch-depth: 1
+
+      - name: 组装 + defconfig + 审计（CONFIG_ONLY）
+        env:
+          CONFIG_ONLY: "1"
+        run: |
+          bash scripts/verify-device.sh . openwrt "${{ inputs.device }}" "" openwrt
+          bash scripts/build-device.sh . "${{ inputs.device }}" "${{ inputs.profile }}" openwrt openwrt openwrt "" "${{ env.DEV_BRANCH }}" 2>&1 | tee config-check.log
+
+      - name: 上传 .config 与日志
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: config-check-${{ inputs.device }}-${{ inputs.profile }}
+          path: |
+            openwrt/.config
+            config-check.log
+          retention-days: 7
+          include-hidden-files: true
