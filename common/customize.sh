@@ -18,3 +18,16 @@ fi
 # 背景：qmodem feed 的 ndisc6 1.0.2 源 remlab.net 已 410；升到 Debian 池 1.0.8 后
 #       又因 src/trace-tcp.c 用 C11 alignas、而该包带 -std=c99 编译失败（run#17）。
 # 恢复：修 trace-tcp.c 的 alignas（改 __attribute__((aligned))），choice 改回 INCLUDE_ndisc6。
+
+# ---- QModem nat=2：拨号固定下发网桥模式，保住 USB + 网口双路 ----
+# 上游 at_dial() 每次拨号发 AT+QCFG="nat",1，会把手工设的 nat=2 写回 1，
+# 下一次重拨 / 模组重启后双路失效。改法与影响面见 scripts/apply-qmodem-nat2.sh。
+# 该脚本幂等，且源码格式不符时直接构建失败，不静默跳过。
+# 注意：本脚本在 openwrt 根目录下执行，仓库路径必须由脚本自身位置反推，
+#       不能用调用方的相对路径（CI 传 "." 在 cd 进 openwrt 后会错位）。
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ ! -f "$ROOT/scripts/apply-qmodem-nat2.sh" ]; then
+    echo "错误: 缺少 scripts/apply-qmodem-nat2.sh" >&2
+    exit 1
+fi
+bash "$ROOT/scripts/apply-qmodem-nat2.sh" "$PWD" || exit 1
