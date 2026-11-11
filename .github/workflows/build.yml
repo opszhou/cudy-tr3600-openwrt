@@ -58,7 +58,7 @@ concurrency:
 
 jobs:
   matrix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       jobs: ${{ steps.set.outputs.jobs }}
     steps:
@@ -82,7 +82,7 @@ jobs:
 
   build:
     needs: matrix
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       max-parallel: 1
@@ -129,22 +129,29 @@ jobs:
           echo "✅ apt update 完成"
           # apt 缓存目录指到大容量数据盘（只有工作区目录挂在 LVM 上，RUNNER_TEMP 仍在根分区）
           sudo mkdir -p "$GITHUB_WORKSPACE/.apt-archives/partial"
+          # 必需依赖：装不上就直接失败（缺这些 OpenWrt 编不了）
           if ! sudo apt-get install -y --no-install-recommends \
             -o Dir::Cache::archives="$GITHUB_WORKSPACE/.apt-archives" \
             ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
-            bzip2 ccache clang cmake cpio curl device-tree-compiler flex gawk gcc-multilib \
-            g++-multilib gettext genisoimage git gperf haveged help2man intltool \
-            libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev \
-            libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libpython3-dev \
-            libreadline-dev libssl-dev libtool llvm lrzsz libnsl-dev ninja-build p7zip \
-            p7zip-full patch pkgconf python3 python3-pyelftools python3-setuptools \
-            qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs \
-            upx-ucl unzip vim wget xmlto xxd zlib1g-dev \
+            bzip2 ccache clang cmake cpio curl device-tree-compiler flex gawk gettext genisoimage \
+            git gperf haveged libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev \
+            libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev libssl-dev libtool llvm \
+            lrzsz libnsl-dev ninja-build p7zip p7zip-full patch pkgconf python3 python3-pyelftools \
+            python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo \
+            unzip vim wget xmlto xxd zlib1g-dev \
             > "$RUNNER_TEMP/apt-install.log" 2>&1; then
-            echo "错误: apt 安装编译依赖失败:" >&2
-            grep -aE "^E:|No space left" "$RUNNER_TEMP/apt-install.log" | head -20 >&2
+            echo "错误: apt 安装必需依赖失败:" >&2
+            grep -aE "^E:|No space left|Unable to locate|no installation candidate" "$RUNNER_TEMP/apt-install.log" | head -20 >&2
             exit 1
           fi
+          # 可选依赖：新版本 Ubuntu 里部分包被改名/移除（2026-11-11：ubuntu-latest 换镜像后
+          # help2man/intltool/libc6-dev-i386/libelf-dev/libfuse-dev 全部 "no installation candidate"，
+          # 直接把构建卡在第一步）。这些对 aarch64 目标不是硬需求，装不上就跳过并记录。
+          sudo apt-get install -y --no-install-recommends \
+            -o Dir::Cache::archives="$GITHUB_WORKSPACE/.apt-archives" \
+            help2man intltool libc6-dev-i386 gcc-multilib g++-multilib libfuse-dev uglifyjs upx-ucl \
+            > "$RUNNER_TEMP/apt-optional.log" 2>&1 \
+            || echo "⚠ 可选依赖有缺失（不影响 aarch64 目标）：$(grep -aE '^E:' "$RUNNER_TEMP/apt-optional.log" | head -5 | tr '\n' ' ')"
           echo "✅ 编译依赖安装完成（$(grep -ac '^Setting up' "$RUNNER_TEMP/apt-install.log" || true) 个包）"
           sudo apt-get clean
           sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* "$GITHUB_WORKSPACE/.apt-archives"
@@ -355,7 +362,7 @@ jobs:
   release:
     needs: build
     if: ${{ inputs.create_release && success() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 
