@@ -303,6 +303,31 @@ jobs:
           if-no-files-found: ignore
           include-hidden-files: true
 
+      - name: 产物自检（包清单必装项 + 镜像体积上限）
+        # 编译成功 ≠ 刷得进去。这里把两件"事后才发现就晚了"的事卡在出 Artifact 之前：
+        #   1) 必装包真的进了镜像（defconfig 通过了，也可能在 package/install 阶段被裁掉）
+        #   2) sysupgrade.bin 不超过 ubi 分区上限（P3 是 112 MiB），超了刷机必半死
+        if: success()
+        run: |
+          set -euo pipefail
+          MF=$(find openwrt/bin/targets -name '*.manifest' | head -n1)
+          [ -n "$MF" ] || { echo "错误: 未找到 manifest"; exit 1; }
+          echo "== 必装包核对（$MF）=="
+          miss=0
+          for p in qmodem luci-app-qmodem-next kmod-mt7915e mt7981-wo-firmware kmod-usb3 luci-i18n-base-zh-cn; do
+            if grep -qE "^$p([[:space:]]|\$)" "$MF"; then echo "  OK      $p"; else echo "  MISSING $p"; miss=1; fi
+          done
+          [ "$miss" -eq 0 ] || { echo "错误: 有必装包缺失"; exit 1; }
+
+          BIN=$(find openwrt/bin/targets -name '*fzs_5gcpe-p3*sysupgrade*.bin' | head -n1 || true)
+          [ -n "$BIN" ] || { echo "错误: 未找到 fzs_5gcpe-p3 的 sysupgrade 镜像"; ls -lh openwrt/bin/targets/*/* || true; exit 1; }
+          SZ=$(stat -c %s "$BIN")
+          echo "== 镜像体积 =="
+          echo "  $BIN = $SZ bytes ($((SZ/1024/1024)) MiB)"
+          LIMIT=$((112*1024*1024))
+          if [ "$SZ" -ge "$LIMIT" ]; then echo "错误: 超过 112 MiB ubi 分区上限"; exit 1; fi
+          echo "RESULT: OK"
+
       - name: 上传固件 Artifact
         uses: actions/upload-artifact@v7
         with:
