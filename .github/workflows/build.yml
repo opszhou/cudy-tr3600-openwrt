@@ -332,7 +332,11 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ${{ env.UPSTREAM_REPO }}-${{ matrix.device }}-${{ matrix.profile }}-snapshot
-          path: openwrt/bin/targets
+          # .config 一并上传：manifest 少了包时，光看 bin/targets 判断不出是"配置没写进"还是"编译期被丢"，
+          # 真正用于编译的 .config 是唯一能定性的证据（config.buildinfo 只是 diffconfig 的差集）。
+          path: |
+            openwrt/bin/targets
+            openwrt/.config
           retention-days: 14
           include-hidden-files: true
 
