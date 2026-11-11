@@ -42,6 +42,16 @@ else
     exit 1
 fi
 
+# ---- 重放 .config（必须在 feeds 安装之后）----
+# 根因（2026-11-11 fzs-p3 实测）：`./scripts/feeds update -a` 结束后，OpenWrt 的 scripts/feeds
+# 会静默执行一次 `make defconfig`（输出丢进 /dev/null）。那次 defconfig 时 feed 包还没装进
+# package/feeds、索引里也看不到，于是 kconfig 把清单里的 feed 包整批裁掉：
+#   .config 从 84 行"种子+清单"变成 kconfig 生成的 734 行，qmodem / luci-ssl / htop / curl 全部归零，
+# 而后续的"必选项审计"以这份残缺文件为基准，自然查不出问题 —— 于是编出没有 QModem 的镜像。
+# 对策：feeds 就绪后再重放一次配置组装（与 assemble.sh 共用 assemble-config.sh）。
+echo "==== 重放 .config（feeds 已就绪）===="
+UPSTREAM_REPO="$REPO" bash "$ROOT/scripts/assemble-config.sh" "$ROOT" "$DEV" "$PROFILE" "$OPENWRT"
+
 echo "==== 生成最终 .config ===="
 # defconfig 前快照审计基准：种子 + 包清单里的全部 CONFIG_*=y 必选项
 cp .config .config.wanted
