@@ -17,7 +17,10 @@ on:
         type: choice
         options: [lite, ultimate]
       upstream_branch:
-        description: "上游分支（留空用 device.yml）"
+        description: "上游分支（留空用 device.yml；决定补丁目录）"
+        default: ""
+      upstream_ref:
+        description: "上游 checkout 的 ref（tag/commit，可留空）"
         default: ""
 
 permissions:
@@ -42,13 +45,17 @@ jobs:
           eval "$(bash scripts/parse-device.sh . "${{ inputs.device }}")"
           BRANCH="${{ inputs.upstream_branch }}"
           [ -n "$BRANCH" ] || BRANCH="${DEV_BRANCH:-main}"
+          REF="${{ inputs.upstream_ref }}"
+          [ -n "$REF" ] || REF="${DEV_REF:-}"
+          [ -n "$REF" ] || REF="$BRANCH"
           echo "DEV_BRANCH=$BRANCH" >> "$GITHUB_ENV"
-          echo "上游分支: $BRANCH"
+          echo "CHECKOUT_REF=$REF" >> "$GITHUB_ENV"
+          echo "上游分支: $BRANCH   checkout ref: $REF"
 
       - uses: actions/checkout@v5
         with:
           repository: openwrt/openwrt
-          ref: ${{ env.DEV_BRANCH }}
+          ref: ${{ env.CHECKOUT_REF }}
           path: openwrt
           fetch-depth: 1
 
