@@ -166,13 +166,13 @@ jobs:
             grep -aE "^E:|No space left|Unable to locate|no installation candidate" "$RUNNER_TEMP/apt-install.log" | head -20 >&2
             exit 1
           fi
-          echo "✅ 必需依赖安装完成（@@(grep -ac '^Setting up' "$RUNNER_TEMP/apt-install.log" || true) 个包）"
+          echo "✅ 必需依赖安装完成（$(grep -ac '^Setting up' "$RUNNER_TEMP/apt-install.log" || true) 个包）"
 
           # 可选依赖：新版本 Ubuntu 里可能被改名/移除，缺失不影响 aarch64 目标出固件
           sudo apt-get install -y --no-install-recommends \
             help2man intltool libc6-fuse-dev libfuse-dev uglifyjs upx-ucl gcc-multilib g++-multilib \
             > "$RUNNER_TEMP/apt-optional.log" 2>&1 \
-            || echo "⚠ 可选依赖有缺失（不影响构建）：@@(grep -aE '^E:' "$RUNNER_TEMP/apt-optional.log" | head -3 | tr '\n' ' ')"
+            || echo "⚠ 可选依赖有缺失（不影响构建）：$(grep -aE '^E:' "$RUNNER_TEMP/apt-optional.log" | head -3 | tr '\n' ' ')"
           sudo apt-get clean || true
 
       - name: Checkout 本仓库
