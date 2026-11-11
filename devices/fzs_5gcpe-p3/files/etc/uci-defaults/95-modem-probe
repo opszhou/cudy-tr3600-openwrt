@@ -1,0 +1,47 @@
+#!/bin/sh
+# 5G 模组探测（首启执行一次，结果落到 /etc/modem-probe.txt，重启保留）
+#
+# 目的：本机 5G 部分的模组型号在移植阶段未知（硬件资料只覆盖 MT7981 侧）。
+# 拿到 lsusb/VID:PID + ATI 之后才能决定：
+#   - QModem 里选哪个 vendor 配置（Quectel / Fibocom / MeiG / SIMCom / UNISOC…）
+#   - 是否值得启用 QManager（它只认 Quectel AT 模组）
+# 纯只读探测：不写模组、不打电话、不改 IMEI。
+
+OUT=/etc/modem-probe.txt
+exec >"$OUT" 2>&1
+
+echo "# 蜂助手 FZS 5GCPE P3 模组探测 $(date)"
+echo
+echo "## USB 设备（sysfs，永不会挂住）"
+for d in /sys/bus/usb/devices/*/idVendor; do
+	[ -f "$d" ] || continue
+	p="${d%/idVendor}"
+	{
+		printf '%s:%s ' "$(cat "$d" 2>/dev/null)" "$(cat "$p/idProduct" 2>/dev/null)"
+		printf 'manufacturer=%s product=%s\n' \
+			"$(cat "$p/manufacturer" 2>/dev/null)" "$(cat "$p/product" 2>/dev/null)"
+	} >>"$OUT"
+done
+
+echo
+echo "## USB 驱动绑定（option / qmi_wwan / cdc_mbim / rndis_host / cdc_ether）"
+ls -l /sys/bus/usb/drivers/ 2>/dev/null | grep -E 'option|qmi_wwan|cdc_mbim|rndis_host|cdc_ether' >>"$OUT"
+
+echo
+echo "## 串口设备"
+ls -l /dev/ttyUSB* /dev/cdc-wdm* 2>/dev/null >>"$OUT"
+
+echo
+echo "## ATI（每个 AT 口试一次，3 秒超时；无 tty 时整段自动跳过）"
+for t in /dev/ttyUSB0 /dev/ttyUSB1 /dev/ttyUSB2 /dev/ttyUSB3; do
+	[ -c "$t" ] || continue
+	echo "-- $t" >>"$OUT"
+	timeout 3 sh -c "stty -F $t 115200 raw -echo 2>/dev/null; exec 3<>$t; printf 'ATI\r' >&3; cat <&3" >>"$OUT" 2>&1
+	echo >>"$OUT"
+done
+
+echo
+echo "## 内核里与模组相关的行"
+dmesg 2>/dev/null | grep -iE 'option|qmi_wwan|cdc_|usb 1-|usb 2-|ttyUSB' | tail -40 >>"$OUT"
+
+exit 0

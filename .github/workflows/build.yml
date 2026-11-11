@@ -39,6 +39,10 @@ on:
         description: "编译成功后创建 Release（lite+ultimate 汇总到同一个 Release，只发裸固件）"
         type: boolean
         default: true
+      with_qmanager:
+        description: "启用 QManager 载荷（Quectel 专用独立 Web 控制台；与 QModem 拨号二选一，默认关）"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -164,6 +168,12 @@ jobs:
           path: openwrt
           fetch-depth: 0
 
+      - name: 设备移植前置校验（补丁 / 设备树 / 网口映射）
+        # 秒级失败闸门：补丁漂移、dts 结构错、02_network 网口映射写错都在这里拦下，
+        # 不用等 90 分钟编译。逻辑见 scripts/verify-device.sh（worktree 内校验，不改主树）。
+        run: |
+          bash scripts/verify-device.sh . openwrt "${{ matrix.device }}" "" "${{ inputs.upstream_repo }}"
+
       - name: 缓存源码包（dl）
         uses: actions/cache@v5
         with:
@@ -189,6 +199,9 @@ jobs:
             ccache-${{ matrix.device }}-${{ env.UPSTREAM_REPO }}-
 
       - name: 组装并编译
+        env:
+          # 可选 QManager 载荷：assemble.sh 据此追加 devices/<dev>/configs/qmanager.list
+          QMANAGER: ${{ inputs.with_qmanager }}
         run: |
           set -o pipefail
           # 三通道日志：控制台全量（GitHub step 日志）+ 完整日志流式 gzip（省 ~90% 磁盘）

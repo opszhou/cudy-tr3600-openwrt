@@ -1,4 +1,4 @@
-# Cudy TR3600 v1 OpenWrt 固件
+# OpenWrt 自编译固件（多设备）
 
 <p>
   <img alt="License" src="https://img.shields.io/badge/license-GPL--2.0-blue">
@@ -10,8 +10,18 @@
 > ## ⚠️ 使用前必读
 >
 > - **本项目仅为个人自用**，不是成熟发行版：**没有做过系统性真机验证**，刷机有变砖风险，请自行评估、自行备份
-> - 仅适用于 Cudy **TR3600 v1**，不适用于 TR3000、WR3600 或任何其他硬件版本，刷前务必核对硬件版本
+> - 每台设备只能刷自己的固件，刷前务必核对机型（见下表）
 > - 固件以 GitHub Actions 最新成功构建为准，随上游更新滚动变化，不承诺任何稳定性
+
+## 支持设备
+
+| 设备 | 上游分支 | 说明 | 文档 |
+|---|---|---|---|
+| `cudy_tr3600-v1` | `main`（+ 官方 PR 补丁） | Cudy TR3600 v1（MT7981B + WiFi7 + 风扇） | 本文下方 |
+| `fzs_5gcpe-p3` | `openwrt-25.12`（主线 release） | 蜂助手 FZS 5GCPE P3（MT7981B + MT7531 + 128MiB NAND + 5G 模组），从 LEDE 迁到主线 release | [docs/DEVICE-FZS-P3.md](docs/DEVICE-FZS-P3.md) |
+
+两台设备共用同一套 `common/`（QModem、包清单、开机预设）与 CI，但**上游分支各自独立**：
+`device.yml` 里的 `branch` 决定 matrix 每个 job 各自 checkout / 打补丁 / 取缓存 key，互不影响。
 
 ## 为什么用这套固件
 

@@ -1,0 +1,6 @@
+# QManager 开关清单（仅当 build.yml 勾选 with_qmanager 时由 assemble.sh 追加）
+# 说明见 devices/fzs_5gcpe-p3/package/qmanager-bundle/Makefile
+CONFIG_PACKAGE_qmanager-bundle=y
+# QManager 依赖三件套（jq/curl/coreutils-timeout/ethtool 由包 DEPENDS 自动带）
+# 上游 install.sh 会拒绝与 sms-tool / socat 共存，这里显式不装：
+# CONFIG_PACKAGE_sms-tool is not set

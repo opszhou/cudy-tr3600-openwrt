@@ -1,0 +1,15 @@
+# 设备级加包清单（CONFIG_PACKAGE_xxx=y）：比全局清单多要的包。
+# 追加顺序：全局清单 → 上游 exclude.list → 本文件。
+
+# ---- 5G 模组（USB 座）----
+# 模组厂商尚未实机确认（首启 95-modem-probe 会打印 lsusb + ATI），这里按"全协议兜底"配置：
+# QMI / MBIM / RNDIS / ECM / NCM + AT 串口，QModem 侧再按 ATI 结果选具体 vendor 配置。
+CONFIG_PACKAGE_kmod-usb-storage=y
+CONFIG_PACKAGE_kmod-usb-acm=y
+CONFIG_PACKAGE_kmod-usb-serial-qualcomm=y
+CONFIG_PACKAGE_kmod-usb-wdm=y
+
+# ---- 状态可见性（CPE 摆在外面，需要看信号/温度）----
+CONFIG_PACKAGE_luci-app-statistics=y
+CONFIG_PACKAGE_luci-i18n-statistics-zh-cn=y
+CONFIG_PACKAGE_collectd-mod-thermal=y

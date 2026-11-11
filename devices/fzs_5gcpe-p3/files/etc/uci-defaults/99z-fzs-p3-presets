@@ -1,0 +1,76 @@
+#!/bin/sh
+# 蜂助手 FZS 5GCPE P3 首启预设（uci-defaults，开机只跑一次，跑完即删）
+#
+# 为什么单独一份而不是复用 common/files/etc/uci-defaults/99-router-presets：
+#   那份预设按 WiFi7（EHT20/EHT80）给 htmode，本机是 MT7981B + MT7976 的 WiFi6（HE），
+#   在 hostapd 上选 EHT 会直接起不来 —— 表现为"刷完没有无线信号"。
+#   本文件命名为 99z- 保证在 common 的 99- 之后执行，从而覆盖它的频宽设置。
+#
+# 测试钩子：UCI_ROOT 可指向沙箱（scripts/test-fzs-presets.sh 用），默认就是真实 uci。
+
+UCI="uci"
+[ -n "${UCI_ROOT:-}" ] && UCI="uci -d $UCI_ROOT"
+
+# ---- 主机名 / 时区 / 12-24 小时制 ----
+$UCI -q set system.@system[0].hostname='fzs-p3'
+$UCI -q set system.@system[0].zonename='Asia/Shanghai'
+$UCI -q set system.@system[0].timezone='CST-8'
+$UCI -q set system.@system[0].clock_hourcycle='h23'
+$UCI -q commit system
+
+# ---- 默认 LAN：192.168.10.1/24，DHCP 池 .100~.249 ----
+$UCI -q set network.lan.ipaddr='192.168.10.1'
+$UCI -q set network.lan.netmask='255.255.255.0'
+$UCI -q set network.lan.proto='static'
+$UCI -q set dhcp.lan.start='100'
+$UCI -q set dhcp.lan.limit='150'
+$UCI -q commit network
+$UCI -q commit dhcp
+
+# ---- 无线：默认开启，频宽按 WiFi6（HE）给，5GHz 排除 DFS 段 ----
+# 覆盖 common 预设的 EHT*：MT7981 是 ax，EHT 会让 hostapd 拒绝启动。
+# country 必须显式 CN，否则默认 00 世界域把 5GHz 149~165 段禁用。
+for dev in $($UCI -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p'); do
+	$UCI -q set wireless.$dev.disabled='0'
+	$UCI -q set wireless.$dev.country='CN'
+	$UCI -q set wireless.$dev.channel='auto'
+	$UCI -q set wireless.$dev.acs_exclude_dfs='1'
+	case "$($UCI -q get wireless.$dev.band)" in
+		2g) $UCI -q set wireless.$dev.htmode='HE20' ;;
+		5g) $UCI -q set wireless.$dev.htmode='HE80' ;;
+	esac
+done
+
+# 已设密钥的接口升级到 WPA2/WPA3 混合；没有密钥就保持开放（设 sae-mixed 会让 hostapd 起不来）
+for ifc in $($UCI -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-iface$/\1/p'); do
+	$UCI -q set wireless.$ifc.disabled='0'
+	if [ -n "$($UCI -q get wireless.$ifc.key)" ]; then
+		$UCI -q set wireless.$ifc.encryption='sae-mixed'
+		$UCI -q set wireless.$ifc.ieee80211w='1'
+	else
+		$UCI -q set wireless.$ifc.encryption='none'
+	fi
+done
+$UCI -q commit wireless
+
+# ---- 5G 模组所在 USB 总线的电源策略：禁止 autosuspend 掉线 ----
+# 蜂窝模组被 autosuspend 后会自己掉线，表现为"用一会儿就没了、要重启"。
+mkdir -p /etc/hotplug.d/usb
+cat > /etc/hotplug.d/usb/20-modem-no-autosuspend <<'EOF'
+#!/bin/sh
+# 模组（2c7c/2dee/1782/… 等蜂窝厂商 VID）不做 USB autosuspend
+[ "$ACTION" = "add" ] || exit 0
+for d in /sys/bus/usb/devices/*/idVendor; do
+	[ -f "$d" ] || continue
+	case "$(cat "$d" 2>/dev/null)" in
+		2c7c|2dee|1782|2c7c|05c6|12d1|19d2|0685|3765|1e0e|2c7c) ;;
+		*) continue ;;
+	esac
+	p="${d%/idVendor}"
+	[ -f "$p/power/control" ] && echo on > "$p/power/control" 2>/dev/null
+done
+exit 0
+EOF
+chmod 755 /etc/hotplug.d/usb/20-modem-no-autosuspend
+
+exit 0

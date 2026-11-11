@@ -1,0 +1,29 @@
+# 设备 .config 种子 —— 只写「目标选择 + 基础偏好」，其余依赖由 make defconfig 补全。
+#
+# 目标：OpenWrt 25.12 / mediatek filogic（MT7981B）
+
+# ---- 目标与机型 ----
+CONFIG_TARGET_mediatek=y
+CONFIG_TARGET_mediatek_filogic=y
+CONFIG_TARGET_mediatek_filogic_DEVICE_fzs_5gcpe-p3=y
+
+# ---- 编译维护 ----
+CONFIG_DEVEL=y
+CONFIG_CCACHE=y
+
+# ---- 基础体验（中文化 / HTTPS 管理页 / 包管理器）----
+# LUCI_LANG 必须开：否则所有 luci-i18n-* 语言包都不参与编译
+CONFIG_LUCI_LANG_zh_Hans=y
+CONFIG_PACKAGE_luci-ssl=y
+CONFIG_PACKAGE_luci-app-package-manager=y
+CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
+CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y
+CONFIG_PACKAGE_luci-i18n-package-manager-zh-cn=y
+CONFIG_PACKAGE_htop=y
+CONFIG_PACKAGE_curl=y
+CONFIG_PACKAGE_ca-bundle=y
+
+# ---- 无线：本机 MT7981 + MT7976 是 WiFi6（HE），wpad 用 openssl 栈 ----
+# ⚠️ wpad 各变体互斥，必须显式关掉默认 mbedtls 版，否则 defconfig 可能保留错误项
+CONFIG_PACKAGE_wpad-basic-mbedtls=n
+CONFIG_PACKAGE_wpad-mesh-openssl=y

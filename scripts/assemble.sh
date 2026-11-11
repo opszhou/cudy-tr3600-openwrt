@@ -140,6 +140,19 @@ for f in add remove; do
     fi
 done
 
+# 可选增强：QManager 载荷（Quectel 专用独立 Web 控制台，默认关闭）
+# 开关来自 CI 输入 with_qmanager；与 QModem 抢同一 AT 口，二者只能选一个当主界面。
+case "${QMANAGER:-0}" in
+    1|true|TRUE|yes)
+        if [ -f "$ROOT/devices/$DEV/configs/qmanager.list" ]; then
+            echo "启用 QManager 载荷: devices/$DEV/configs/qmanager.list"
+            cat "$ROOT/devices/$DEV/configs/qmanager.list" >> "$OPENWRT/.config"
+        else
+            echo "警告: QMANAGER=1 但 devices/$DEV/configs/qmanager.list 不存在" >&2
+        fi
+        ;;
+esac
+
 # 定制脚本（customize.sh）在 build-device.sh 的 feeds 安装之后执行——
 # 部分定制（如默认主题 sed）需要操作 feeds 里的文件，早于 feeds 会报文件不存在
 echo "==== 组装完成 ===="

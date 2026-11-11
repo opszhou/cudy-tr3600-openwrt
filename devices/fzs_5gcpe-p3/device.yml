@@ -1,0 +1,14 @@
+# 设备元数据 —— 蜂助手 FZS 5GCPE P3（MT7981B + MT7531 + SPI-NAND 128MiB + 256MiB RAM）
+#
+# 上游分支决策（2026-11）：锁定 OpenWrt 主线 **release** 分支 openwrt-25.12（内核 6.12，apk）。
+#   - 不跟 main：滚动 SNAPSHOT 版本号漂移、依赖常断，CI 不可复现
+#   - 不回 24.10：内核 6.6、驱动与 WiFi 固件都偏旧，正是要摆脱"版本老旧"的那一代
+#   - 本设备的移植补丁按 25.12 撰写，已实测 git apply --check 干净通过
+# 注意：补丁目录必须与 branch 同名 → patches/openwrt-25.12/
+id: fzs_5gcpe-p3
+target: mediatek/filogic
+profile: fzs_5gcpe-p3               # CONFIG_TARGET_..._DEVICE_<profile>，见 default.seed
+branch: openwrt-25.12               # 上游 OpenWrt 分支（与 cudy 设备的 main 互不影响）
+
+# 本设备无需合并任何官方 PR：移植补丁直接入库（devices/fzs_5gcpe-p3/patches/openwrt-25.12/）
+default_prs:
