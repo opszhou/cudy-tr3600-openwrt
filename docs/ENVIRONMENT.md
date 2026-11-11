@@ -79,3 +79,35 @@ bash scripts/build-device.sh  /build/repo fzs_5gcpe-p3 lite /build/openwrt openw
 
 > CI（ubuntu-latest）不受这个限制，所以**发布口径仍以 CI 产物为准**；
 > 本地容器只用于快速反馈。
+
+## 7. CI runner 的"环境漂移"（2026-11-11 实录）
+
+同一天里，早上三次构建的第 4 步（安装编译依赖）都 ✅，下午连续三次 ❌，代码一字未改：
+
+```
+E: Unable to locate package build-essential
+E: Unable to locate package clang / cmake / device-tree-compiler
+E: Package 'intltool' has no installation candidate
+```
+
+连 `build-essential` 都"没有候选"，只可能是 **apt 源本身不可用**（不是包改名），根源是
+`ubuntu-latest` 换了镜像。两条对策已固化进 `build.yml`：
+
+1. **固定 runner**：`runs-on: ubuntu-24.04`（别让 GitHub 在你不知情时换环境）
+2. **apt 源自动回退**：清空 lists → 依次试 *镜像自带* / `archive.ubuntu.com` / `azure.archive.ubuntu.com` /
+   `mirrors.tuna.tsinghua.edu.cn`，每个源都用 `apt-cache policy build-essential | grep -E 'Candidate: [0-9]'`
+   验证"真有候选"才用，并区分**必需**与**可选**依赖（后者缺失只告警）
+
+判定口诀：
+
+| 日志特征 | 结论 |
+|---|---|
+| `Unable to locate package build-essential`（包名是核心工具） | 源不可用 → 查镜像/回退 |
+| `Package 'intltool' has no installation candidate`（冷门包） | 新发行版移除 → 归到可选组 |
+| `Ign:` / `Err:` + `Could not resolve` | runner 出网问题，重跑即可 |
+
+## 8. 固定 runner 之后仍然要注意
+
+- `ubuntu-24.04` 也终会下线（GitHub 会提前公告），到时把 `runs-on` 换到下一个 LTS 并重跑一遍
+  `🧪 配置闸门` 验证即可（10 分钟）
+- 与设备无关的失败（第 4 步之前/之后的环境类报错）**不要**去改设备补丁或包清单——先证明"代码没问题"
