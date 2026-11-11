@@ -66,6 +66,7 @@ jobs:
           name: config-check-${{ inputs.device }}-${{ inputs.profile }}
           path: |
             openwrt/.config
+            openwrt/.config.assembled
             config-check.log
           retention-days: 7
           include-hidden-files: true
