@@ -26,7 +26,10 @@ on:
         description: "上游仓库名"
         default: "openwrt"
       upstream_branch:
-        description: "上游分支（留空则使用 device.yml 的 branch）"
+        description: "上游分支（留空则使用 device.yml 的 branch；决定补丁目录）"
+        default: ""
+      upstream_ref:
+        description: "上游 checkout 的具体 ref（tag/commit，可留空；填 v25.12.6 这类 tag 可出稳定版本号）"
         default: ""
       extra_prs:
         description: "临时追加合并的官方 PR 号（空格分隔，仅本次构建不入库）"
@@ -156,7 +159,7 @@ jobs:
           [ -n "$BRANCH" ] || BRANCH="${DEV_BRANCH:-main}"
           # checkout 用哪个 ref：手动指定 > device.yml 的 ref（可为 tag）> 分支名。
           # 补丁目录仍按分支解析，所以"锁 tag 出稳定版"和"跟分支出滚动版"共用同一套补丁。
-          REF="${{ inputs.upstream_branch }}"
+          REF="${{ inputs.upstream_ref }}"
           [ -n "$REF" ] || REF="${DEV_REF:-}"
           [ -n "$REF" ] || REF="$BRANCH"
           echo "上游 checkout ref: $REF（补丁目录按分支 $BRANCH）"
