@@ -115,6 +115,23 @@ PY
 fi
 rm -f "$DEFCONFIG_LOG"
 
+# ---- 包索引预热（串行）：避免并行 make 触发 prepare-tmpinfo 重建索引 ----
+# 2026-11-11 fzs_5gcpe-p3 首轮 CI 实测：defconfig 后 qmodem / luci-ssl / htop 等都在 .config 里，
+# 必选项审计也全过；但构建结束后的镜像 manifest 里它们全没了（config.buildinfo 同样确认没编进去）。
+# kconfig 的 oldconfig 遇到"此刻依赖不可满足"的符号不会报错，只写 "# ... is not set"，
+# 于是包在 3 小时编译里被静默裁掉。最可能的触发点是并行 make 重建包索引。
+# 这里先串行把索引建好，并要求索引重建后 .config 一字不差；变了就当场失败，别等编译完才炸。
+cp .config .config.preindex
+make -r prepare-tmpinfo >/dev/null 2>&1 || true
+if ! cmp -s .config .config.preindex; then
+    echo "错误: 包索引重建后 .config 被改写（说明有符号被静默裁剪），差异如下：" >&2
+    diff .config.preindex .config | head -40 >&2
+    rm -f .config.preindex
+    exit 1
+fi
+rm -f .config.preindex
+echo "✅ 包索引预热完成，.config 未被改写"
+
 echo "==== 下载源码包 ===="
 # 每个文件的 Downloading/Checking 行全部吞掉，只留失败信息（curl 错误、Download failed 不在这些前缀里）
 dl_ok=0
