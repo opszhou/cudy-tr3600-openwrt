@@ -1,2 +1,15 @@
+# 仓库内脚本/配置一律 LF：CI 在 Linux 上跑，CRLF 会导致
+#   - bash 脚本 "bad interpreter" / case 语句失配
+#   - .config 片段被 kconfig 当成非法行而整行忽略（曾把 seed 里的包全丢掉）
+# 二进制/归档除外。
 * text=auto eol=lf
-*.png binary
+*.sh        text eol=lf
+*.seed      text eol=lf
+*.list      text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.patch     text eol=lf -text
+*.bin       binary
+*.png       binary
+*.gz        binary
+*.zip       binary
