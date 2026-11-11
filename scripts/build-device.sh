@@ -45,6 +45,661 @@ fi
 echo "==== 生成最终 .config ===="
 # defconfig 前快照审计基准：种子 + 包清单里的全部 CONFIG_*=y 必选项
 cp .config .config.wanted
+# 快照留档：审计若"什么都查不到"，唯一能证明组装产物里到底有没有这些包的就是这两个文件
+cp .config .config.assembled
+echo "组装产物统计: =y 项 $(grep -cE '^CONFIG_[A-Za-z0-9_.+-]+=y
+DEFCONFIG_LOG="$PWD/.defconfig.log"
+make defconfig 2>&1 | tee "$DEFCONFIG_LOG"
+
+echo "==== 必选项审计（=y 项必须全部幸存，防止被 defconfig 静默丢弃）===="
+# 差异清单（exclude.<upstream>.list）会用 "# X is not set" 覆盖前面清单里的 =y 项，
+# Kconfig 以最后一条为准；审计必须同步跳过这些显式关闭的符号，否则误报「被丢弃」并中止构建
+# 注意字符集必须含 - . + ：包名形如 luci-app-argon-config、kmod-tcp-bbr，
+# 只用 [A-Za-z0-9_] 会一条都匹配不到（曾导致豁免失效、审计误报）
+EXCLUDED_SYMS="$(grep -oE '^# (CONFIG_[A-Za-z0-9_.+-]+) is not set' .config.wanted | awk '{print $2}')"
+missing=0
+while IFS= read -r setting; do
+    case "$setting" in
+        CONFIG_*=y)
+            sym="${setting%=y}"
+            if [ -n "$EXCLUDED_SYMS" ] && printf '%s\n' "$EXCLUDED_SYMS" | grep -Fxq "$sym"; then
+                continue   # 该上游显式关闭，不算缺失
+            fi
+            if ! grep -Fxq "$setting" .config; then
+                echo "  被丢弃: $setting"
+                # 提示同名前缀候选：区分「包被上游改名」与「包真被丢弃」
+                # （如 miniupnpd 是虚拟名，defconfig 规范化为 miniupnpd-nftables）
+                base="${setting%=y}"
+                grep -E "^${base}" .config | sed 's/^/    现存近似项: /'
+                missing=$((missing + 1))
+            fi
+            ;;
+    esac
+done < .config.wanted
+if [ "$missing" -ne 0 ]; then
+    echo "错误: $missing 个必选包在 defconfig 后被静默丢弃，中止构建。" >&2
+    echo "常见原因: 上游已删除该包 / luci-i18n 缺 CONFIG_LUCI_LANG_zh_Hans / Kconfig 行内注释导致整行失效 / 包名拼写错误" >&2
+    exit 1
+fi
+rm -f .config.wanted
+
+echo "==== 依赖缺失交叉检查（提示性，不阻断）===="
+# defconfig 会为所有 feed 的所有包打印「依赖不存在」警告，绝大多数与我们无关。
+# 这里只挑出「包本身被选中」的那些——它们会拖到 package/install 才炸
+# （如 luci-app-netspeedtest 依赖已消失的 python3-pkg-resources、turboacc 依赖 kmod-nft-fullcone）。
+# 条件依赖会造成误报，故只提示不 fail。
+if command -v python3 >/dev/null 2>&1 && [ -s "$DEFCONFIG_LOG" ]; then
+    python3 - "$DEFCONFIG_LOG" .config <<'PY'
+import re, sys
+log, cfg = sys.argv[1], sys.argv[2]
+sel = set()
+with open(cfg, encoding='utf-8', errors='ignore') as f:
+    for line in f:
+        m = re.match(r'^CONFIG_PACKAGE_([A-Za-z0-9_.+-]+)=y$', line.strip())
+        if m:
+            sel.add(m.group(1))
+risky = {}
+with open(log, encoding='utf-8', errors='ignore') as f:
+    for line in f:
+        m = re.search(r"WARNING: Makefile '([^']+)/Makefile' has a dependency on '([^']+)', which does not exist", line)
+        if not m:
+            continue
+        path, dep = m.group(1), m.group(2)
+        pkg = path.rsplit('/', 1)[-1]
+        if pkg in sel:
+            risky.setdefault(pkg, set()).add(dep)
+if risky:
+    print("⚠ 已选中的包存在「依赖不存在」，装 rootfs 阶段可能失败（条件依赖可忽略）：")
+    for pkg in sorted(risky):
+        print("  %-34s ← %s" % (pkg, ", ".join(sorted(risky[pkg]))))
+else:
+    print("✓ 已选中的包未发现缺失依赖")
+PY
+fi
+rm -f "$DEFCONFIG_LOG"
+
+# ---- 包索引预热（串行）：避免并行 make 触发 prepare-tmpinfo 重建索引 ----
+# 2026-11-11 fzs_5gcpe-p3 首轮 CI 实测：defconfig 后 qmodem / luci-ssl / htop 等都在 .config 里，
+# 必选项审计也全过；但构建结束后的镜像 manifest 里它们全没了（config.buildinfo 同样确认没编进去）。
+# kconfig 的 oldconfig 遇到"此刻依赖不可满足"的符号不会报错，只写 "# ... is not set"，
+# 于是包在 3 小时编译里被静默裁掉。最可能的触发点是并行 make 重建包索引。
+# 这里先串行把索引建好，并要求索引重建后 .config 一字不差；变了就当场失败，别等编译完才炸。
+cp .config .config.preindex
+make -r prepare-tmpinfo >/dev/null 2>&1 || true
+if ! cmp -s .config .config.preindex; then
+    echo "错误: 包索引重建后 .config 被改写（说明有符号被静默裁剪），差异如下：" >&2
+    diff .config.preindex .config | head -40 >&2
+    rm -f .config.preindex
+    exit 1
+fi
+rm -f .config.preindex
+echo "✅ 包索引预热完成，.config 未被改写"
+
+# ---- CONFIG_ONLY：只跑配置链路，不编译 ----
+# 用途：把"清单里写的包到底有没有进最终 .config"这件事从 3 小时缩短到 ~10 分钟。
+# CI 上出现过"审计通过、镜像里却没有 qmodem"的情况，用这个模式可以在每次改清单后先验一遍。
+if [ "${CONFIG_ONLY:-0}" = "1" ]; then
+    echo "==== CONFIG_ONLY: 跳过下载与编译 ===="
+    echo "---- 关键包在最终 .config 里的状态 ----"
+    for p in qmodem luci-app-qmodem-next luci-ssl luci-app-package-manager htop curl luci-i18n-base-zh-cn luci-app-dufs luci-app-sysdashboard; do
+        if grep -Fxq "CONFIG_PACKAGE_$p=y" .config; then
+            echo "  OK      $p"
+        else
+            echo "  MISSING $p"
+        fi
+    done
+    echo "---- 被写成 is-not-set 的包（数量）----"
+    grep -c '^# CONFIG_PACKAGE_.* is not set' .config || true
+    echo "CONFIG_ONLY_DONE"
+    exit 0
+fi
+
+echo "==== 下载源码包 ===="
+# 每个文件的 Downloading/Checking 行全部吞掉，只留失败信息（curl 错误、Download failed 不在这些前缀里）
+dl_ok=0
+for attempt in 1 2; do
+    if make download "-j$(nproc)" 2>&1 | awk '{ if ($0 !~ /^(Downloading|Checking) /) { print; fflush() } }'; then
+        dl_ok=1; break
+    fi
+    echo "⚠ 源码包下载失败（第 $attempt 次）$([ $attempt = 1 ] && echo '，10 秒后重试' || echo '，放弃')" >&2
+    [ $attempt = 1 ] && sleep 10
+done
+[ "$dl_ok" = 1 ] || { echo "错误: 源码包下载失败（重试后仍失败，见上方错误行）" >&2; exit 1; }
+echo "✅ 源码包下载完成"
+
+echo "==== 开始编译 ===="
+# 常规编译不带 V=s（全量 echo 命令会把日志撑到 200MB+，V=s 的价值只在定位失败）。
+# 失败时下面的 make -j1 V=s 重试天然就是 verbose 段，错误照样落进 CI 的 errors 通道。
+# 事件日志：translate-make.awk 把 make 的静默进度行翻译成「▶ 包：动作」事件流水，
+# 警告/错误原样透传，其余噪音吞掉；心跳兜底兜住单个超长目标（如内核）。
+PROG="$PWD/.build-progress.log"
+T0=$(date +%s)
+: > "$PROG"
+# 心跳只报「已进行 N 分钟 + 最近事件」，不再统计包数：
+# 分母/分子的口径随上游 make 输出格式漂移（前导空格、目标名变化）反复出错，
+# 数字错了比没有更误导人。真实进度看「▶ 包：动作」事件流水即可。
+(
+    while sleep "${HEARTBEAT_SEC:-600}"; do
+        last=$(tail -n 1 "$PROG" 2>/dev/null || true)
+        echo "[心跳 $(date '+%H:%M:%S')] 已进行 $(( ($(date +%s) - T0) / 60 )) 分钟，最近事件: ${last:-（暂无输出）}"
+    done
+) &
+HB_PID=$!
+trap 'kill "$HB_PID" 2>/dev/null || true; rm -f "$PROG"' EXIT
+# stdbuf -oL：make 的输出接管道时是块缓冲（4KB），事件要攒够一块才出现，
+# 造成日志看起来「卡在某个包上不动」。强制行缓冲后进度实时可见。
+if ! stdbuf -oL -eL make "-j$(nproc)" 2>&1 | awk -f "$ROOT/scripts/translate-make.awk" | tee "$PROG"; then
+    echo "并行编译失败，改用单线程 verbose 重试以定位错误..."
+    make -j1 V=s
+fi
+
+# ccache 命中率：判断缓存是否真的有用（决定要不要进一步缓存工具链目录）
+CCBIN="$OPENWRT/staging_dir/host/bin/ccache"
+if [ -x "$CCBIN" ]; then
+    echo "==== ccache 统计 ===="
+    CCACHE_DIR="$OPENWRT/.ccache" "$CCBIN" -s 2>/dev/null | grep -Ei "cache hit|cache miss|hit rate|cache size|files in cache" | head -8 || true
+fi
+
+# ccache 命中率：判断缓存是否真的有用（决定要不要进一步缓存工具链目录）
+CCBIN="$OPENWRT/staging_dir/host/bin/ccache"
+if [ -x "$CCBIN" ]; then
+    echo "==== ccache 统计 ===="
+    CCACHE_DIR="$OPENWRT/.ccache" "$CCBIN" -s 2>/dev/null | grep -Ei "hit rate|cache hit|cache miss|cache size" | head -6 || true
+fi
+
+echo "==== 编译完成，产物位于: $OPENWRT/bin/targets ===="
+# 此处 cwd 已是 openwrt 树，用相对路径列出产物
+ls -lh bin/targets/*/
+ .config) 个"      "| qmodem=$(grep -c '^CONFIG_PACKAGE_qmodem=y
+DEFCONFIG_LOG="$PWD/.defconfig.log"
+make defconfig 2>&1 | tee "$DEFCONFIG_LOG"
+
+echo "==== 必选项审计（=y 项必须全部幸存，防止被 defconfig 静默丢弃）===="
+# 差异清单（exclude.<upstream>.list）会用 "# X is not set" 覆盖前面清单里的 =y 项，
+# Kconfig 以最后一条为准；审计必须同步跳过这些显式关闭的符号，否则误报「被丢弃」并中止构建
+# 注意字符集必须含 - . + ：包名形如 luci-app-argon-config、kmod-tcp-bbr，
+# 只用 [A-Za-z0-9_] 会一条都匹配不到（曾导致豁免失效、审计误报）
+EXCLUDED_SYMS="$(grep -oE '^# (CONFIG_[A-Za-z0-9_.+-]+) is not set' .config.wanted | awk '{print $2}')"
+missing=0
+while IFS= read -r setting; do
+    case "$setting" in
+        CONFIG_*=y)
+            sym="${setting%=y}"
+            if [ -n "$EXCLUDED_SYMS" ] && printf '%s\n' "$EXCLUDED_SYMS" | grep -Fxq "$sym"; then
+                continue   # 该上游显式关闭，不算缺失
+            fi
+            if ! grep -Fxq "$setting" .config; then
+                echo "  被丢弃: $setting"
+                # 提示同名前缀候选：区分「包被上游改名」与「包真被丢弃」
+                # （如 miniupnpd 是虚拟名，defconfig 规范化为 miniupnpd-nftables）
+                base="${setting%=y}"
+                grep -E "^${base}" .config | sed 's/^/    现存近似项: /'
+                missing=$((missing + 1))
+            fi
+            ;;
+    esac
+done < .config.wanted
+if [ "$missing" -ne 0 ]; then
+    echo "错误: $missing 个必选包在 defconfig 后被静默丢弃，中止构建。" >&2
+    echo "常见原因: 上游已删除该包 / luci-i18n 缺 CONFIG_LUCI_LANG_zh_Hans / Kconfig 行内注释导致整行失效 / 包名拼写错误" >&2
+    exit 1
+fi
+rm -f .config.wanted
+
+echo "==== 依赖缺失交叉检查（提示性，不阻断）===="
+# defconfig 会为所有 feed 的所有包打印「依赖不存在」警告，绝大多数与我们无关。
+# 这里只挑出「包本身被选中」的那些——它们会拖到 package/install 才炸
+# （如 luci-app-netspeedtest 依赖已消失的 python3-pkg-resources、turboacc 依赖 kmod-nft-fullcone）。
+# 条件依赖会造成误报，故只提示不 fail。
+if command -v python3 >/dev/null 2>&1 && [ -s "$DEFCONFIG_LOG" ]; then
+    python3 - "$DEFCONFIG_LOG" .config <<'PY'
+import re, sys
+log, cfg = sys.argv[1], sys.argv[2]
+sel = set()
+with open(cfg, encoding='utf-8', errors='ignore') as f:
+    for line in f:
+        m = re.match(r'^CONFIG_PACKAGE_([A-Za-z0-9_.+-]+)=y$', line.strip())
+        if m:
+            sel.add(m.group(1))
+risky = {}
+with open(log, encoding='utf-8', errors='ignore') as f:
+    for line in f:
+        m = re.search(r"WARNING: Makefile '([^']+)/Makefile' has a dependency on '([^']+)', which does not exist", line)
+        if not m:
+            continue
+        path, dep = m.group(1), m.group(2)
+        pkg = path.rsplit('/', 1)[-1]
+        if pkg in sel:
+            risky.setdefault(pkg, set()).add(dep)
+if risky:
+    print("⚠ 已选中的包存在「依赖不存在」，装 rootfs 阶段可能失败（条件依赖可忽略）：")
+    for pkg in sorted(risky):
+        print("  %-34s ← %s" % (pkg, ", ".join(sorted(risky[pkg]))))
+else:
+    print("✓ 已选中的包未发现缺失依赖")
+PY
+fi
+rm -f "$DEFCONFIG_LOG"
+
+# ---- 包索引预热（串行）：避免并行 make 触发 prepare-tmpinfo 重建索引 ----
+# 2026-11-11 fzs_5gcpe-p3 首轮 CI 实测：defconfig 后 qmodem / luci-ssl / htop 等都在 .config 里，
+# 必选项审计也全过；但构建结束后的镜像 manifest 里它们全没了（config.buildinfo 同样确认没编进去）。
+# kconfig 的 oldconfig 遇到"此刻依赖不可满足"的符号不会报错，只写 "# ... is not set"，
+# 于是包在 3 小时编译里被静默裁掉。最可能的触发点是并行 make 重建包索引。
+# 这里先串行把索引建好，并要求索引重建后 .config 一字不差；变了就当场失败，别等编译完才炸。
+cp .config .config.preindex
+make -r prepare-tmpinfo >/dev/null 2>&1 || true
+if ! cmp -s .config .config.preindex; then
+    echo "错误: 包索引重建后 .config 被改写（说明有符号被静默裁剪），差异如下：" >&2
+    diff .config.preindex .config | head -40 >&2
+    rm -f .config.preindex
+    exit 1
+fi
+rm -f .config.preindex
+echo "✅ 包索引预热完成，.config 未被改写"
+
+# ---- CONFIG_ONLY：只跑配置链路，不编译 ----
+# 用途：把"清单里写的包到底有没有进最终 .config"这件事从 3 小时缩短到 ~10 分钟。
+# CI 上出现过"审计通过、镜像里却没有 qmodem"的情况，用这个模式可以在每次改清单后先验一遍。
+if [ "${CONFIG_ONLY:-0}" = "1" ]; then
+    echo "==== CONFIG_ONLY: 跳过下载与编译 ===="
+    echo "---- 关键包在最终 .config 里的状态 ----"
+    for p in qmodem luci-app-qmodem-next luci-ssl luci-app-package-manager htop curl luci-i18n-base-zh-cn luci-app-dufs luci-app-sysdashboard; do
+        if grep -Fxq "CONFIG_PACKAGE_$p=y" .config; then
+            echo "  OK      $p"
+        else
+            echo "  MISSING $p"
+        fi
+    done
+    echo "---- 被写成 is-not-set 的包（数量）----"
+    grep -c '^# CONFIG_PACKAGE_.* is not set' .config || true
+    echo "CONFIG_ONLY_DONE"
+    exit 0
+fi
+
+echo "==== 下载源码包 ===="
+# 每个文件的 Downloading/Checking 行全部吞掉，只留失败信息（curl 错误、Download failed 不在这些前缀里）
+dl_ok=0
+for attempt in 1 2; do
+    if make download "-j$(nproc)" 2>&1 | awk '{ if ($0 !~ /^(Downloading|Checking) /) { print; fflush() } }'; then
+        dl_ok=1; break
+    fi
+    echo "⚠ 源码包下载失败（第 $attempt 次）$([ $attempt = 1 ] && echo '，10 秒后重试' || echo '，放弃')" >&2
+    [ $attempt = 1 ] && sleep 10
+done
+[ "$dl_ok" = 1 ] || { echo "错误: 源码包下载失败（重试后仍失败，见上方错误行）" >&2; exit 1; }
+echo "✅ 源码包下载完成"
+
+echo "==== 开始编译 ===="
+# 常规编译不带 V=s（全量 echo 命令会把日志撑到 200MB+，V=s 的价值只在定位失败）。
+# 失败时下面的 make -j1 V=s 重试天然就是 verbose 段，错误照样落进 CI 的 errors 通道。
+# 事件日志：translate-make.awk 把 make 的静默进度行翻译成「▶ 包：动作」事件流水，
+# 警告/错误原样透传，其余噪音吞掉；心跳兜底兜住单个超长目标（如内核）。
+PROG="$PWD/.build-progress.log"
+T0=$(date +%s)
+: > "$PROG"
+# 心跳只报「已进行 N 分钟 + 最近事件」，不再统计包数：
+# 分母/分子的口径随上游 make 输出格式漂移（前导空格、目标名变化）反复出错，
+# 数字错了比没有更误导人。真实进度看「▶ 包：动作」事件流水即可。
+(
+    while sleep "${HEARTBEAT_SEC:-600}"; do
+        last=$(tail -n 1 "$PROG" 2>/dev/null || true)
+        echo "[心跳 $(date '+%H:%M:%S')] 已进行 $(( ($(date +%s) - T0) / 60 )) 分钟，最近事件: ${last:-（暂无输出）}"
+    done
+) &
+HB_PID=$!
+trap 'kill "$HB_PID" 2>/dev/null || true; rm -f "$PROG"' EXIT
+# stdbuf -oL：make 的输出接管道时是块缓冲（4KB），事件要攒够一块才出现，
+# 造成日志看起来「卡在某个包上不动」。强制行缓冲后进度实时可见。
+if ! stdbuf -oL -eL make "-j$(nproc)" 2>&1 | awk -f "$ROOT/scripts/translate-make.awk" | tee "$PROG"; then
+    echo "并行编译失败，改用单线程 verbose 重试以定位错误..."
+    make -j1 V=s
+fi
+
+# ccache 命中率：判断缓存是否真的有用（决定要不要进一步缓存工具链目录）
+CCBIN="$OPENWRT/staging_dir/host/bin/ccache"
+if [ -x "$CCBIN" ]; then
+    echo "==== ccache 统计 ===="
+    CCACHE_DIR="$OPENWRT/.ccache" "$CCBIN" -s 2>/dev/null | grep -Ei "cache hit|cache miss|hit rate|cache size|files in cache" | head -8 || true
+fi
+
+# ccache 命中率：判断缓存是否真的有用（决定要不要进一步缓存工具链目录）
+CCBIN="$OPENWRT/staging_dir/host/bin/ccache"
+if [ -x "$CCBIN" ]; then
+    echo "==== ccache 统计 ===="
+    CCACHE_DIR="$OPENWRT/.ccache" "$CCBIN" -s 2>/dev/null | grep -Ei "hit rate|cache hit|cache miss|cache size" | head -6 || true
+fi
+
+echo "==== 编译完成，产物位于: $OPENWRT/bin/targets ===="
+# 此处 cwd 已是 openwrt 树，用相对路径列出产物
+ls -lh bin/targets/*/
+ .config)"      "| luci-ssl=$(grep -c '^CONFIG_PACKAGE_luci-ssl=y
+DEFCONFIG_LOG="$PWD/.defconfig.log"
+make defconfig 2>&1 | tee "$DEFCONFIG_LOG"
+
+echo "==== 必选项审计（=y 项必须全部幸存，防止被 defconfig 静默丢弃）===="
+# 差异清单（exclude.<upstream>.list）会用 "# X is not set" 覆盖前面清单里的 =y 项，
+# Kconfig 以最后一条为准；审计必须同步跳过这些显式关闭的符号，否则误报「被丢弃」并中止构建
+# 注意字符集必须含 - . + ：包名形如 luci-app-argon-config、kmod-tcp-bbr，
+# 只用 [A-Za-z0-9_] 会一条都匹配不到（曾导致豁免失效、审计误报）
+EXCLUDED_SYMS="$(grep -oE '^# (CONFIG_[A-Za-z0-9_.+-]+) is not set' .config.wanted | awk '{print $2}')"
+missing=0
+while IFS= read -r setting; do
+    case "$setting" in
+        CONFIG_*=y)
+            sym="${setting%=y}"
+            if [ -n "$EXCLUDED_SYMS" ] && printf '%s\n' "$EXCLUDED_SYMS" | grep -Fxq "$sym"; then
+                continue   # 该上游显式关闭，不算缺失
+            fi
+            if ! grep -Fxq "$setting" .config; then
+                echo "  被丢弃: $setting"
+                # 提示同名前缀候选：区分「包被上游改名」与「包真被丢弃」
+                # （如 miniupnpd 是虚拟名，defconfig 规范化为 miniupnpd-nftables）
+                base="${setting%=y}"
+                grep -E "^${base}" .config | sed 's/^/    现存近似项: /'
+                missing=$((missing + 1))
+            fi
+            ;;
+    esac
+done < .config.wanted
+if [ "$missing" -ne 0 ]; then
+    echo "错误: $missing 个必选包在 defconfig 后被静默丢弃，中止构建。" >&2
+    echo "常见原因: 上游已删除该包 / luci-i18n 缺 CONFIG_LUCI_LANG_zh_Hans / Kconfig 行内注释导致整行失效 / 包名拼写错误" >&2
+    exit 1
+fi
+rm -f .config.wanted
+
+echo "==== 依赖缺失交叉检查（提示性，不阻断）===="
+# defconfig 会为所有 feed 的所有包打印「依赖不存在」警告，绝大多数与我们无关。
+# 这里只挑出「包本身被选中」的那些——它们会拖到 package/install 才炸
+# （如 luci-app-netspeedtest 依赖已消失的 python3-pkg-resources、turboacc 依赖 kmod-nft-fullcone）。
+# 条件依赖会造成误报，故只提示不 fail。
+if command -v python3 >/dev/null 2>&1 && [ -s "$DEFCONFIG_LOG" ]; then
+    python3 - "$DEFCONFIG_LOG" .config <<'PY'
+import re, sys
+log, cfg = sys.argv[1], sys.argv[2]
+sel = set()
+with open(cfg, encoding='utf-8', errors='ignore') as f:
+    for line in f:
+        m = re.match(r'^CONFIG_PACKAGE_([A-Za-z0-9_.+-]+)=y$', line.strip())
+        if m:
+            sel.add(m.group(1))
+risky = {}
+with open(log, encoding='utf-8', errors='ignore') as f:
+    for line in f:
+        m = re.search(r"WARNING: Makefile '([^']+)/Makefile' has a dependency on '([^']+)', which does not exist", line)
+        if not m:
+            continue
+        path, dep = m.group(1), m.group(2)
+        pkg = path.rsplit('/', 1)[-1]
+        if pkg in sel:
+            risky.setdefault(pkg, set()).add(dep)
+if risky:
+    print("⚠ 已选中的包存在「依赖不存在」，装 rootfs 阶段可能失败（条件依赖可忽略）：")
+    for pkg in sorted(risky):
+        print("  %-34s ← %s" % (pkg, ", ".join(sorted(risky[pkg]))))
+else:
+    print("✓ 已选中的包未发现缺失依赖")
+PY
+fi
+rm -f "$DEFCONFIG_LOG"
+
+# ---- 包索引预热（串行）：避免并行 make 触发 prepare-tmpinfo 重建索引 ----
+# 2026-11-11 fzs_5gcpe-p3 首轮 CI 实测：defconfig 后 qmodem / luci-ssl / htop 等都在 .config 里，
+# 必选项审计也全过；但构建结束后的镜像 manifest 里它们全没了（config.buildinfo 同样确认没编进去）。
+# kconfig 的 oldconfig 遇到"此刻依赖不可满足"的符号不会报错，只写 "# ... is not set"，
+# 于是包在 3 小时编译里被静默裁掉。最可能的触发点是并行 make 重建包索引。
+# 这里先串行把索引建好，并要求索引重建后 .config 一字不差；变了就当场失败，别等编译完才炸。
+cp .config .config.preindex
+make -r prepare-tmpinfo >/dev/null 2>&1 || true
+if ! cmp -s .config .config.preindex; then
+    echo "错误: 包索引重建后 .config 被改写（说明有符号被静默裁剪），差异如下：" >&2
+    diff .config.preindex .config | head -40 >&2
+    rm -f .config.preindex
+    exit 1
+fi
+rm -f .config.preindex
+echo "✅ 包索引预热完成，.config 未被改写"
+
+# ---- CONFIG_ONLY：只跑配置链路，不编译 ----
+# 用途：把"清单里写的包到底有没有进最终 .config"这件事从 3 小时缩短到 ~10 分钟。
+# CI 上出现过"审计通过、镜像里却没有 qmodem"的情况，用这个模式可以在每次改清单后先验一遍。
+if [ "${CONFIG_ONLY:-0}" = "1" ]; then
+    echo "==== CONFIG_ONLY: 跳过下载与编译 ===="
+    echo "---- 关键包在最终 .config 里的状态 ----"
+    for p in qmodem luci-app-qmodem-next luci-ssl luci-app-package-manager htop curl luci-i18n-base-zh-cn luci-app-dufs luci-app-sysdashboard; do
+        if grep -Fxq "CONFIG_PACKAGE_$p=y" .config; then
+            echo "  OK      $p"
+        else
+            echo "  MISSING $p"
+        fi
+    done
+    echo "---- 被写成 is-not-set 的包（数量）----"
+    grep -c '^# CONFIG_PACKAGE_.* is not set' .config || true
+    echo "CONFIG_ONLY_DONE"
+    exit 0
+fi
+
+echo "==== 下载源码包 ===="
+# 每个文件的 Downloading/Checking 行全部吞掉，只留失败信息（curl 错误、Download failed 不在这些前缀里）
+dl_ok=0
+for attempt in 1 2; do
+    if make download "-j$(nproc)" 2>&1 | awk '{ if ($0 !~ /^(Downloading|Checking) /) { print; fflush() } }'; then
+        dl_ok=1; break
+    fi
+    echo "⚠ 源码包下载失败（第 $attempt 次）$([ $attempt = 1 ] && echo '，10 秒后重试' || echo '，放弃')" >&2
+    [ $attempt = 1 ] && sleep 10
+done
+[ "$dl_ok" = 1 ] || { echo "错误: 源码包下载失败（重试后仍失败，见上方错误行）" >&2; exit 1; }
+echo "✅ 源码包下载完成"
+
+echo "==== 开始编译 ===="
+# 常规编译不带 V=s（全量 echo 命令会把日志撑到 200MB+，V=s 的价值只在定位失败）。
+# 失败时下面的 make -j1 V=s 重试天然就是 verbose 段，错误照样落进 CI 的 errors 通道。
+# 事件日志：translate-make.awk 把 make 的静默进度行翻译成「▶ 包：动作」事件流水，
+# 警告/错误原样透传，其余噪音吞掉；心跳兜底兜住单个超长目标（如内核）。
+PROG="$PWD/.build-progress.log"
+T0=$(date +%s)
+: > "$PROG"
+# 心跳只报「已进行 N 分钟 + 最近事件」，不再统计包数：
+# 分母/分子的口径随上游 make 输出格式漂移（前导空格、目标名变化）反复出错，
+# 数字错了比没有更误导人。真实进度看「▶ 包：动作」事件流水即可。
+(
+    while sleep "${HEARTBEAT_SEC:-600}"; do
+        last=$(tail -n 1 "$PROG" 2>/dev/null || true)
+        echo "[心跳 $(date '+%H:%M:%S')] 已进行 $(( ($(date +%s) - T0) / 60 )) 分钟，最近事件: ${last:-（暂无输出）}"
+    done
+) &
+HB_PID=$!
+trap 'kill "$HB_PID" 2>/dev/null || true; rm -f "$PROG"' EXIT
+# stdbuf -oL：make 的输出接管道时是块缓冲（4KB），事件要攒够一块才出现，
+# 造成日志看起来「卡在某个包上不动」。强制行缓冲后进度实时可见。
+if ! stdbuf -oL -eL make "-j$(nproc)" 2>&1 | awk -f "$ROOT/scripts/translate-make.awk" | tee "$PROG"; then
+    echo "并行编译失败，改用单线程 verbose 重试以定位错误..."
+    make -j1 V=s
+fi
+
+# ccache 命中率：判断缓存是否真的有用（决定要不要进一步缓存工具链目录）
+CCBIN="$OPENWRT/staging_dir/host/bin/ccache"
+if [ -x "$CCBIN" ]; then
+    echo "==== ccache 统计 ===="
+    CCACHE_DIR="$OPENWRT/.ccache" "$CCBIN" -s 2>/dev/null | grep -Ei "cache hit|cache miss|hit rate|cache size|files in cache" | head -8 || true
+fi
+
+# ccache 命中率：判断缓存是否真的有用（决定要不要进一步缓存工具链目录）
+CCBIN="$OPENWRT/staging_dir/host/bin/ccache"
+if [ -x "$CCBIN" ]; then
+    echo "==== ccache 统计 ===="
+    CCACHE_DIR="$OPENWRT/.ccache" "$CCBIN" -s 2>/dev/null | grep -Ei "hit rate|cache hit|cache miss|cache size" | head -6 || true
+fi
+
+echo "==== 编译完成，产物位于: $OPENWRT/bin/targets ===="
+# 此处 cwd 已是 openwrt 树，用相对路径列出产物
+ls -lh bin/targets/*/
+ .config)"      "| htop=$(grep -c '^CONFIG_PACKAGE_htop=y
+DEFCONFIG_LOG="$PWD/.defconfig.log"
+make defconfig 2>&1 | tee "$DEFCONFIG_LOG"
+
+echo "==== 必选项审计（=y 项必须全部幸存，防止被 defconfig 静默丢弃）===="
+# 差异清单（exclude.<upstream>.list）会用 "# X is not set" 覆盖前面清单里的 =y 项，
+# Kconfig 以最后一条为准；审计必须同步跳过这些显式关闭的符号，否则误报「被丢弃」并中止构建
+# 注意字符集必须含 - . + ：包名形如 luci-app-argon-config、kmod-tcp-bbr，
+# 只用 [A-Za-z0-9_] 会一条都匹配不到（曾导致豁免失效、审计误报）
+EXCLUDED_SYMS="$(grep -oE '^# (CONFIG_[A-Za-z0-9_.+-]+) is not set' .config.wanted | awk '{print $2}')"
+missing=0
+while IFS= read -r setting; do
+    case "$setting" in
+        CONFIG_*=y)
+            sym="${setting%=y}"
+            if [ -n "$EXCLUDED_SYMS" ] && printf '%s\n' "$EXCLUDED_SYMS" | grep -Fxq "$sym"; then
+                continue   # 该上游显式关闭，不算缺失
+            fi
+            if ! grep -Fxq "$setting" .config; then
+                echo "  被丢弃: $setting"
+                # 提示同名前缀候选：区分「包被上游改名」与「包真被丢弃」
+                # （如 miniupnpd 是虚拟名，defconfig 规范化为 miniupnpd-nftables）
+                base="${setting%=y}"
+                grep -E "^${base}" .config | sed 's/^/    现存近似项: /'
+                missing=$((missing + 1))
+            fi
+            ;;
+    esac
+done < .config.wanted
+if [ "$missing" -ne 0 ]; then
+    echo "错误: $missing 个必选包在 defconfig 后被静默丢弃，中止构建。" >&2
+    echo "常见原因: 上游已删除该包 / luci-i18n 缺 CONFIG_LUCI_LANG_zh_Hans / Kconfig 行内注释导致整行失效 / 包名拼写错误" >&2
+    exit 1
+fi
+rm -f .config.wanted
+
+echo "==== 依赖缺失交叉检查（提示性，不阻断）===="
+# defconfig 会为所有 feed 的所有包打印「依赖不存在」警告，绝大多数与我们无关。
+# 这里只挑出「包本身被选中」的那些——它们会拖到 package/install 才炸
+# （如 luci-app-netspeedtest 依赖已消失的 python3-pkg-resources、turboacc 依赖 kmod-nft-fullcone）。
+# 条件依赖会造成误报，故只提示不 fail。
+if command -v python3 >/dev/null 2>&1 && [ -s "$DEFCONFIG_LOG" ]; then
+    python3 - "$DEFCONFIG_LOG" .config <<'PY'
+import re, sys
+log, cfg = sys.argv[1], sys.argv[2]
+sel = set()
+with open(cfg, encoding='utf-8', errors='ignore') as f:
+    for line in f:
+        m = re.match(r'^CONFIG_PACKAGE_([A-Za-z0-9_.+-]+)=y$', line.strip())
+        if m:
+            sel.add(m.group(1))
+risky = {}
+with open(log, encoding='utf-8', errors='ignore') as f:
+    for line in f:
+        m = re.search(r"WARNING: Makefile '([^']+)/Makefile' has a dependency on '([^']+)', which does not exist", line)
+        if not m:
+            continue
+        path, dep = m.group(1), m.group(2)
+        pkg = path.rsplit('/', 1)[-1]
+        if pkg in sel:
+            risky.setdefault(pkg, set()).add(dep)
+if risky:
+    print("⚠ 已选中的包存在「依赖不存在」，装 rootfs 阶段可能失败（条件依赖可忽略）：")
+    for pkg in sorted(risky):
+        print("  %-34s ← %s" % (pkg, ", ".join(sorted(risky[pkg]))))
+else:
+    print("✓ 已选中的包未发现缺失依赖")
+PY
+fi
+rm -f "$DEFCONFIG_LOG"
+
+# ---- 包索引预热（串行）：避免并行 make 触发 prepare-tmpinfo 重建索引 ----
+# 2026-11-11 fzs_5gcpe-p3 首轮 CI 实测：defconfig 后 qmodem / luci-ssl / htop 等都在 .config 里，
+# 必选项审计也全过；但构建结束后的镜像 manifest 里它们全没了（config.buildinfo 同样确认没编进去）。
+# kconfig 的 oldconfig 遇到"此刻依赖不可满足"的符号不会报错，只写 "# ... is not set"，
+# 于是包在 3 小时编译里被静默裁掉。最可能的触发点是并行 make 重建包索引。
+# 这里先串行把索引建好，并要求索引重建后 .config 一字不差；变了就当场失败，别等编译完才炸。
+cp .config .config.preindex
+make -r prepare-tmpinfo >/dev/null 2>&1 || true
+if ! cmp -s .config .config.preindex; then
+    echo "错误: 包索引重建后 .config 被改写（说明有符号被静默裁剪），差异如下：" >&2
+    diff .config.preindex .config | head -40 >&2
+    rm -f .config.preindex
+    exit 1
+fi
+rm -f .config.preindex
+echo "✅ 包索引预热完成，.config 未被改写"
+
+# ---- CONFIG_ONLY：只跑配置链路，不编译 ----
+# 用途：把"清单里写的包到底有没有进最终 .config"这件事从 3 小时缩短到 ~10 分钟。
+# CI 上出现过"审计通过、镜像里却没有 qmodem"的情况，用这个模式可以在每次改清单后先验一遍。
+if [ "${CONFIG_ONLY:-0}" = "1" ]; then
+    echo "==== CONFIG_ONLY: 跳过下载与编译 ===="
+    echo "---- 关键包在最终 .config 里的状态 ----"
+    for p in qmodem luci-app-qmodem-next luci-ssl luci-app-package-manager htop curl luci-i18n-base-zh-cn luci-app-dufs luci-app-sysdashboard; do
+        if grep -Fxq "CONFIG_PACKAGE_$p=y" .config; then
+            echo "  OK      $p"
+        else
+            echo "  MISSING $p"
+        fi
+    done
+    echo "---- 被写成 is-not-set 的包（数量）----"
+    grep -c '^# CONFIG_PACKAGE_.* is not set' .config || true
+    echo "CONFIG_ONLY_DONE"
+    exit 0
+fi
+
+echo "==== 下载源码包 ===="
+# 每个文件的 Downloading/Checking 行全部吞掉，只留失败信息（curl 错误、Download failed 不在这些前缀里）
+dl_ok=0
+for attempt in 1 2; do
+    if make download "-j$(nproc)" 2>&1 | awk '{ if ($0 !~ /^(Downloading|Checking) /) { print; fflush() } }'; then
+        dl_ok=1; break
+    fi
+    echo "⚠ 源码包下载失败（第 $attempt 次）$([ $attempt = 1 ] && echo '，10 秒后重试' || echo '，放弃')" >&2
+    [ $attempt = 1 ] && sleep 10
+done
+[ "$dl_ok" = 1 ] || { echo "错误: 源码包下载失败（重试后仍失败，见上方错误行）" >&2; exit 1; }
+echo "✅ 源码包下载完成"
+
+echo "==== 开始编译 ===="
+# 常规编译不带 V=s（全量 echo 命令会把日志撑到 200MB+，V=s 的价值只在定位失败）。
+# 失败时下面的 make -j1 V=s 重试天然就是 verbose 段，错误照样落进 CI 的 errors 通道。
+# 事件日志：translate-make.awk 把 make 的静默进度行翻译成「▶ 包：动作」事件流水，
+# 警告/错误原样透传，其余噪音吞掉；心跳兜底兜住单个超长目标（如内核）。
+PROG="$PWD/.build-progress.log"
+T0=$(date +%s)
+: > "$PROG"
+# 心跳只报「已进行 N 分钟 + 最近事件」，不再统计包数：
+# 分母/分子的口径随上游 make 输出格式漂移（前导空格、目标名变化）反复出错，
+# 数字错了比没有更误导人。真实进度看「▶ 包：动作」事件流水即可。
+(
+    while sleep "${HEARTBEAT_SEC:-600}"; do
+        last=$(tail -n 1 "$PROG" 2>/dev/null || true)
+        echo "[心跳 $(date '+%H:%M:%S')] 已进行 $(( ($(date +%s) - T0) / 60 )) 分钟，最近事件: ${last:-（暂无输出）}"
+    done
+) &
+HB_PID=$!
+trap 'kill "$HB_PID" 2>/dev/null || true; rm -f "$PROG"' EXIT
+# stdbuf -oL：make 的输出接管道时是块缓冲（4KB），事件要攒够一块才出现，
+# 造成日志看起来「卡在某个包上不动」。强制行缓冲后进度实时可见。
+if ! stdbuf -oL -eL make "-j$(nproc)" 2>&1 | awk -f "$ROOT/scripts/translate-make.awk" | tee "$PROG"; then
+    echo "并行编译失败，改用单线程 verbose 重试以定位错误..."
+    make -j1 V=s
+fi
+
+# ccache 命中率：判断缓存是否真的有用（决定要不要进一步缓存工具链目录）
+CCBIN="$OPENWRT/staging_dir/host/bin/ccache"
+if [ -x "$CCBIN" ]; then
+    echo "==== ccache 统计 ===="
+    CCACHE_DIR="$OPENWRT/.ccache" "$CCBIN" -s 2>/dev/null | grep -Ei "cache hit|cache miss|hit rate|cache size|files in cache" | head -8 || true
+fi
+
+# ccache 命中率：判断缓存是否真的有用（决定要不要进一步缓存工具链目录）
+CCBIN="$OPENWRT/staging_dir/host/bin/ccache"
+if [ -x "$CCBIN" ]; then
+    echo "==== ccache 统计 ===="
+    CCACHE_DIR="$OPENWRT/.ccache" "$CCBIN" -s 2>/dev/null | grep -Ei "hit rate|cache hit|cache miss|cache size" | head -6 || true
+fi
+
+echo "==== 编译完成，产物位于: $OPENWRT/bin/targets ===="
+# 此处 cwd 已是 openwrt 树，用相对路径列出产物
+ls -lh bin/targets/*/
+ .config)"
 DEFCONFIG_LOG="$PWD/.defconfig.log"
 make defconfig 2>&1 | tee "$DEFCONFIG_LOG"
 
