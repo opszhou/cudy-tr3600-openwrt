@@ -81,6 +81,8 @@ default_prs:              # 「合并官方 PR」未填号时默认合并的 PR�
 > 24581 与 25860 是互斥的设备支持 PR，同一补丁栈只能启用其一。
 
 > ⚠️ `branch` 与补丁目录名 `<上游仓库名>-<branch>` 必须一一对应（上游仓库名即 build.yml 的 upstream_repo）。
+> 例外：release 分支名本身已带仓库名前缀（如 `openwrt-25.12`）时，目录直接叫 `patches/openwrt-25.12/`，
+> 不再重复成 `patches/openwrt-openwrt-25.12/`——规则实现在 `scripts/apply-device-patches.sh` 与 `verify-device.sh`。
 
 ## scripts/ 脚本清单
 
@@ -91,6 +93,15 @@ default_prs:              # 「合并官方 PR」未填号时默认合并的 PR�
 | `apply-device-patches.sh` | 按字典序应用设备补丁栈 |
 | `apply-pr.sh` | 拉取单个官方 PR 并生成补丁（diff 路径用绝对路径） |
 | `sync-pr.sh` | 批量合并 PR（需收集失败而非中断，不用 `set -e`） |
+| `verify-device.sh` | 编译**前**的秒级闸门：补丁能否应用（含 3-way 回退）、DTS 结构、filogic.mk 自洽、02_network 端口映射（在临时 worktree 里跑，不改主树） |
+| `validate-dts.mjs` | 纯 Node 的设备树结构校验器（语法树/引用/分区/nvmem/gpio/LED/交换端口），CI 与本地同一份 |
+| `test-02network.sh` | 把 `02_network` 拉进沙箱跑真分支，断言 board → LAN/WAN 端口映射 |
 | `assemble.sh` | 组装源码树：上游 + feeds + 包清单 + files + 补丁 |
 | `build-device.sh` | 一条龙：组装 → defconfig → make |
 | `test-sysdashboard.sh` | 仪表盘 rpcd 脚本的沙箱冒烟测试（假 /proc、/sys、租约，校验 JSON 与降级） |
+| `apply-qmodem-nat2.sh` | feeds 就绪后把 QModem `at_dial()` 的 nat 下发由 1 改为 2（幂等、回读校验、格式不符即构建失败） |
+| `test-qmodem-nat2.sh` | 上述补丁的沙箱测试（替换 / 幂等 / 格式不符 / 缺文件） |
+
+> QModem feed 定制走 `common/customize.sh`（`build-device.sh` 在 feeds install 之后调用），
+> ⛔ 不放进 `devices/*/patches/` —— 那里只作用于 OpenWrt 源码树，且早于 feeds 就绪。
+> 定制脚本必须以自身位置反推仓库根路径，⛔ 不能用调用方传入的相对路径。

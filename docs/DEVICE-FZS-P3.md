@@ -1,0 +1,148 @@
+# 蜂助手 FZS 5GCPE P3（MT7981B）移植说明
+
+> 目标：把这台机器从 LEDE（coolsnowwolf，内核/驱动偏旧）迁到 **OpenWrt 主线 release 分支 openwrt-25.12**。
+> 属于本仓库的第二台设备（第一台 Cudy TR3600 v1 走 `main`，两者互不影响）。
+
+## 1. 为什么是这个分支
+
+| 候选 | 结论 | 理由 |
+|---|---|---|
+| `openwrt-25.12` | **采用** | 主线最新 release 分支，内核 6.12，apk 包管理器，有安全/驱动回补 |
+| `main` | 不用 | 滚动 SNAPSHOT：版本号漂移、依赖常断，构建不可复现 |
+| `openwrt-24.10` | 不用 | 内核 6.6，WiFi 固件与 mt76 驱动偏旧，与"摆脱老旧"的诉求相反 |
+
+- `devices/fzs_5gcpe-p3/device.yml` 里 `branch: openwrt-25.12`；
+- 补丁目录 `devices/fzs_5gcpe-p3/patches/openwrt-25.12/`（分支名已含 `openwrt-` 前缀时不再重复加，
+  规则见 `scripts/apply-device-patches.sh`）；
+- 移植补丁已对 `openwrt-25.12` 分支 tip（`fd6d730`，2026-11）实测 `git apply --check` 干净通过。
+
+## 2. 硬件事实（全部来自现网 LEDE 设备树，已按 6.12 绑定重写）
+
+| 项目 | 参数 |
+|---|---|
+| SoC | MediaTek **MT7981B**（Filogic 820，2×Cortex-A53） |
+| RAM | **256 MiB**（`0x40000000 + 0x10000000`） |
+| Flash | **SPI-NAND 128 MiB**（NMBM） |
+| 交换 | **MT7531**（mdio reg 31，reset GPIO39，IRQ GPIO38） |
+| 网口 | port1=`lan1`、port2=`lan2`、port3=`wan`、port6=cpu→gmac0（2500base-x） |
+| MAC | gmac0 ← Factory `0x2a`；wan ← Factory `0x24`（`mac-base`，`#nvmem-cell-cells=1`） |
+| WiFi | MT7981 内置（MT7976），eeprom ← Factory `0x0`（`nvmem-cells`，旧 `mediatek,mtd-eeprom` 已废弃） |
+| 按键 | reset GPIO1、wps GPIO0（低有效） |
+| LED | wifi GPIO15（`phy1tpt` 触发）、4g GPIO34、5g GPIO35（低有效） |
+| 5G 模组 | USB（xhci/usb_phy）+ UART1/UART2（`uart1_1`/`uart2_1`），具体型号首启探测，见 §5 |
+
+### 分区表（与原厂 / 现 LEDE 完全一致，换固件不动 bootloader）
+
+| 分区 | 偏移 | 大小 |
+|---|---|---|
+| BL2 | 0x000000 | 1 MiB |
+| u-boot-env | 0x100000 | 512 KiB |
+| Factory | 0x180000 | 2 MiB（只读，含 eeprom + MAC） |
+| FIP | 0x380000 | 2 MiB |
+| **ubi** | 0x580000 | **112 MiB** |
+
+分区尾部落 10.5 MiB 未使用（与原厂一致，不动它——NMBM 的 BMT 需要余量）。
+
+## 3. 移植补丁做了什么（3 个 hunk）
+
+`patches/openwrt-25.12/0001-mediatek-filogic-add-fzs-5gcpe-p3.patch`
+
+1. **新增** `target/linux/mediatek/dts/mt7981b-fzs-5gcpe-p3.dts`
+   - 6.12 写法：`nvmem-layout { compatible = "fixed-layout" }` + `mac-base`、`leds/common.h` 的 function/color、
+     `mt65xx.h` 的 `MTK_DRIVE_8mA`、`uart1_1/uart2_1` 分组
+   - 相对 LEDE 版的关键改动：`mediatek,mtd-eeprom` → `nvmem-cells=<&eeprom_factory_0>`（内核 6.9 起 mt76 只认 nvmem）
+2. `target/linux/mediatek/image/filogic.mk`：新增 `Device/fzs_5gcpe-p3`
+   - `UBINIZE_OPTS := -E 5`、`BLOCKSIZE 128k`、`PAGESIZE 2048`、`KERNEL_IN_UBI := 1`
+   - `IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata` —— 与原厂 U-Boot 的
+     "kernel 卷 + rootfs 卷" 布局同构，**不换 bootloader、不改分区**
+3. `target/linux/mediatek/filogic/base-files/etc/board.d/02_network`：
+   `fzs,5gcpe-p3) ucidef_set_interfaces_lan_wan "lan1 lan2" wan ;;`
+   - LEDE 里写的是 `"lan1 lan2 lan3"`，但本机只有 3 个网口且第 3 个在 dts 里标 `wan`，属笔误，这里修正为 2 LAN + 1 WAN
+
+`platform.sh` 不需要改：KERNEL_IN_UBI + tar 镜像走默认 `nand_do_upgrade`（已对照 25.12 源码确认）。
+
+## 4. 构建（GitHub Actions）
+
+**Actions → 🚀 编译固件 → Run workflow**
+
+| 参数 | 值 |
+|---|---|
+| `device` | `fzs_5gcpe-p3` |
+| `profile` | `lite`（推荐首发）/ `ultimate` |
+| `upstream_branch` | 留空（用 device.yml 的 `openwrt-25.12`） |
+| `with_qmanager` | 默认 false；确认真机是 Quectel 模组后再开 |
+| `create_release` | 需要 Release 页就勾上 |
+
+产物：`openwrt-mediatek-filogic-fzs_5gcpe-p3-squashfs-sysupgrade.bin` + `*.manifest` + `sha256sums`。
+
+本地等价命令（需 Linux）：
+
+```bash
+git clone --depth 1 -b openwrt-25.12 https://github.com/openwrt/openwrt.git openwrt   # CI 用 fetch-depth: 0
+bash scripts/verify-device.sh . openwrt fzs_5gcpe-p3          # 10 秒前置校验
+bash scripts/build-device.sh . fzs_5gcpe-p3 lite openwrt
+```
+
+### 前置校验做了什么（`scripts/verify-device.sh`）
+
+在临时 git worktree 里（不动主工作区）：
+
+1. 逐个补丁 `git apply`（干不了就 `--3way`，与 assemble.sh 完全一致）
+2. 从补丁里取出新增的 `.dts`，用 `scripts/validate-dts.mjs` 校验：语法树、`&引用` 是否可解析、
+   单元地址 vs `reg`、分区连续/不越界、nvmem 单元是否落在父分区内、gpio 引脚/极性、LED 命名、交换端口
+3. 校验 `filogic.mk` 里 profile 存在、`TARGET_DEVICES` 已注册、`DEVICE_DTS` 指向的 dts 真实存在
+4. 用 `scripts/test-02network.sh` 把 `02_network` 拉到沙箱里跑真分支，断言 `fzs,5gcpe-p3` → `lan1 lan2` + `wan`
+
+校验项来自 `devices/fzs_5gcpe-p3/verify.conf`（`BOARD`/`LAN`/`WAN`）。
+
+## 5. 5G 模组：先探测，再选管理界面
+
+LEDE 的设备树只证明模组挂在 USB + 两路 UART 上，**型号没写**。首启会跑
+`/etc/uci-defaults/95-modem-probe`，把结果写到 **`/etc/modem-probe.txt`**（重启保留）：
+
+```sh
+cat /etc/modem-probe.txt     # USB VID:PID、驱动绑定、/dev/ttyUSB*、ATI 回显、相关 dmesg
+```
+
+- **QModem（默认，推荐）**：已内置 `qmodem` + `luci-app-qmodem-next`（LuCI 网络 → QModem），
+  支持 Quectel / Fibocom / MeiG / SIMCom / UNISOC 等；按 §2 驱动已全协议内置（QMI/MBIM/RNDIS/ECM/NCM + AT）
+- **QManager（可选）**：`dr-dolomite/QManager` —— **不是 LuCI 页面**，是独立的 Next.js Web 控制台
+  （自带端口、自带 CGI 后端），**只认 Quectel AT 模组**，且与 QModem 抢同一个 AT 口。
+  勾 `with_qmanager=true` 会把 v0.1.35 的 release 包（3.59 MiB，sha256 已在 Makefile 里 pin）打进镜像，
+  首启由 `/etc/uci-defaults/91-qmanager-install.sh` 离线安装，日志 `/etc/qmanager-install.log`。
+  ⚠️ 用 QManager 就别让 QModem 拨号（反之亦然），否则双拨/AT 抢占
+
+## 6. 从 LEDE 刷入（真机）
+
+> 刷机前先备份：`sysupgrade -b /tmp/lede-backup.tar.gz`，再用 scp 拉到电脑。
+
+```sh
+# 1) 传到机器
+scp openwrt-mediatek-filogic-fzs_5gcpe-p3-squashfs-sysupgrade.bin root@192.168.x.x:/tmp/
+
+# 2) 校验（与 Release/Artifact 里的 sha256sums 对比）
+ssh root@192.168.x.x 'sha256sum /tmp/openwrt-mediatek-filogic-fzs_5gcpe-p3-squashfs-sysupgrade.bin'
+
+# 3) 跨固件刷机：不保留配置（LEDE 的 /etc/config 结构与主线不同，保留只会互相打架）
+ssh root@192.168.x.x 'sysupgrade -n /tmp/openwrt-mediatek-filogic-fzs_5gcpe-p3-squashfs-sysupgrade.bin'
+```
+
+- compatible 同为 `fzs,5gcpe-p3`、UBI 布局与 bootloader 均未改动 → 正常 sysupgrade 即可，不需要 U-Boot 网页刷写
+- 刷完默认 **LAN 192.168.10.1**（`99z-fzs-p3-presets`）、主机名 `fzs-p3`、WiFi 默认开启
+  （2.4G HE20 / 5G HE80，**无密码**，请自行设 WPA2/WPA3）
+
+### 回滚 / 救砖
+
+1. 首选：在 LuCI「系统 → 备份/升级」刷回 LEDE 的 `sysupgrade.bin`（同样走 UBI 卷，可逆）
+2. 起不来：U-Boot 网页（`192.168.1.1`，网线插 lan1）+ 原厂/LEDE 的 `sysupgrade.bin`，或 TFTP 传 initramfs
+3. 极端情况：串口 `115200 8N1`（UART0）+ `mtk_uboot` 的 `nmbm` 命令重建分区表
+
+## 7. 首刷验收清单
+
+- [ ] `lan1`/`lan2` 拿到 DHCP、`wan` 口能拨号（插路由器/光猫）
+- [ ] 2.4G / 5G 热点出现，`iwinfo` 显示 `HE20`/`HE80`
+- [ ] 三颗 LED：wifi（运行）、4g、5g；两个按键：reset（长按恢复出厂）、wps
+- [ ] `cat /etc/modem-probe.txt` 认出模组；`ubus list | grep qmodem` 有输出
+- [ ] LuCI → 网络 → QModem：能选到模组、能拨号、`ip a` 出现 `wwan0`/`usb0` 并拿到地址
+- [ ] `reboot` 后配置保留、模组自动重连
+- [ ] （可选）`with_qmanager=true` 的固件：`cat /etc/qmanager-install.log` 无致命错误，页面能打开

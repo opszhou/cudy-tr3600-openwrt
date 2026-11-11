@@ -1,0 +1,7 @@
+# 设备级减包清单（# CONFIG_PACKAGE_xxx is not set）：本机明确不要 / 25.12 上不存在的包。
+# 追加顺序在 add.list 之后，本文件拥有最终决定权。
+# 审计逻辑（build-device.sh）会自动豁免这里显式关闭的符号，不会误判"必选包被丢弃"。
+#
+# 首轮 CI 若报「被丢弃: CONFIG_PACKAGE_xxx」，按下面两类处理：
+#   1) 25.12 里包名变了 → 去 configs/add.list 用新名重新启用
+#   2) 25.12 里没有该包 → 把 "# CONFIG_PACKAGE_xxx is not set" 写到这里

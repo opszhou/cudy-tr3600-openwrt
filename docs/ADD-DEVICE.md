@@ -48,3 +48,22 @@
 
 - 不同设备可以锁不同上游分支（device.yml 的 `branch`），互不影响
 - 若新设备官方主线已支持（无需 PR），补丁目录留空即可直接编译
+
+## 跨分支设备（如 fzs_5gcpe-p3 用 openwrt-25.12，cudy 用 main）
+
+- `device.yml` 的 `branch` 写目标分支全名；补丁目录同名（`patches/openwrt-25.12/`）
+- CI 的 matrix 按设备逐 job 解析分支，两个设备互不影响；`dl`/`ccache` 缓存 key 含分支与设备，不会串味
+- `common/configs/*.list` 是跨设备共用的，若某个包在目标分支上不存在/改名：
+  - 包改名 → 设备 `configs/add.list` 里用新名重新启用
+  - 包里没有 → 设备 `configs/remove.list` 里写 `# CONFIG_PACKAGE_xxx is not set`（构建的"必选项审计"会自动豁免）
+
+## 可选文件：verify.conf
+
+```sh
+BOARD=fzs,5gcpe-p3     # device tree compatible[0]，02_network 按它分派
+LAN="lan1 lan2"        # 期望 LAN 端口
+WAN="wan"              # 期望 WAN 端口
+```
+
+有了它，`scripts/verify-device.sh` 会在编译前用沙箱跑一次 `02_network` 的真分支；
+没有就跳过该项（其余校验照跑）。

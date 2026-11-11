@@ -20,7 +20,12 @@ if [ -z "$BRANCH" ]; then
     BRANCH="${DEV_BRANCH:-main}"
 fi
 
-PDIR="$ROOT/devices/$DEV/patches/${UPSTREAM}-$BRANCH"
+# 目录名规则 patches/<上游仓库名>-<分支>/。但 release 分支本身已带仓库名（如 openwrt-25.12），
+# 再前缀一次会变成 patches/openwrt-openwrt-25.12（run#fzs-p3 首验踩到）。分支已以 "<上游>-" 开头时直接用分支名。
+case "$BRANCH" in
+    "${UPSTREAM}-"*) PDIR="$ROOT/devices/$DEV/patches/$BRANCH" ;;
+    *)                PDIR="$ROOT/devices/$DEV/patches/${UPSTREAM}-$BRANCH" ;;
+esac
 
 # 补丁目录缺失 = 上游/分支组合写错（如 upstream=immortalwrt 但 branch 仍取 device.yml 的 main），
 # 静默 0 补丁会让后续 defconfig 把整个 target 丢掉（run#29 教训），必须硬失败
