@@ -1,1 +1,84 @@
-x
+#!/bin/sh
+# 5G 模组探测（首启执行一次，结果落 /etc/modem-probe.txt，重启保留）
+#
+# 只读探测：不改模组、不打电话、不动 IMEI。
+#
+# 2026-11-11 首版在真机上暴露两个 bug，本版修掉：
+#   1) 混用 "exec >文件" 与 ">>文件"：两种写位置 → 报告内容错位（驱动列表跑到 dmesg 段下面）。
+#   2) 对所有 ttyUSB* 无脑发 ATI 并 "cat <&3" 死读：非 AT 口会持续吐 "+CME ERROR: 4"，
+#      把整份报告刷成垃圾。
+# 新版：单一外层重定向 + 有界读取（head -c/timeout）+ 先 AT 探活，只有回 OK 的口才继续查。
+
+OUT=/etc/modem-probe.txt
+
+probe_at() {
+	port="$1"; cmd="$2"
+	[ -c "$port" ] || return 1
+	stty -F "$port" 115200 raw -echo clocal -crtscts 2>/dev/null || return 1
+	: > /tmp/.at.out
+	timeout 4 cat "$port" > /tmp/.at.out 2>/dev/null &
+	rp=$!
+	sleep 0.4
+	printf '%s\r' "$cmd" > "$port" 2>/dev/null
+	sleep 1.2
+	kill "$rp" 2>/dev/null
+	wait "$rp" 2>/dev/null
+	tr -d '\r' < /tmp/.at.out | grep -v '^[[:space:]]*$' | head -12
+}
+
+{
+	echo "# 蜂助手 FZS 5GCPE P3 模组探测 $(date)"
+	echo
+
+	echo "## USB 设备（sysfs）"
+	for d in /sys/bus/usb/devices/*/idVendor; do
+		[ -f "$d" ] || continue
+		pp="${d%/idVendor}"
+		printf '%s:%s  %s / %s\n' "$(cat "$d" 2>/dev/null)" "$(cat "$pp/idProduct" 2>/dev/null)" \
+			"$(cat "$pp/manufacturer" 2>/dev/null)" "$(cat "$pp/product" 2>/dev/null)"
+	done
+
+	echo
+	echo "## 已绑定的模组驱动"
+	for drv in option qmi_wwan qmi_wwan_q cdc_mbim cdc_ether rndis_host; do
+		n=$(ls /sys/bus/usb/drivers/"$drv" 2>/dev/null | grep -c '^[0-9]' || true)
+		[ "$n" -gt 0 ] && echo "  $drv: $n 个接口"
+	done
+
+	echo
+	echo "## 串口设备"
+	ls -l /dev/ttyUSB* /dev/cdc-wdm* 2>/dev/null
+
+	echo
+	echo "## 网络接口（含 carrier，判断模组数据口是否起来）"
+	for i in /sys/class/net/*; do
+		n="${i##*/}"
+		echo "  net $n: carrier=$(cat "$i/carrier" 2>/dev/null || echo n/a)"
+	done
+
+	echo
+	echo "## AT 探测（先 AT 探活）"
+	AT_PORT=""
+	for t in /dev/ttyUSB0 /dev/ttyUSB1 /dev/ttyUSB2 /dev/ttyUSB3 /dev/ttyUSB4; do
+		out=$(probe_at "$t" "AT")
+		case "$out" in
+			*OK*) echo "  $t 是 AT 口"; AT_PORT="$t"; break ;;
+			*)     echo "  $t 无 AT 响应（跳过）" ;;
+		esac
+	done
+
+	if [ -n "$AT_PORT" ]; then
+		echo
+		echo "## 模组信息（AT 口 = $AT_PORT）"
+		for c in 'ATI' 'AT+CGMM' 'AT+CGMI' 'AT+CPIN?' 'AT+CSQ' 'AT+COPS?' 'AT+QNWINFO' 'AT+QCFG="usbnet"' 'AT+QCFG="nat"'; do
+			echo "-- $c"
+			probe_at "$AT_PORT" "$c"
+			echo
+		done
+	fi
+
+	echo "## 内核里与模组相关的行"
+	dmesg 2>/dev/null | grep -iE 'option|qmi_wwan|cdc_|usb 1-|usb 2-|ttyUSB' | tail -40
+} > "$OUT" 2>&1
+
+exit 0
