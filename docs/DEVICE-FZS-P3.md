@@ -186,3 +186,35 @@ ssh root@192.168.x.x 'sysupgrade -n /tmp/openwrt-mediatek-filogic-fzs_5gcpe-p3-s
 拿到 `/tmp/p3-diag.txt` 后按上表补丁即可；补丁同样放
 `devices/fzs_5gcpe-p3/patches/openwrt-25.12/`（命名 `0002-...`），CI 的
 `verify-device.sh` 会先做 `git apply` 与 DTS 结构校验再编译。
+
+## 9. 设备树：用真 dtc 编译验证过（不只是结构检查）
+
+`scripts/validate-dts.mjs` 只能证明"结构自洽"；真正能证明"能编出 dtb"的是让 dtc 拿**内核 6.12 的
+mt7981b.dtsi + OpenWrt 的 `117-complete-mt7981b-dtsi.patch`**去编它。做法（已在容器 `owrt-build` 跑过）：
+
+```bash
+cd /tmp && mkdir dtctest && cd dtctest
+tar xf <dl>/linux-6.12.116.tar.xz --wildcards 'linux-6.12.116/arch/arm64/boot/dts/mediatek/*.dtsi' \
+    'linux-6.12.116/include/dt-bindings/*' 'linux-6.12.116/include/uapi/linux/*.h'
+cd linux-6.12.116 && patch -p1 < <openwrt>/target/linux/mediatek/patches-6.12/117-complete-mt7981b-dtsi.patch
+cd .. && cp <openwrt>/target/linux/mediatek/dts/mt7981b-fzs-5gcpe-p3.dts .
+cpp -nostdinc -undef -x assembler-with-cpp \
+    -I linux-6.12.116/include -I linux-6.12.116/include/uapi \
+    -I linux-6.12.116/arch/arm64/boot/dts/mediatek -I . \
+    mt7981b-fzs-5gcpe-p3.dts -o p3.dts.pp
+dtc -I dts -O dtb -o p3.dtb p3.dts.pp
+```
+
+结果（2026-11-11）：
+
+- **编译成功**，产出 `p3.dtb` = 17660 字节
+- 仅 3 条 warning，**全部来自 OpenWrt 的 mt7981b.dtsi**（`ice_debug` 无 reg、`ap2woccif@151a5000` 与
+  `syscon@151a5000` 单元地址重复、efuse 内 `usb3-rx-imp@8c8` 重复），与我们这台设备的节点无关
+- 反编译回 dts 逐项核对：
+  - `model = "FZS 5GCPE P3"`，`compatible = "fzs,5gcpe-p3", "mediatek,mt7981"`
+  - `memory@40000000` = `0x40000000 + 0x10000000`（256 MiB）
+  - 分区：`BL2 / u-boot-env / Factory / FIP / ubi` 齐全
+  - 交换：`port@1/2/3/6`，cpu 口 `ethernet = <&gmac0>` + `phy-mode = "2500base-x"`
+  - LED 别名：`led-boot/failsafe = &led_wifi`
+
+> 也就是说：**设备树这关不是"看起来对"，是真的能编成 dtb**；剩余风险只在硬件细节（GPIO 极性、内联口）与运行时。
