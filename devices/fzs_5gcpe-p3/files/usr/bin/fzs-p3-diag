@@ -1,0 +1,63 @@
+#!/bin/sh
+# fzs-p3-diag：把"这块板子到底有哪些网口/内联链路"一次性查清楚。
+#
+# 用途：设备树只描述了 MT7531 的 port1/2/3（lan1/lan2/wan）+ port6（cpu->gmac0）。
+# MT7531 还有 port0/4/5，MT7981 还有第二路 GMAC（gmac1）。如果机上还有一块
+# RK3566 之类的主控，它很可能就挂在其中某一路 —— 而这一路在现有 LEDE 设备树里
+# 同样没有描述。本脚本不改任何配置，只做取证。
+#
+# 输出：/tmp/fzs-p3-diag.txt（同时打印到屏幕）
+
+OUT=/tmp/fzs-p3-diag.txt
+exec >"$OUT" 2>&1
+
+echo "== 机型 =="
+cat /proc/device-tree/model 2>/dev/null; echo
+echo "compatible:"; tr '\0' '\n' </proc/device-tree/compatible 2>/dev/null
+
+echo
+echo "== 所有网络设备（名字 / 状态 / 速率 / 驱动路径）=="
+for d in /sys/class/net/*; do
+	n="${d##*/}"
+	printf '%-12s operstate=%-8s speed=%-8s dev=%s\n' \
+		"$n" "$(cat "$d/operstate" 2>/dev/null)" "$(cat "$d/speed" 2>/dev/null)" \
+		"$(readlink -f "$d/device" 2>/dev/null)"
+done
+
+echo
+echo "== DSA / 桥接关系（-d 才显示 dsa 端口与 master）=="
+ip -d link show 2>/dev/null | grep -E '^[0-9]+:|dsa|master|link/ether' | head -80
+
+echo
+echo "== IP 地址 / 邻居（RK3566 若在同一个二层，会出现在这里）=="
+ip -br addr 2>/dev/null
+ip neigh 2>/dev/null
+
+echo
+echo "== 交换机端口统计（有 mt7531 时）=="
+for f in /sys/class/net/*/statistics/rx_packets; do
+	n=$(echo "$f" | cut -d/ -f5)
+	echo "-- $n rx=$(cat "$f" 2>/dev/null) tx=$(cat "$(dirname "$(dirname "$f")")/tx_packets" 2>/dev/null)"
+done
+
+echo
+echo "== ethtool（链路是否真的 up）=="
+for n in lan1 lan2 lan3 wan eth0 eth1 wan2; do
+	[ -e "/sys/class/net/$n" ] || continue
+	echo "-- $n"
+	ethtool "$n" 2>/dev/null | grep -E 'Speed|Duplex|Link detected|Port:'
+done
+
+echo
+echo "== dmesg 关键行 =="
+dmesg 2>/dev/null | grep -iE 'mt7531|mtk_soc_eth|gmac|mdio|dsa|link is up|link is down|eth[0-9]' | tail -60
+
+echo
+echo "== 分区表 =="
+cat /proc/mtd 2>/dev/null
+
+echo
+echo "== 当前 uci 网络配置摘要 =="
+uci show network 2>/dev/null | grep -E 'proto|ifname|device|ipaddr|ports' | head -40
+
+exit 0
