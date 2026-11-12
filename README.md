@@ -18,7 +18,7 @@
 | 设备 | 上游分支 | 说明 | 文档 |
 |---|---|---|---|
 | `cudy_tr3600-v1` | `main`（+ 官方 PR 补丁） | Cudy TR3600 v1（MT7981B + WiFi7 + 风扇） | 本文下方 |
-| `fzs_5gcpe-p3` | `openwrt-25.12`（主线 release） | 蜂助手 FZS 5GCPE P3（MT7981B + MT7531 + 128MiB NAND + 5G 模组），从 LEDE 迁到主线 release | [移植说明](docs/DEVICE-FZS-P3.md) · [刷机与验收清单](docs/FLASH-FZS-P3.md) · [5G 模组上手指南](docs/MODEM-FZS-P3.md) · [构建证据](docs/BUILD-EVIDENCE.md) |
+| `fzs_5gcpe-p3` | `openwrt-25.12`（主线 release） | 蜂助手 FZS 5GCPE P3（MT7981B + MT7531 + 128MiB NAND + 5G 模组 RM500U-CNV），从 LEDE 迁到主线 release。**默认 http://192.168.5.1，用户名 root，密码为空** | [移植说明](docs/DEVICE-FZS-P3.md) · [刷机与验收清单](docs/FLASH-FZS-P3.md) · [5G 模组上手指南](docs/MODEM-FZS-P3.md) · [构建证据](docs/BUILD-EVIDENCE.md) |
 
 两台设备共用同一套 `common/`（QModem、包清单、开机预设）与 CI，但**上游分支各自独立**：
 `device.yml` 里的 `branch` 决定 matrix 每个 job 各自 checkout / 打补丁 / 取缓存 key，互不影响。
