@@ -147,3 +147,30 @@ ping -c3 223.5.5.5 && nslookup openwrt.org
 QModem 的模组配置是**运行期按扫描结果生成**的（`/etc/config/qmodem` 初始只有 `main` 段），
 所以"预设 APN/协议"无法在编译期静态写入——需要在首启后用 UI 或 `uci` 落一次配置。
 把"拨通后的 `uci export qmodem`"发我，我可以固化成设备预设，下一版固件刷完即直连。
+
+## 模组段（modem-device）的字段名（从源码核对，命令行修改时用得上）
+
+**UI 里可改的**（`luci-app-qmodem-next` 的 `network_config.js`）：
+`enable_dial` `apn` `apn2` `pdp_type` `pdp_index` `auth` `username` `password` `pincode`
+`alias` `dns_list` `use_ubus` `force_set_apn` `en_bridge` `bridge_port` `do_not_add_dns`
+`donot_nat` `ra_master` `extend_prefix` `metric` `pre_dial_delay` `post_init_delay`
+`pre_dial_at_cmds` `post_init_at_cmds`
+
+**扫描器自己写的**（`modem_scan/src/modem_scand.c`）：
+`manufacturer` `associated_usb` `option_driver` `modem_port_rule` `default_metric` `pdp_index`
+`lte_band` `nsa_band` `sa_band` `voice_pcm_interface` `mhi_netdev` `mhi_uci_q` `rmnet` …
+
+**注意**：段里**没有** `at_port` 字段——AT 端口由运行时扫描/规则决定。
+所以本仓库的 `20-qmodem-apn-auto.sh` 采用"先用段里记录（若有），否则 `ttyUSB2/3/1/0` 逐个 AT 探活"的方式，
+在 RM500U-CNV 上（AT 口 = `ttyUSB2`）已验证可工作。
+
+**常用命令行修改**：
+
+```sh
+seg=$(uci -q show qmodem | sed -n 's/^qmodem\.\([^.=]*\)=modem-device$/\1/p' | head -1)
+uci set qmodem.$seg.apn='cmnet'
+uci set qmodem.$seg.pdp_type='ipv4v6'
+uci set qmodem.$seg.enable_dial='1'
+uci set qmodem.$seg.metric='20'          # 多 WAN 时的路由优先级
+uci commit qmodem && /etc/init.d/qmodem_network restart
+```
