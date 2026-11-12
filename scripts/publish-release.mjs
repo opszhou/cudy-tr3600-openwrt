@@ -63,7 +63,7 @@ const RELEASE_BODY = [
         '### 已知事项',
         '- 5G 模组 Quectel **RM500U-CNV**（UNISOC）：走 ECM/MBIM，**不要选 QMI**；LuCI → 网络 → QModem',
         '- 网口 `lan1`/`lan2`/`wan` 是 DSA 端口，`@eth0` 只是 conduit',
-      ].join('\n').join('\n');
+      ].join('\n');
 if (args.includes('--print-body')) { console.log(RELEASE_BODY); process.exit(0); }
 const TOKEN = token();
 const H = { Authorization: 'Bearer ' + TOKEN, Accept: 'application/vnd.github+json', 'User-Agent': 'dsh' };
