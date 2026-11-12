@@ -94,21 +94,21 @@ if [ -d "$ROOT/devices/$DEV/package" ]; then
     cp -a "$ROOT/devices/$DEV/package/." "$OPENWRT/package/"
 fi
 
-# 4.5) 修正 files/ 里的可执行位
-# 为什么必须做：本仓库的脚本有一部分是通过 GitHub Contents API 提交的，那条路径**不保留文件模式**，
-# 落地一律 644。结果 fzs-p3-diag / fzs-p3-set-apn 这类工具进了镜像却不可执行（Permission denied）。
-# OpenWrt 的 files/ 机制按源文件模式安装，所以在拷进源码树之后统一兜底一遍。
-if [ -d "$OPENWRT/files" ]; then
-    find "$OPENWRT/files" -type f \( -path '*/usr/bin/*' -o -path '*/usr/sbin/*' -o -path '*/etc/init.d/*' -o -path '*/etc/hotfix.d/*' \) -exec chmod 755 {} + 2>/dev/null || true
-fi
-
-# 5) files 覆盖：common 先、device 后（同名后者胜）
+ 5) files 覆盖：common 先、device 后（同名后者胜）
 mkdir -p "$OPENWRT/files"
 if [ -d "$ROOT/common/files" ]; then
     cp -a "$ROOT/common/files/." "$OPENWRT/files/"
 fi
 if [ -d "$ROOT/devices/$DEV/files" ]; then
     cp -a "$ROOT/devices/$DEV/files/." "$OPENWRT/files/"
+fi
+
+# 5.5) 修正 files/ 里的可执行位（必须在拷贝之后）
+# 为什么必须做：本仓库部分脚本是通过 GitHub Contents API 提交的，那条路径**不保留文件模式**，
+# 落地一律 644。结果 fzs-p3-diag / fzs-p3-set-apn 进了镜像却不可执行（Permission denied）。
+# OpenWrt 的 files/ 机制按源文件模式安装，所以拷进源码树后统一兜底一次。
+if [ -d "$OPENWRT/files" ]; then
+    find "$OPENWRT/files" -type f \( -path '*/usr/bin/*' -o -path '*/usr/sbin/*' -o -path '*/etc/init.d/*' -o -path '*/etc/hotfix.d/*' \) -exec chmod 755 {} + 2>/dev/null || true
 fi
 
 # 6) 组装 .config：交给 assemble-config.sh（单一真源）
