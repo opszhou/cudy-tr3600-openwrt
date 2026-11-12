@@ -1,0 +1,71 @@
+#!/bin/sh
+# fzs-p3-set-apn —— 给 QModem 的模组段设 APN / PDP / 自动拨号，一条命令搞定。
+#
+# 为什么需要它：QModem 的模组段（section 类型 modem-device）是**运行期扫描时生成**的，
+# 段名形如 qmodem.modem_1_1，字段名（apn / pdp_type / enable_dial / auth / metric …）
+# 只能从 LuCI 源码里查到，命令行下手很别扭。本脚本把这些收敛成一条命令。
+#
+# 字段名来源：luci-app-qmodem-next/htdocs/.../view/qmodem/network_config.js
+#   s.option(form.Value, 'apn'), 'pdp_type', 'auth', 'username', 'password', 'metric' …
+#
+# 用法：
+#   fzs-p3-set-apn cmnet              # 移动
+#   fzs-p3-set-apn 3gnet              # 联通
+#   fzs-p3-set-apn ctnet ipv4         # 电信 + 仅 IPv4
+#   fzs-p3-set-apn cmnet ipv4v6        # 默认 PDP
+#   fzs-p3-set-apn --show             # 只看当前模组段的关键字段
+
+QMODEM_CONF=/etc/config/qmodem
+
+find_seg() {
+	# 取第一个 modem-device 段名
+	uci -q show qmodem 2>/dev/null | sed -n 's/^qmodem.\([^.=]*\)=modem-device$/\1/p' | head -n1
+}
+
+show_state() {
+	seg="$1"
+	echo "模组段: qmodem.$seg"
+	for f in name alias apn pdp_type enable_dial auth metric use_ubus en_bridge; do
+		v=$(uci -q get "qmodem.$seg.$f" 2>/dev/null)
+		[ -n "$v" ] && printf '  %-12s = %s\n' "$f" "$v"
+	done
+}
+
+case "${1:-}" in
+	""|-h|--help)
+		echo "用法: fzs-p3-set-apn <APN> [pdp_type]    （pdp_type: ipv4v6|ipv4|ipv6，默认 ipv4v6）"
+		echo "      fzs-p3-set-apn --show              查看当前模组段"
+		exit 0
+		;;
+	--show|-s)
+		seg=$(find_seg)
+		[ -n "$seg" ] || { echo "没找到 modem-device 段（先在 LuCI → 网络 → QModem 里扫描）"; exit 1; }
+		show_state "$seg"
+		exit 0
+		;;
+esac
+
+APN="$1"
+PDP="${2:-ipv4v6}"
+[ -f "$QMODEM_CONF" ] || { echo "错误: 找不到 $QMODEM_CONF（QModem 未安装？）"; exit 1; }
+
+seg=$(find_seg)
+if [ -z "$seg" ]; then
+	echo "错误: 没有找到 modem-device 段。"
+	echo "      先到 LuCI → 网络 → QModem 点一次扫描（插拔模组后等 8 秒），"
+	echo "      或运行 cat /etc/modem-probe.txt 看模组是否被识别。"
+	exit 1
+fi
+
+uci set "qmodem.$seg.apn=$APN"
+uci set "qmodem.$seg.pdp_type=$PDP"
+uci set "qmodem.$seg.enable_dial=1"
+uci commit qmodem || { echo "错误: uci commit 失败"; exit 1; }
+
+echo "已写入 qmodem.$seg: apn=$APN pdp_type=$PDP enable_dial=1"
+/etc/init.d/qmodem_network restart >/dev/null 2>&1 && echo "已重启 qmodem_network"
+echo
+echo "10 秒后自查："
+echo "  cat /sys/class/net/usb0/carrier     # 期望 1"
+echo "  ip -4 addr show usb0                # 期望有 inet"
+echo "  logread -e qmodem | tail -20"
