@@ -102,3 +102,25 @@ ssh root@$LEDE_IP 'sysupgrade -n /tmp/openwrt-mediatek-filogic-fzs_5gcpe-p3-squa
   `port4/5` 或 `gmac1`，现网 LEDE 同样没有描述它 —— 需要 `/tmp/p3-diag.txt`（或 `ls /sys/class/net`）来定
   位，然后补 `devices/fzs_5gcpe-p3/patches/openwrt-25.12/0002-*.patch`。
 - **QManager**：可选载荷（`with_qmanager=true`），仅支持 Quectel 模组，且与 QModem 拨号二选一。
+
+## 附：开机自动做的事，与两个内置命令
+
+### 自动（无需你操作）
+
+| 时机 | 动作 | 日志 |
+|---|---|---|
+| 首启 | 设 LAN `192.168.5.1`、主机名 `fzs-p3`、时区、WiFi HE20/HE80 打开 | — |
+| 首启 | 写 `/etc/modem-probe.txt`（模组 VID/PID、AT 口、ATI、QModem 状态） | — |
+| 首启 + 每 20 秒（最多 6 次） | 按 IMSI 自动补 QModem APN（移动 cmnet / 联通 3gnet / 电信 ctnet / 广电 ctwap），只补空值 | `/etc/qmodem-apn-auto.log` |
+| 每次开机 | 重放 `/etc/hotfix.d/*.sh`（DNS 兜底、APN 补全） | `logread -t hotfix` |
+| 插 USB 网卡 | 非拨号类设备自动建 `wanusb`（QMI/MBIM 模组会让位给 QModem） | `logread | grep usb-wan` |
+
+### 两个内置命令
+
+```sh
+fzs-p3-diag                 # 一次性采集：网口/DSA/邻居/计数/ethtool/dmesg/mtd/QModem → /tmp/fzs-p3-diag.txt
+fzs-p3-set-apn --show       # 看当前模组段（name/apn/pdp_type/enable_dial…）
+fzs-p3-set-apn cmnet        # 手工设 APN（移动；联通 3gnet / 电信 ctnet），自动写 pdp=ipv4v6 并重启拨号
+```
+
+> 物联卡/定向卡/境外卡：自动识别会跳过（不猜），用 `fzs-p3-set-apn <你的APN>` 一次即可。
