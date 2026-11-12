@@ -94,7 +94,7 @@ if [ -d "$ROOT/devices/$DEV/package" ]; then
     cp -a "$ROOT/devices/$DEV/package/." "$OPENWRT/package/"
 fi
 
- 5) files 覆盖：common 先、device 后（同名后者胜）
+# 5) files 覆盖：common 先、device 后（同名后者胜）
 mkdir -p "$OPENWRT/files"
 if [ -d "$ROOT/common/files" ]; then
     cp -a "$ROOT/common/files/." "$OPENWRT/files/"
