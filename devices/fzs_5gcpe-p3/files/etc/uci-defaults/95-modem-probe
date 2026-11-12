@@ -77,6 +77,15 @@ probe_at() {
 		done
 	fi
 
+	echo "## QModem 运行状态"
+	uci -q show qmodem 2>/dev/null | head -40
+	echo "-- 已接管的模组（/var/run/qmodem）"
+	ls -l /var/run/qmodem 2>/dev/null
+	echo "-- ubus 服务"
+	ubus list 2>/dev/null | grep -i qmodem
+	echo "-- 最近日志"
+	logread 2>/dev/null | grep -iE 'qmodem|at-daemon|tom_modem|modem_scan' | tail -20
+
 	echo "## 内核里与模组相关的行"
 	dmesg 2>/dev/null | grep -iE 'option|qmi_wwan|cdc_|usb 1-|usb 2-|ttyUSB' | tail -40
 } > "$OUT" 2>&1
