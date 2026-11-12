@@ -3,6 +3,20 @@
 > 从**现网 LEDE** 迁到 **OpenWrt 主线 release（openwrt-25.12）**。
 > 只适用于 `fzs_5gcpe-p3`；刷前务必核对机型，别把 cudy 的固件刷进来（反之亦然）。
 
+## 登录信息（首次使用先看这个）
+
+| 项 | 值 |
+|---|---|
+| 管理地址 | **http://192.168.5.1** （仅本机网段，DHCP 池 `192.168.5.100`–`249`） |
+| 用户名 | `root` |
+| 密码 | **空**（OpenWrt 默认无密码，浏览器弹框直接回车） |
+| SSH | `ssh root@192.168.5.1`（密码同样为空） |
+| 主机名 | `fzs-p3` |
+| WiFi | SSID `OpenWrt` / `OpenWrt_5G`，**开放热点（无密码）** |
+
+> ⚠️ 首次登录后请立刻「系统 → 管理权」设置 root 密码，并给 WiFi 加 WPA2/WPA3。
+> 开放热点 + 空密码只适合首次调试，不要长期保持。
+
 ## 0. 刷前（5 分钟，别省）
 
 ```sh
@@ -49,7 +63,7 @@ ssh root@$LEDE_IP 'sysupgrade -n /tmp/openwrt-mediatek-filogic-fzs_5gcpe-p3-squa
 
 - `-n` 必须加：LEDE 的 `/etc/config` 与主线结构不同，保留只会互相打架
 - 不需要中间固件、不需要换 bootloader：分区表与 UBI 布局和原厂/LEDE 完全一致
-- 刷完默认 **LAN 192.168.10.1**、主机名 `fzs-p3`、WiFi 默认开启（**无密码**，请自行设 WPA2/WPA3）
+- 刷完默认 **LAN 192.168.5.1**、主机名 `fzs-p3`、WiFi 默认开启（**无密码**，请自行设 WPA2/WPA3）
 
 ## 3. 首刷验收（10 项）
 
