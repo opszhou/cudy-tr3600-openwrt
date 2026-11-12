@@ -86,3 +86,64 @@ uci show qmodem | head -30          # 配置项
 ubus call network.interface.<if> status
 logread -f | grep -iE 'qmodem|at-daemon|qmi|mbim'
 ```
+
+---
+
+# 附：RM500U-CNV 实测流程（本机 2026-11-12 真机数据）
+
+## 已知硬件事实（从本机采集，不是推测）
+
+| 事实 | 值 |
+|---|---|
+| 型号 | Quectel **RM500U-CNV**（UNISOC 平台），固件 `RM500UCNVAAR03A04M2G` |
+| USB 形态 | 5 个串口：`/dev/ttyUSB0`–`ttyUSB4`（`option` 驱动） |
+| AT 口 | **`/dev/ttyUSB2`**（`ttyUSB3` 亦响应；其余是 NMEA/DIAG，发 AT 会回 `+CME ERROR: 4`，属正常） |
+| 数据口 | `usb0`，由 `cdc_ether` 注册（说明模组当前是 **ECM** composition） |
+| `/dev/cdc-wdm*` | **没有**。UNISOC 方案不暴露 QMI 控制口 → **QModem 里不要选 QMI** |
+| 初始状态 | `usb0` carrier=0（还没拨号，正常） |
+
+## 按 QModem 官方顺序走（不要跳步）
+
+1. **确认枚举**：`logread -e usb -e tty -e cdc`、`ls -l /dev/ttyUSB*`、`ip -br link`
+2. **扫描模组**：LuCI → 网络 → QModem → 扫描（`hotplug_add_delay` 默认 8 秒，插拔后别急着点）
+   - 核对识别出的厂商/型号是否 `Quectel RM500U-CNV`
+   - AT 端口是否被识别为 `ttyUSB2`
+3. **验证 AT 通道**（只读）：
+
+```sh
+stty -F /dev/ttyUSB2 115200 raw -echo clocal
+for c in 'AT' 'ATI' 'AT+CGMM' 'AT+CPIN?' 'AT+CSQ'; do
+  printf '%s\r' "$c" > /dev/ttyUSB2; timeout 2 cat /dev/ttyUSB2 | tr -d '\r'; echo "-- $c"
+done
+```
+
+   期望：`AT` → `OK`；`AT+CPIN?` → `+CPIN: READY`；`AT+CSQ` → `+CSQ: rssi,99`
+
+4. **配置拨号**：协议 **ECM**，APN 按运营商，PDP `ipv4v6`，认证一般"无"
+5. **验证结果**（五条都要成立，不只看页面显示"已连接"）：
+
+```sh
+cat /sys/class/net/usb0/carrier          # 应为 1
+ip -4 addr show usb0                     # 应有 inet 地址
+ip route | head -3                       # default 指向 usb0（或策略路由）
+cat /tmp/resolv.conf.d/resolv.conf.auto  # 有 DNS
+ping -c3 223.5.5.5 && nslookup openwrt.org
+```
+
+## 失败对照（先硬件后配置）
+
+| 现象 | 含义 | 下一步 |
+|---|---|---|
+| QModem 列表里没有模组 | 扫描时机/驱动 | `ip -br link` 看 `usb0` 是否存在；`logread -e qmodem` 看扫描日志；手动重新扫描 |
+| 只有 `ttyUSB*`、没有 `usb0` | composition 不是 ECM | AT：`AT+QCFG="usbnet",1` 后重插模组 |
+| 有 `usb0` 但 carrier 恒 0 | **未拨号**（最常见） | 检查启用拨号、APN、PDP 类型；`logread -e qmodem` |
+| 拨号后 carrier=1 但没地址 | DHCP/会话问题 | `udhcpc -i usb0 -f -q` 手动试；`AT+QNETDEVCTL?` 查会话 |
+| 有地址但 ping 不通 | APN 错/欠费/限速 | 换 APN；`AT+COPS?` 看注册网络 |
+| 能 ping IP 不能解析 | DNS 未下发 | 本仓库 `/etc/hotfix.d/10-dns-upstream.sh` 兜底；`logread -t hotfix` |
+| `ATI` 回显夹杂 `+CME ERROR` | 打到非 AT 口 | 只用 `ttyUSB2` |
+
+## 想做到"刷完即通"还缺什么
+
+QModem 的模组配置是**运行期按扫描结果生成**的（`/etc/config/qmodem` 初始只有 `main` 段），
+所以"预设 APN/协议"无法在编译期静态写入——需要在首启后用 UI 或 `uci` 落一次配置。
+把"拨通后的 `uci export qmodem`"发我，我可以固化成设备预设，下一版固件刷完即直连。
