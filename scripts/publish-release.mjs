@@ -37,6 +37,34 @@ function token() {
   if (m) return m[2];
   throw new Error('找不到 GitHub token');
 }
+const RELEASE_BODY = [
+        '## 蜂助手 FZS 5GCPE P3 · OpenWrt 主线（openwrt-25.12，内核 6.12）',
+        '',
+        '### 登录方式（重要）',
+        '- 管理地址：**http://192.168.5.1**（DHCP 池 192.168.5.100–249）',
+        '- 用户名：`root`',
+        '- 密码：**空**（OpenWrt 默认无密码，浏览器弹框直接回车）',
+        '- SSH：`ssh root@192.168.5.1`（密码同样为空）',
+        '- 主机名 `fzs-p3`；WiFi SSID `OpenWrt` / `OpenWrt_5G`，**开放热点（无密码）**',
+        '',
+        '> ⚠️ 首次登录后请立刻到「系统 → 管理权」设置密码，并给 WiFi 加 WPA2/WPA3。',
+        '',
+        '### 刷机',
+        '```sh',
+        'scp openwrt-mediatek-filogic-fzs_5gcpe-p3-lite-squashfs-sysupgrade.bin root@<旧IP>:/tmp/',
+        'ssh root@<旧IP> \'sysupgrade -n /tmp/openwrt-mediatek-filogic-fzs_5gcpe-p3-lite-squashfs-sysupgrade.bin\'',
+        '```',
+        '必须加 `-n`（不保留配置）。刷完地址变成 **192.168.5.1**。',
+        '',
+        '### 验收',
+        '- 由 `scripts/publish-release.mjs` 自动发布：**先**跑 `verify-artifact.mjs`（体积 / sha256sums 一致性 / manifest 必装包），RESULT=OK 才允许上传',
+        '- run: ' + RUN + ' · 设备: ' + DEVICE,
+        '',
+        '### 已知事项',
+        '- 5G 模组 Quectel **RM500U-CNV**（UNISOC）：走 ECM/MBIM，**不要选 QMI**；LuCI → 网络 → QModem',
+        '- 网口 `lan1`/`lan2`/`wan` 是 DSA 端口，`@eth0` 只是 conduit',
+      ].join('\n').join('\n');
+if (args.includes('--print-body')) { console.log(RELEASE_BODY); process.exit(0); }
 const TOKEN = token();
 const H = { Authorization: 'Bearer ' + TOKEN, Accept: 'application/vnd.github+json', 'User-Agent': 'dsh' };
 
@@ -88,33 +116,7 @@ if (existing.status === 200) {
 } else {
   const created = await api('/repos/' + REPO + '/releases', { method: 'POST', headers: { ...H, 'Content-Type': 'application/json' },
     body: JSON.stringify({ tag_name: TAG, name: NAME, prerelease: PRERELEASE,
-      body: [
-        '## 蜂助手 FZS 5GCPE P3 · OpenWrt 主线（openwrt-25.12，内核 6.12）',
-        '',
-        '### 登录方式（重要）',
-        '- 管理地址：**http://192.168.5.1**（DHCP 池 192.168.5.100–249）',
-        '- 用户名：`root`',
-        '- 密码：**空**（OpenWrt 默认无密码，浏览器弹框直接回车）',
-        '- SSH：`ssh root@192.168.5.1`（密码同样为空）',
-        '- 主机名 `fzs-p3`；WiFi SSID `OpenWrt` / `OpenWrt_5G`，**开放热点（无密码）**',
-        '',
-        '> ⚠️ 首次登录后请立刻到「系统 → 管理权」设置密码，并给 WiFi 加 WPA2/WPA3。',
-        '',
-        '### 刷机',
-        '```sh',
-        'scp openwrt-mediatek-filogic-fzs_5gcpe-p3-lite-squashfs-sysupgrade.bin root@<旧IP>:/tmp/',
-        'ssh root@<旧IP> \'sysupgrade -n /tmp/openwrt-mediatek-filogic-fzs_5gcpe-p3-lite-squashfs-sysupgrade.bin\'',
-        '```',
-        '必须加 `-n`（不保留配置）。刷完地址变成 **192.168.5.1**。',
-        '',
-        '### 验收',
-        '- 由 `scripts/publish-release.mjs` 自动发布：**先**跑 `verify-artifact.mjs`（体积 / sha256sums 一致性 / manifest 必装包），RESULT=OK 才允许上传',
-        '- run: ' + RUN + ' · 设备: ' + DEVICE,
-        '',
-        '### 已知事项',
-        '- 5G 模组 Quectel **RM500U-CNV**（UNISOC）：走 ECM/MBIM，**不要选 QMI**；LuCI → 网络 → QModem',
-        '- 网口 `lan1`/`lan2`/`wan` 是 DSA 端口，`@eth0` 只是 conduit',
-      ].join('\n'),
+      body: RELEASE_BODY,
 }) });
   if (created.status !== 201) { console.error('创建 Release 失败:', JSON.stringify(created.body).slice(0, 300)); process.exit(1); }
   relId = created.body.id; relUrl = created.body.html_url; uploadUrl = created.body.upload_url;
