@@ -18,8 +18,10 @@ $UCI -q set system.@system[0].timezone='CST-8'
 $UCI -q set system.@system[0].clock_hourcycle='h23'
 $UCI -q commit system
 
-# ---- 默认 LAN：192.168.10.1/24，DHCP 池 .100~.249 ----
-$UCI -q set network.lan.ipaddr='192.168.10.1'
+# ---- 默认 LAN：192.168.5.1/24，DHCP 池 .100~.249 ----
+# 只对本机（fzs-p3）生效：common 里的 99-router-presets 用的是 192.168.10.1，
+# 本文件 99z- 前缀保证在其之后执行，覆盖成本机专用网段，避免和家里其它路由器撞段。
+$UCI -q set network.lan.ipaddr='192.168.5.1'
 $UCI -q set network.lan.netmask='255.255.255.0'
 $UCI -q set network.lan.proto='static'
 $UCI -q set dhcp.lan.start='100'
