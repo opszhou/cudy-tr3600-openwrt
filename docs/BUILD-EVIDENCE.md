@@ -56,3 +56,36 @@ root(squashfs):
 - 实机刷入后的网口/无线/LED/按键
 - 5G 模组型号与 QModem 拨号（首启 `/etc/modem-probe.txt` 给出 VID:PID 与 ATI）
 - RK3566 内联口是否存在（`p3-diag` 的 `/sys/class/net` 输出可判定）
+
+## 2026-11-12 · run 43143238132 · head `d13e53b8` · profile `lite` · **默认 192.168.5.1**
+
+| 项 | 值 |
+|---|---|
+| 上游 | tag **`v25.12.6`**（`checks out CHECKOUT_REF`），补丁目录仍按分支 `openwrt-25.12` |
+| 补丁 | 只有 `0001`（诊断补丁 `0002` 已禁用并入 `patches/optional/`） |
+| 结论 | **success**，用时 190 分钟 |
+| 镜像 | `openwrt-mediatek-filogic-fzs_5gcpe-p3-squashfs-sysupgrade.bin` |
+| 体积 | 41,605,384 字节 = **39.68 MiB** |
+| sha256 | `67cd310c12331651bee01beba057158bb5f72329759c2cd21111f88c71d392af`（与 `sha256sums` 一致） |
+| 发布 | `scripts/publish-release.mjs`（**先验收后上传**）→ Release `fzs-p3-192.168.5.1` |
+
+### 镜像内实测（解包核验，不只看清单）
+
+```
+sha256sum 镜像 = 67cd310c…  （与 Release 资产一致）
+/etc/uci-defaults/99z-fzs-p3-presets:  network.lan.ipaddr='192.168.5.1'   ← 本机默认地址
+/etc/uci-defaults/99-router-presets:   network.lan.ipaddr='192.168.10.1'  ← common 默认，先执行
+```
+
+uci-defaults 按文件名字典序执行，`99-router-presets`（'-'=0x2D）< `99_migrate_nikki`（'_'=0x5F）
+< `99z-fzs-p3-presets`（'z'=0x7A），所以**最终生效的是 192.168.5.1**，cudy 那台仍保持 192.168.10.1。
+
+### 构建耗时实测（纠正早前估计）
+
+| run | 结果 | 用时 |
+|---|---|---|
+| 43002620681 | success | 155 分钟 |
+| 43044670983 | success | **248 分钟**（最长） |
+| 43143238132 | success | 190 分钟 |
+
+> 预期值应按 **150–250 分钟**报，不再报 60–190。
