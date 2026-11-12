@@ -39,9 +39,9 @@ on:
         type: boolean
         default: false
       create_release:
-        description: "编译成功后创建 Release（lite+ultimate 汇总到同一个 Release，只发裸固件）"
+        description: "编译成功后自动建 Release（默认关：发布请走 scripts/publish-release.mjs，它先跑验收，不通过不发）"
         type: boolean
-        default: true
+        default: false
       with_qmanager:
         description: "启用 QManager 载荷（Quectel 专用独立 Web 控制台；与 QModem 拨号二选一，默认关）"
         type: boolean
