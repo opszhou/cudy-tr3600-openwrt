@@ -1,0 +1,30 @@
+#!/bin/sh
+# 99y-qmodem-apn-retry —— 首启兜底：等 QModem 把模组扫描建档，再让 APN 自动补全跑一次
+#
+# 为什么需要：hotfix（20-qmodem-apn-auto.sh）在首启时由 99-router-presets 触发，
+# 那一刻 QModem 的 modem-device 段往往还没建（scan 在 S80 起步、热插拔还有 8 秒延迟），
+# 于是首次开机补不到 APN，要等第二次开机（hotfix 已 enable）才生效。
+# 这里在后台做有限次重试，不阻塞启动；成功了就停。
+#
+# 幂等：APN 已存在时 20-qmodem-apn-auto.sh 会直接退出，重试是安全的。
+
+LOG=/etc/qmodem-apn-auto.log
+
+has_apn() {
+	uci -q show qmodem 2>/dev/null | grep -q '^qmodem\.[^.]*\.apn='
+}
+
+(
+	i=0
+	while [ "$i" -lt 6 ]; do
+		sleep 20
+		i=$((i+1))
+		sh /etc/hotfix.d/20-qmodem-apn-auto.sh >/dev/null 2>&1
+		if has_apn; then
+			echo "$(date '+%F %T') 首启 APN 补全成功（第 $i 次尝试）" >> "$LOG"
+			break
+		fi
+	done
+) >/dev/null 2>&1 &
+
+exit 0
