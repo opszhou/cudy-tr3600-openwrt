@@ -89,3 +89,36 @@ uci-defaults 按文件名字典序执行，`99-router-presets`（'-'=0x2D）< `9
 | 43143238132 | success | 190 分钟 |
 
 > 预期值应按 **150–250 分钟**报，不再报 60–190。
+
+## 2026-11-12 · run 43165347176 · head `6db2a59e` · profile `lite` · **含自动 APN**
+
+| 项 | 值 |
+|---|---|
+| 结论 | **success**，用时约 235 分钟（历史上限 248） |
+| 镜像 | 39.69 MiB / sha256 `e439b881052e0c8cbdcc14d5a1164cbccd8de798a27afc88ba85fab5c78e3e56` |
+| 发布 | Release `fzs-p3-192.168.5.1-apn`（先验收后上传） |
+
+### 相对上一版（`fzs-p3-192.168.5.1`）的增量
+
+| 变更 | 说明 |
+|---|---|
+| `etc/hotfix.d/20-qmodem-apn-auto.sh` | 开机按 IMSI 自动补 APN（cmnet/3gnet/ctnet/ctwap），只补空值；已用伪终端做 AT 收发实测 |
+| `etc/uci-defaults/99y-qmodem-apn-retry` | 首启 QModem 建档有 8 秒延迟，后台每 20 秒重试、最多 6 次 |
+| `usr/bin/fzs-p3-set-apn` | 一条命令设 APN/PDP/自动拨号（`--show` 查看） |
+| `assemble.sh` 可执行位兜底 | GitHub Contents API 提交的文件一律 644 → 进镜像不可执行；在 files 拷贝后统一 chmod 755 |
+
+### 镜像内实物核对
+
+```
+sha256sum = e439b88105…（与 Release 资产一致）
+/etc/hotfix.d/20-qmodem-apn-auto.sh        -rwxr-xr-x
+/usr/bin/fzs-p3-diag                       -rwxr-xr-x   ← 上一版为 644
+/usr/bin/fzs-p3-set-apn                    -rwxr-xr-x   ← 上一版为 644
+/etc/uci-defaults/99y-qmodem-apn-retry     -rw-r--r--   （uci-defaults 以 source 执行，无需执行位）
+99z-fzs-p3-presets: network.lan.ipaddr='192.168.5.1'
+```
+
+### 机制确认（避免"改了但没生效"）
+
+镜像里 `/etc/init.d/boot` 的 `uci_apply_defaults()` 是 `( . "./$file" )` —— **source 执行且包在子 shell 里**：
+所以 uci-defaults 不需要执行位，脚本里的 `exit 0` 也不会中断后续默认值应用。
