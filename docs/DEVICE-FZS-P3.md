@@ -3,6 +3,20 @@
 > 目标：把这台机器从 LEDE（coolsnowwolf，内核/驱动偏旧）迁到 **OpenWrt 主线 release 分支 openwrt-25.12**。
 > 属于本仓库的第二台设备（第一台 Cudy TR3600 v1 走 `main`，两者互不影响）。
 
+## 登录信息（首次使用先看这个）
+
+| 项 | 值 |
+|---|---|
+| 管理地址 | **http://192.168.5.1** （仅本机网段，DHCP 池 `192.168.5.100`–`249`） |
+| 用户名 | `root` |
+| 密码 | **空**（OpenWrt 默认无密码，浏览器弹框直接回车） |
+| SSH | `ssh root@192.168.5.1`（密码同样为空） |
+| 主机名 | `fzs-p3` |
+| WiFi | SSID `OpenWrt` / `OpenWrt_5G`，**开放热点（无密码）** |
+
+> ⚠️ 首次登录后请立刻「系统 → 管理权」设置 root 密码，并给 WiFi 加 WPA2/WPA3。
+> 开放热点 + 空密码只适合首次调试，不要长期保持。
+
 ## 1. 为什么是这个分支
 
 | 候选 | 结论 | 理由 |
@@ -128,7 +142,7 @@ ssh root@192.168.x.x 'sysupgrade -n /tmp/openwrt-mediatek-filogic-fzs_5gcpe-p3-s
 ```
 
 - compatible 同为 `fzs,5gcpe-p3`、UBI 布局与 bootloader 均未改动 → 正常 sysupgrade 即可，不需要 U-Boot 网页刷写
-- 刷完默认 **LAN 192.168.10.1**（`99z-fzs-p3-presets`）、主机名 `fzs-p3`、WiFi 默认开启
+- 刷完默认 **LAN 192.168.5.1**（`99z-fzs-p3-presets`）、主机名 `fzs-p3`、WiFi 默认开启
   （2.4G HE20 / 5G HE80，**无密码**，请自行设 WPA2/WPA3）
 
 ### 回滚 / 救砖
