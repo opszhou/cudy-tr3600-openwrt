@@ -17,7 +17,8 @@ set -euo pipefail
 
 OPENWRT="$(cd "${1:?缺少 openwrt 根目录}" && pwd)"
 
-# 字面量，对应固定 commit 99553e5a 的写法（双引号 + 转义，勿改成单引号写法）
+# 字面量（双引号 + 转义，勿改成单引号写法）。
+# v3.3.0 / v3.4.0-rc.3 / main 的该行完全一致（仅行号不同），换 tag 后仍能命中。
 OLD_LINE='[ "$donot_nat" = "1" ] && nat_cfg="AT+QCFG=\"nat\",0" || nat_cfg="AT+QCFG=\"nat\",1"'
 NEW_LINE='[ "$donot_nat" = "1" ] && nat_cfg="AT+QCFG=\"nat\",0" || nat_cfg="AT+QCFG=\"nat\",2"'
 
@@ -34,7 +35,7 @@ if grep -qF "$NEW_LINE" "$QM_DIAL"; then
     exit 0
 fi
 if ! grep -qF "$OLD_LINE" "$QM_DIAL"; then
-    echo "错误: nat_cfg 行与固定 commit 99553e5a 不符，需人工核对: ${QM_DIAL#$OPENWRT/}" >&2
+    echo "错误: nat_cfg 行与预期字面量不符，需人工核对 QModem 版本: ${QM_DIAL#$OPENWRT/}" >&2
     exit 1
 fi
 

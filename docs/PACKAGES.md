@@ -95,7 +95,7 @@ mt76 当前 main 默认就是 `false`，显式写入防止上游翻转默认值�
 
 feeds 追加配置见 `upstreams/<上游>/feeds.append`。除 QModem 外，所有 feed 均标记 `;@latest`：
 
-- **qmodem**（FUjr/QModem）— 随身 WiFi 管理，**例外：pin 到 main 固定 commit**
+- **qmodem**（FUjr/QModem）— 随身 WiFi 管理，**pin 到官方 prerelease `v3.4.0-rc.3`**
 - **nikki**（mihomo）— 代理内核与管理界面
 - **kenzok8/openwrt-packages + small** — argon-config、ddns-go 等（仅 openwrt 上游）
 - **turboacc**（chenmozhijin）— 网络加速面板（仅 openwrt 上游）
@@ -106,13 +106,19 @@ feeds 追加配置见 `upstreams/<上游>/feeds.append`。除 QModem 外，所�
 2. 只有预发布 tag → 取最高 tag
 3. 完全无 tag（kenzok8 两个聚合仓库、turboacc）→ 回退默认分支
 
-**QModem 为什么不用 `@latest`**：它会稳定解析到 `v3.3.0`（跳过 `v3.4.0_rc3`），
-而 rc3 把 `luci-app-qmodem-next` 改成手写 `BuildPackage`，不再生成中文语言包
-`luci-i18n-qmodem-next-zh-cn`。改用 main 固定 commit 既保留中文包，又比 rc3 新约 7 周，
-且避免裸 `;main` 的不可复现。`^<sha>` 是 OpenWrt `scripts/feeds` 的固定 commit 语法
-（clone 后 fetch + checkout，检测到 hash 后该 feed 不再 update）；⛔ 不能写成
-`url;main^<sha>`，因为 feeds 先判 branch 再判 commit，有 `;` 时 commit 会被忽略。
-升级时只改一行 SHA、显式提交后重新构建。两份 `feeds.append` 的 SHA 必须保持一致。
+**QModem 为什么 pin 到预发布 tag**：`resolve_latest_tag` 会过滤 `rc/beta/alpha`，
+`;@latest` 只能拿到正式版 `v3.3.0`，所以要显式写 tag。两个「rc3」不一样：
+
+| tag | 面板构建方式 | 中文包 |
+| --- | --- | --- |
+| `v3.4.0-rc.3`（09-09，当前） | `include feeds/luci/luci.mk` | ✅ 生成 `luci-i18n-qmodem-next-zh-cn` |
+| `v3.4.0_rc3` / `_rc3.1`（09-14） | 手写 `BuildPackage` | ❌ 面板变英文 |
+
+`v3.4.0-rc.3` 的 `LUCI_DEPENDS` 多带 `qmodem-smsd` / `sms-forwarder-next`
+（feed 内都有，已实测）。`;` 之后是 branch/tag，`scripts/feeds` 用
+`git clone --branch` 取该 tag，可复现、可回滚；升级只改这一行再重新构建。
+⛔ 不用 `;main`（不可复现）；`^<sha>` 也不能与 `;branch` 混用
+（feeds 先判 branch，commit 会被忽略）。两份 `feeds.append` 必须一致。
 
 ### 公共定制脚本
 

@@ -94,8 +94,13 @@ log="$SB/run.log"
 for f in "$tmpd"/*.sh; do
 	if sh "$f"; then echo "applied: ${f##*/}" >> "$log"; else echo "FAILED: ${f##*/}" >> "$log"; fi
 done
-# 10-dns-upstream 与 20-ok 都应成功，99-fail 单独记失败
-assert_eq "成功的补丁记为 applied" "2" "$(grep -c '^applied:' "$log")"
+# 真实补丁数量会随仓库变化（DNS / option-newid / APN 自动补全…），动态算，别写死数字：
+# 真实脚本 + 测试自造的 20-ok.sh 应成功，99-fail.sh 单独记失败。
+real_count=$(find "$HOTFIX_DIR" -maxdepth 1 -type f -name '*.sh' | wc -l)
+expected_total=$((real_count + 2))
+expected_ok=$((real_count + 1))
+assert_eq "全部补丁都被遍历" "$expected_total" "$(wc -l < "$log")"
+assert_eq "成功的补丁记为 applied" "$expected_ok" "$(grep -c '^applied:' "$log")"
 assert_eq "失败的补丁记为 FAILED 且不阻断后续" "1" "$(grep -c '^FAILED:' "$log")"
 
 if [ "$fails" -ne 0 ]; then echo "结果: $fails 项断言失败" >&2; exit 1; fi

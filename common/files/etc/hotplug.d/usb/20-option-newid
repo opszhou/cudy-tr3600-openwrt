@@ -1,0 +1,82 @@
+#!/bin/sh
+# FM170EAU（2cb7:0110）给 option 驱动补注册（2026-11-14）
+#
+# 问题：Fibocom FM170EAU 某些 USB 组合枚举成 VID:PID = 2cb7:0110，而 mainline
+#   drivers/usb/serial/option.c 的 2CB7 PID 表里没有 0x0110
+#   （现有 0001 / 0104 / 0105 / 0106 / 010A / 010B / 0111 / 0112 / 0115 /
+#    01A0-01A4 / 0A04-0A07）。于是两个 ff 类串口（AT / DIAG）没人认领：
+#   QModem 拿不到 AT 通道、拨不了号，wwan0 持续 NETDEV WATCHDOG。
+#   new_id 是「补上缺失的注册」，不是绕过驱动匹配。
+#
+# 触发：/etc/hotplug.d/usb（热插拔）；开机兜底 /etc/hotfix.d/20-option-newid.sh
+#   不依赖 hotplug 环境变量，直接扫 sysfs：设备已在或刚插入都能处理。
+#
+# 守卫：
+#   1) 只对 2cb7:0110 动手
+#   2) 数据接口必须已由网络驱动占用（cdc_mbim / qmi_wwan* / rndis_host / cdc_*），
+#      说明是「需要拨号」的组合且枚举基本完成；未就绪则等 GRACE 秒重扫一次
+#   3) ff 串口已绑 option → 不动（幂等，跑一次和跑十次结果一致）
+#   4) dynids 里已有 2cb7 0110 → 不重复写
+#   ⚠️ 动态 ID 的 driver_info=0，option_probe 只靠静态条目的 RSVD flags 跳过网口；
+#      实测本组合 If0/If1 归 cdc_mbim、If2/If3 归 option，未抢数据接口。
+#
+# 可测试钩子（scripts/test-option-newid.sh）：SYSFS / DRV_DIR / LOGGER / GRACE
+
+SYSFS="${SYSFS:-/sys}"
+DRV_DIR="${DRV_DIR:-$SYSFS/bus/usb-serial/drivers/option1}"
+NEWID="$DRV_DIR/new_id"
+LOGGER="${LOGGER:-logger}"
+GRACE="${GRACE:-2}"
+VID=2cb7
+PID=0110
+
+# 驱动未加载 / 没有 option1 目录时静默退出（不干扰其它设备）
+[ -e "$NEWID" ] || exit 0
+
+# 已登记 → 幂等退出（new_id 可读，usb_show_dynids 输出 "%04x %04x"）
+if grep -qi "^${VID} ${PID}" "$NEWID" 2>/dev/null; then
+	exit 0
+fi
+
+scan() {
+	NEED=0
+	SEEN=0
+	PENDING=0
+	for dev in "$SYSFS"/bus/usb/devices/*/; do
+		[ -r "$dev/idVendor" ] && [ -r "$dev/idProduct" ] || continue
+		v=$(cat "$dev/idVendor" 2>/dev/null) || continue
+		p=$(cat "$dev/idProduct" 2>/dev/null) || continue
+		[ "$v" = "$VID" ] && [ "$p" = "$PID" ] || continue
+		SEEN=1
+
+		net=0
+		serial=0
+		# 接口目录是设备目录的子目录，名字 <dev>:1.<n>；driver 是软链接。
+		# 用 readlink（不用 -f）：readlink -f 对不存在的末级也会返回结果，会误判。
+		for ifd in "$dev"*:1.*/; do
+			[ -e "$ifd/driver" ] || continue
+			drv=$(basename "$(readlink "$ifd/driver" 2>/dev/null)") || continue
+			case "$drv" in
+				cdc_mbim|cdc_wdm|qmi_wwan*|rndis_host|cdc_ether|cdc_ncm) net=1 ;;
+				option|option1) serial=1 ;;
+			esac
+		done
+		[ "$net" = 1 ] || { PENDING=1; continue; }
+		[ "$serial" = 1 ] && continue
+		NEED=1
+	done
+}
+
+scan
+# 设备已出现但数据接口还没绑好（热插拔的早期事件）：等一下再判一次
+if [ "$SEEN" = 1 ] && [ "$NEED" = 0 ] && [ "$PENDING" = 1 ] && [ "$GRACE" -gt 0 ]; then
+	sleep "$GRACE"
+	scan
+fi
+[ "$NEED" = 1 ] || exit 0
+
+if ! printf '%s %s\n' "$VID" "$PID" > "$NEWID"; then
+	$LOGGER -t option-newid "failed to register ${VID}:${PID}"
+	exit 1
+fi
+$LOGGER -t option-newid "registered ${VID}:${PID} (missing from option.ko id table)"

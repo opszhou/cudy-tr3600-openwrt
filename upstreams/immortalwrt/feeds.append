@@ -9,9 +9,9 @@
 # ;@latest 语义同通用版（assemble.sh resolve_latest_tag 解析）
 
 # 蜂窝模组（QModem，官方无此包）
-# 固定 commit 的原因与 ^ 语法见 upstreams/openwrt/feeds.append 顶部说明；
-# 两份 feeds.append 的 QModem SHA 必须保持一致。
-src-git qmodem https://github.com/FUjr/QModem.git^99553e5a4cdf577a678e8fa3d4aac5f4de1d2f36
+# pin 到官方 prerelease v3.4.0-rc.3（保留中文包）；两个 rc3 的差异与
+# tag 语法见 upstreams/openwrt/feeds.append。两份 feeds.append 必须一致。
+src-git qmodem https://github.com/FUjr/QModem.git;v3.4.0-rc.3
 # 代理（mihomo 内核 + LuCI）
 src-git nikki https://github.com/nikkinikki-org/OpenWrt-nikki.git;@latest
 # 不拉 turboacc：immortalwrt 防火墙默认已开 flow_offloading + fullcone（firewall.config 实测），

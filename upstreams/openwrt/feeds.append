@@ -3,17 +3,18 @@
 #            优先过滤 rc/beta/alpha 后取版本最高的稳定 tag；无稳定 tag 时取最高 tag；
 #            仓库完全无 tag 时回退默认分支（解析逻辑见 scripts/assemble.sh resolve_latest_tag）
 #
-# QModem 例外：固定到 main 的某次提交，不追 tag、不指向裸 main。
-#   - 原因：最新正式预发布 v3.4.0_rc3 把 luci-app-qmodem-next 改成手写 BuildPackage，
-#     不再生成 luci-i18n-qmodem-next-zh-cn（中文面板会变英文）；main 仍走 luci.mk，中文保留。
-#   - ^<sha> 是 OpenWrt scripts/feeds 的固定 commit 语法（clone 后 fetch + checkout），
-#     feeds 检测到 hash 后不再 update 该 feed，因此构建可复现、可回滚。
-#   - ⛔ 禁止写成 url;main^<sha>：scripts/feeds 先判 branch 再判 commit，
-#     有 ; 时走 init_branch，^<sha> 会被静默忽略，等于没有固定。
-#   - 该行不以 ;@latest 结尾，assemble.sh 原样透传，无需改脚本。
-#   - 升级方式：只改这一行 SHA，显式提交后重新构建。
-#   pin: 99553e5a4cdf577a678e8fa3d4aac5f4de1d2f36 (main, 2026-11-04, PR #293 AW1000 VoIP fixes)
-src-git qmodem https://github.com/FUjr/QModem.git^99553e5a4cdf577a678e8fa3d4aac5f4de1d2f36
+# QModem：pin 到官方 prerelease v3.4.0-rc.3（不跟 main、不用 ;@latest）。
+#   - ⚠️ 两个「rc3」不是一回事：
+#       v3.4.0-rc.3（连字符，09-09）仍 include feeds/luci/luci.mk + po/zh_Hans
+#         → luci-i18n-qmodem-next-zh-cn 会生成，中文面板保留 ✅ 选这个
+#       v3.4.0_rc3 / _rc3.1（下划线，09-14）改成手写 BuildPackage
+#         → 不再生成中文语言包，面板变英文 ⛔ 不选
+#   - ;@latest 会过滤 rc/beta/alpha，只能解析到 v3.3.0，拿不到预发布版；
+#     所以这里直接写死 tag。; 之后是 branch/tag，scripts/feeds 用
+#     git clone --branch 取该 tag，可复现、可回滚。
+#   - ⛔ 不要改成 ;main（不可复现），也不要改成 ^<sha>（与 ; 混用会被忽略）。
+#   - 升级方式：改这一行 tag → 显式提交 → 重新构建。
+src-git qmodem https://github.com/FUjr/QModem.git;v3.4.0-rc.3
 src-git nikki https://github.com/nikkinikki-org/OpenWrt-nikki.git;@latest
 src-git kenzok8 https://github.com/kenzok8/openwrt-packages.git;@latest
 src-git small https://github.com/kenzok8/small.git;@latest
