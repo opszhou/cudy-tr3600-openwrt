@@ -67,3 +67,16 @@ WAN="wan"              # 期望 WAN 端口
 
 有了它，`scripts/verify-device.sh` 会在编译前用沙箱跑一次 `02_network` 的真分支；
 没有就跳过该项（其余校验照跑）。
+
+## 必填文件：audit.conf
+
+```sh
+REQUIRED_PKGS="qmodem luci-app-qmodem-next kmod-usb3"   # 必装包，逐个在 manifest 里核对
+MAX_MIB=232                                             # sysupgrade.bin 上限 = ubi 分区大小
+```
+
+`scripts/audit-image.sh` 在出 Artifact 前用它核对两件事：必装包真的进了镜像、
+sysupgrade.bin 不超 ubi 分区。⛔ 必装包必须按设备写：把 MT7981 的
+`kmod-mt7915e` / `mt7981-wo-firmware` 套到 MT7987B 设备上，会导致构建成功却被判失败。
+文件缺失即构建失败——不允许静默跳过审计。
+
