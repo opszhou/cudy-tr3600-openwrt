@@ -7,6 +7,7 @@
 'require view.dashboard.sd.providers as providers';
 'require view.dashboard.sd.visibility as visibility';
 'require view.dashboard.sd.layout-note as layoutNote';
+'require view.dashboard.sd.style as style';
 'require view.dashboard.include.10_router as incRouter';
 'require view.dashboard.include.12_resources as incResources';
 'require view.dashboard.include.15_traffic as incTraffic';
@@ -113,9 +114,10 @@ return baseclass.extend({
 		visibility.apply(vis);
 
 		try {
+			style.ensure();
 			layoutNote.ensure();
 		}
-		catch (e) { /* 说明注入失败不影响页面 */ }
+		catch (e) { /* 样式/说明注入失败不影响页面 */ }
 
 		return out;
 	},

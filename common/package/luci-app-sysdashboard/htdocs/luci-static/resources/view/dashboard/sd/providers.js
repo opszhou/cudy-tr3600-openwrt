@@ -227,7 +227,7 @@ return baseclass.extend({
 				: _('Disabled') ]
 		]));
 
-		return E('div', {}, parts);
+		return E('div', { 'class': 'sd-detail' }, parts);
 	},
 
 	/*
