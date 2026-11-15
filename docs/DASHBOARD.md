@@ -74,7 +74,7 @@ inc.available = function() { return false; };  // dashboard 不再加载/渲染�
 |---|---|
 | 依赖 | `LUCI_DEPENDS:=+luci-base +luci-mod-dashboard`，并在 `common/configs/lite.list` 显式选包（防被裁剪） |
 | 命名空间 | 入口 `include/99-sd-dashboard.js`：`99` 保证最后加载（同 id 覆盖才生效），`sd-` 前缀避免与上游新增 include 撞名；其余自定义文件在 `view/dashboard/sd/`、图标用 `icons/sd-*.svg` |
-| 契约校验 | `scripts/verify-dashboard-api.sh`，在 `build-device.sh` 的 **feeds 安装之后、编译之前**执行：校验 `charts.kpi/card/empty`、`index.js` 的 `found[slot]` + `!=null` 过滤、`widgets` 的 `available/defaults/slots`、官方 16 个 widget id 是否齐全。任一不满足 **构建失败**，不让白屏固件出门 |
+| 契约校验 | `scripts/verify-dashboard-api.mjs`，在 `build-device.sh` 的 **feeds 安装之后、编译之前**执行：校验 `charts.kpi/card/empty`、`index.js` 的 `found[slot]` + `!=null` 过滤、`widgets` 的 `available/defaults/slots`、官方 16 个 widget id 是否齐全。任一不满足 **构建失败**，不让白屏固件出门。⛔ 匹配前先去掉空白——25.12 是压缩成一行、master 已 pretty-print，靠排版匹配会误报（run#63 实测） |
 | 上游版本 | 校验通过时打印 luci feed 的 `git describe`，便于回溯漂移 |
 | 例外 | 只有扩展点做不到时才打最小 patch（带目标文件哈希守卫），放 `common/patches/luci/` |
 

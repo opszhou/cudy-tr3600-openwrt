@@ -8,7 +8,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERIFY="$ROOT/scripts/verify-dashboard-api.sh"
+VERIFY="$ROOT/scripts/verify-dashboard-api.mjs"
 [ -f "$VERIFY" ] || { echo "FAIL: 找不到 $VERIFY" >&2; exit 1; }
 
 SB=$(mktemp -d "$ROOT/.workbuddy/tmp/vd-test.XXXXXX")
@@ -23,21 +23,35 @@ build_fake() {
 	rm -rf "$d"
 	mkdir -p "$d/lib" "$d/include"
 
+	# 故意用 pretty-print（master 的写法），验证校验器不依赖排版
 	cat > "$d/lib/charts.js" <<'EOF'
-return baseclass.extend({kpi(o){},card(o){},empty(t){}});
+return baseclass.extend({
+	kpi(opts) { return opts; },
+	card(opts) { return opts; },
+	empty(text) { return text; }
+});
 EOF
 
 	cat > "$d/lib/widgets.js" <<'EOF'
-return baseclass.extend({slots:['cards'],available(){},defaults(){}});
+return baseclass.extend({
+	slots: [ 'cards', 'charts', 'tabs' ],
+	available() { return true; },
+	defaults(includes, slot) { return []; }
+});
 EOF
 
 	cat > "$d/index.js" <<'EOF'
-const found={cards:{},charts:{},tabs:{}};
-const sections={};sections[slot]=layout[slot].map(id=>found[slot][id]).filter(item=>item!=null);
+const found = { cards: {}, charts: {}, tabs: {} };
+sections[slot] = layout[slot].map((id) => found[slot][id]).filter((item) => item != null);
 EOF
 
 	cat > "$d/include/10_router.js" <<'EOF'
-widgets:[{id:'internet',slot:'cards'},{id:'uptime',slot:'cards'},{id:'internet',slot:'tabs'},{id:'system',slot:'tabs'}]
+widgets: [
+	{ id: 'internet', slot: 'cards', title: 'Internet', order: 10 },
+	{ id: 'uptime',   slot: 'cards', title: 'Uptime',   order: 15 },
+	{ id: 'internet', slot: 'tabs',  title: 'Internet', order: 10 },
+	{ id: 'system',   slot: 'tabs',  title: 'System',   order: 20 }
+]
 EOF
 	cat > "$d/include/12_resources.js" <<'EOF'
 widgets:[{id:'cpu',slot:'cards'},{id:'memory',slot:'cards'},{id:'load',slot:'cards'},{id:'system',slot:'charts'},{id:'resources',slot:'tabs'}]
@@ -55,7 +69,7 @@ EOF
 
 echo "== 契约齐全 =="
 D="$SB/good"; build_fake "$D"
-if out=$(bash "$VERIFY" --dir "$D" 2>&1); then
+if out=$(node "$VERIFY" --dir "$D" 2>&1); then
 	ok "正常目录通过"
 	echo "$out" | grep -q "RESULT: OK" && ok "输出 RESULT: OK" || bad "缺少 RESULT: OK"
 else
@@ -65,8 +79,8 @@ fi
 
 echo "== 少了 null 过滤 =="
 D="$SB/no-null"; build_fake "$D"
-sed -i 's/filter(item=>item!=null)/filter(item=>item)/' "$D/index.js"
-if bash "$VERIFY" --dir "$D" >/dev/null 2>&1; then
+sed -i 's/filter((item) => item != null)/filter((item) => item)/' "$D/index.js"
+if node "$VERIFY" --dir "$D" >/dev/null 2>&1; then
 	bad "缺少 !=null 时未报错"
 else
 	ok "缺少 !=null 时构建失败"
@@ -75,11 +89,11 @@ fi
 echo "== 少一个官方 include =="
 D="$SB/no-wan"; build_fake "$D"
 rm -f "$D/include/15_traffic.js"
-out=$(bash "$VERIFY" --dir "$D" 2>&1 || true)
+out=$(node "$VERIFY" --dir "$D" 2>&1 || true)
 echo "$out" | grep -q "charts:wan" && ok "明确指出缺失 charts:wan" || bad "未指出缺失项"
 
 echo "== 目录不存在 =="
-if bash "$VERIFY" --dir "$SB/nope" >/dev/null 2>&1; then
+if node "$VERIFY" --dir "$SB/nope" >/dev/null 2>&1; then
 	bad "不存在的目录未报错"
 else
 	ok "不存在的目录直接失败"
