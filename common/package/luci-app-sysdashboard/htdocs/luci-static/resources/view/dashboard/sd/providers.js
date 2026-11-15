@@ -133,14 +133,21 @@ return baseclass.extend({
 			});
 		}
 
-		/* 流量统计：本次累计（QModem 自带统计，跨重启持久） */
+		/* 流量统计：累计为主值，副行补「今日」（有日统计才显示） */
 		if (id === 'traffic-usage') {
 			var total = (usage.rx || 0) + (usage.tx || 0);
+			var daily = snap.daily || {};
+			var today = daily.today || {};
+			var sub = [ '↓ ' + util.fmtBytes(usage.rx) + ' · ↑ ' + util.fmtBytes(usage.tx) ];
+
+			if (today.rx || today.tx)
+				sub.push(_('Today') + ' ' + util.fmtBytes((today.rx || 0) + (today.tx || 0)));
+
 			return charts.kpi({
 				icon: 'sd-activity',
 				title: _('Data usage'),
 				value: util.fmtBytes(total),
-				sub: [ '↓ ' + util.fmtBytes(usage.rx) + ' · ↑ ' + util.fmtBytes(usage.tx) ],
+				sub: sub,
 				stacked: true
 			});
 		}
@@ -220,8 +227,15 @@ return baseclass.extend({
 			[ 'IPv6', snap.ipv6 || _('Not assigned') ]
 		]));
 
+		var daily = snap.daily || {};
+		var dToday = daily.today || {}, dPrev = daily.yesterday || {}, dWeek = daily.week || {};
+		function sum(o) { return (o.rx || 0) + (o.tx || 0); }
+
 		parts.push(E('h3', {}, [ _('Traffic') ]));
 		parts.push(util.kvTable([
+			[ _('Today'), util.fmtBytes(sum(dToday)) ],
+			[ _('Yesterday'), util.fmtBytes(sum(dPrev)) ],
+			[ _('This week'), util.fmtBytes(sum(dWeek)) ],
 			[ _('Received'), util.fmtBytes(usage.rx) ],
 			[ _('Sent'), util.fmtBytes(usage.tx) ],
 			[ _('Total'), util.fmtBytes(used) ],

@@ -1,0 +1,14 @@
+#!/bin/sh
+# 每 5 分钟采样一次移动网络用量，保证面板没打开时「今天 / 本周」也连续记账。
+# 只加一行 cron，已存在则不重复添加；重复执行安全（uci-defaults 会在成功后删除自身）。
+CRON=/etc/crontabs/root
+LINE='*/5 * * * * /usr/libexec/sysdashboard-usage >/dev/null 2>&1'
+
+[ -f "$CRON" ] || : > "$CRON"
+
+if ! grep -qF '/usr/libexec/sysdashboard-usage' "$CRON" 2>/dev/null; then
+	echo "$LINE" >> "$CRON"
+	/etc/init.d/cron restart >/dev/null 2>&1
+fi
+
+exit 0

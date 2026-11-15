@@ -86,7 +86,22 @@ inc.available = function() { return false; };  // dashboard 不再加载/渲染�
 - 每个条目显示为「标题 · 自动隐藏条件」（由 catalog 的 `hint` 生成，改文案只改一处）
 - 布局面板顶部会插入一段总说明（`sd/layout-note.js`，幂等；注入失败只丢说明）
 
-## 七、真机上即时看中文（不重新编译固件）
+## 七、今日 / 昨日 / 本周用量
+
+QModem 只提供「累计收发」（`get_stats`，模组侧持久），没有日统计，所以由我们自己记账：
+
+- `root/usr/libexec/sysdashboard-usage`：采样 QModem 总量，取增量累加到「今天 / 本周」，
+  跨天把前一天记为「昨天」，跨周清零；模组统计被清零时只重置基线、不自减
+- 采样频率：cron 每 5 分钟一次（`/etc/crontabs/root`，由 uci-defaults 安装），
+  页面打开时 rpcd 每次轮询也会顺带推进
+- 状态文件：`/etc/sysdashboard-usage.conf`，**默认每 15 分钟才落盘一次**（减少 NAND 写入），
+  跨天立即落盘；掉电最多丢 15 分钟
+- 首次运行只建立基线：历史累计不会算进「今天」，`since` 字段记录开始统计的时间
+- 测试：`bash scripts/test-usage-stats.sh`（15 条断言：增量、清零、跨天、跨周、落盘、非法参数）
+
+⛔ 这是本包唯一会写盘的地方；rpcd 其它逻辑仍然只读。
+
+## 八、真机上即时看中文（不重新编译固件）
 
 译文（`.lmo`）由 `luci.mk` 在**编译固件时**从 `po/zh_Hans/*.po` 生成，所以新加的
 msgid 在老固件上会回退成英文。要立刻在真机上看到中文，可以本地编译并推上去：
@@ -109,7 +124,7 @@ lua -e 'local i=require "luci.i18n"; i.setlanguage("zh-cn"); print(i.translate("
 ⛔ 这只用于真机临时验证，**不要在构建脚本里调用**——固件里必须由 luci.mk 正常生成，
 否则会出现两份不一致的译文来源。
 
-## 八、测试
+## 九、测试
 
 ```sh
 bash scripts/test-sysdashboard.sh     # rpcd 快照：字段解析、caps、降级

@@ -1,10 +1,13 @@
 #!/bin/sh
 # sysdashboard -- rpcd data provider for luci-app-sysdashboard
 #
-# Purely read-only. Takes ONE snapshot from /proc, /sys and the DHCP lease file
-# and prints a single JSON object. The LuCI view does the delta calculation
-# (rates, CPU usage) between two snapshots, so this script never sleeps,
-# never keeps state and never writes anything.
+# Takes ONE snapshot from /proc, /sys, the DHCP lease file and a few read-only
+# ubus queries, then prints a single JSON object. The LuCI view does the delta
+# calculation (rates, CPU usage) between two snapshots, so this script never
+# sleeps and keeps no state of its own.
+#
+# 唯一的写盘动作在 /usr/libexec/sysdashboard-usage（今日/昨日/本周用量聚合），
+# 它自己维护 /etc/sysdashboard-usage.conf 并做写入节流；本脚本只是调用它。
 #
 # rpcd protocol:
 #   <script> list       -> {"get":{}}
@@ -25,6 +28,8 @@ LEASES_FILE="${SYSDASH_LEASES_FILE:-/tmp/dhcp.leases}"
 ARP_FILE="${SYSDASH_ARP_FILE:-$PROC_DIR/net/arp}"
 IP_CMD="${SYSDASH_IP_CMD:-ip}"
 UBUS_CMD="${SYSDASH_UBUS_CMD:-ubus}"
+# 用量按天/周聚合由独立脚本维护（cron 也会调它），这里只取结果
+USAGE_HELPER="${SYSDASH_USAGE_HELPER:-/usr/libexec/sysdashboard-usage}"
 
 case "$1" in
 	list)
@@ -446,10 +451,19 @@ caps_json=$(printf '{"wan":{"ok":%s,"device":"%s"},"wifi":{"ok":%s,"radios":%d,"
 	"$wifi_clients_ok" "$wifi_stations" "$clients_ok" "$client_count" \
 	"$modem_ok" "$signal_ok")
 
-printf '{"ts":%s,"uptime":%s,"load":[%s,%s,%s],"cpu":{"total":%s,"idle":%s},"memory":{"total":%s,"free":%s,"available":%s,"buffers":%s,"cached":%s},"traffic":[%s],"leases":[%s],"clients":[%s],"uplink":%s,"uplinks":%s,"carrier":%s,"signal":%s,"caps":%s,"cell":%s,"usage":%s,"ipv6":"%s","thermal":[%s],"fan":{"name":"%s","rpm":%s,"pwm":%s,"pwm_max":%s,"state":%s,"state_max":%s},"conntrack":%s}\n' \
+# ---- 今日 / 昨日 / 本周用量（独立脚本维护，写盘节流见该脚本注释）----
+daily_json='{"today":{"rx":0,"tx":0},"yesterday":{"rx":0,"tx":0},"week":{"rx":0,"tx":0},"since":0}'
+if [ "$modem_ok" = true ] && [ -x "$USAGE_HELPER" ]; then
+	_d=$("$USAGE_HELPER" "$(num "${s_rx:-0}")" "$(num "${s_tx:-0}")" 2>/dev/null)
+	case "$_d" in
+		'{'*) daily_json=$_d ;;
+	esac
+fi
+
+printf '{"ts":%s,"uptime":%s,"load":[%s,%s,%s],"cpu":{"total":%s,"idle":%s},"memory":{"total":%s,"free":%s,"available":%s,"buffers":%s,"cached":%s},"traffic":[%s],"leases":[%s],"clients":[%s],"uplink":%s,"uplinks":%s,"carrier":%s,"signal":%s,"caps":%s,"cell":%s,"usage":%s,"daily":%s,"ipv6":"%s","thermal":[%s],"fan":{"name":"%s","rpm":%s,"pwm":%s,"pwm_max":%s,"state":%s,"state_max":%s},"conntrack":%s}\n' \
 	"$ts" "$uptime" "$load1" "$load5" "$load15" \
 	"$cpu_total" "$cpu_idle" \
 	"$mem_total" "$mem_free" "$mem_avail" "$mem_buffers" "$mem_cached" \
-	"$traffic_json" "$leases_json" "$clients_json" "$uplink_json" "$uplinks_json" "$carrier_json" "$signal_json" "$caps_json" "$cell_json" "$usage_json" "$ipv6_addr" "$thermal_json" \
+	"$traffic_json" "$leases_json" "$clients_json" "$uplink_json" "$uplinks_json" "$carrier_json" "$signal_json" "$caps_json" "$cell_json" "$usage_json" "$daily_json" "$ipv6_addr" "$thermal_json" \
 	"$fan_name" "$fan_rpm" "$fan_pwm" "$fan_pwm_max" "$fan_state" "$fan_state_max" \
 	"$conntrack"

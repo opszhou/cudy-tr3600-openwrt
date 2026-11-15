@@ -1,0 +1,115 @@
+#!/bin/sh
+# sysdashboard-usage -- 按天/周聚合移动网络用量
+#
+# 数据源：QModem 的 get_stats（模组侧累计字节，跨重启持久、每月按设置清零）。
+# 做法：两次采样取增量，累加到「今天 / 本周」；跨天时把前一天记为「昨天」。
+#
+# 调用方：
+#   - rpcd 的 sysdashboard get（页面上报，传入已取到的总量，避免重复 ubus 调用）
+#   - cron 每 5 分钟采样一次（页面没打开时也能连续记账）
+#
+# 输出：一行 JSON
+#   {"today":{"rx":N,"tx":N},"yesterday":{...},"week":{...},"since":epoch}
+#
+# 状态文件：/etc/sysdashboard-usage.conf（key=value，可直接 source）
+#   ⛔ 这是本包唯一会写盘的地方；为减少 NAND 写入，默认每 15 分钟才落盘一次
+#      （SYSDASH_USAGE_SAVE 可调），跨天时立即落盘。
+#
+# 可注入项（沙箱测试用）：
+#   SYSDASH_USAGE_STATE / SYSDASH_UBUS_CMD / SYSDASH_USAGE_SAVE
+
+STATE="${SYSDASH_USAGE_STATE:-/etc/sysdashboard-usage.conf}"
+UBUS="${SYSDASH_UBUS_CMD:-ubus}"
+SAVE_INTERVAL="${SYSDASH_USAGE_SAVE:-900}"
+
+# ---- 取总量：优先用参数，其次自己查 QModem ----
+rx="${1:-}"
+tx="${2:-}"
+if [ -z "$rx" ] || [ -z "$tx" ]; then
+	sec=$(uci -q show qmodem 2>/dev/null | sed -n 's/^qmodem\.\([^.=]*\)=modem-device$/\1/p' | head -n 1)
+	[ -n "$sec" ] || sec="2_1"
+	raw=$("$UBUS" call qmodem get_stats "{\"config_section\":\"$sec\"}" 2>/dev/null)
+	rx=$(printf '%s' "$raw" | sed -n 's/.*"total_rx_bytes": *\([0-9][0-9]*\).*/\1/p' | head -n 1)
+	tx=$(printf '%s' "$raw" | sed -n 's/.*"total_tx_bytes": *\([0-9][0-9]*\).*/\1/p' | head -n 1)
+fi
+case "$rx" in ''|*[!0-9]*) rx=0 ;; esac
+case "$tx" in ''|*[!0-9]*) tx=0 ;; esac
+
+today=$(date +%F)
+week=$(date +%G-W%V)
+now=$(date +%s)
+
+# ---- 加锁，避免 rpcd 与 cron 同时改状态 ----
+if command -v flock >/dev/null 2>&1; then
+	exec 9>"$STATE.lock" 2>/dev/null && flock -w 3 9 2>/dev/null
+fi
+
+[ -r "$STATE" ] && . "$STATE"
+
+last_rx=${last_rx:-0}; last_tx=${last_tx:-0}
+day=${day:-}; day_rx=${day_rx:-0}; day_tx=${day_tx:-0}
+prev_rx=${prev_rx:-0}; prev_tx=${prev_tx:-0}
+week_id=${week_id:-}; week_rx=${week_rx:-0}; week_tx=${week_tx:-0}
+last_save=${last_save:-0}
+started=${started:-0}
+
+# ---- 首次运行：只建立基线，不把模组历史总量算进今天 ----
+if [ "$started" -eq 0 ]; then
+	last_rx=$rx; last_tx=$tx
+	started=$now
+	last_save=0   # 立刻落盘：否则每次进程都重新建立基线，统计永远是 0
+	day=$today; week_id=$week
+	day_rx=0; day_tx=0; week_rx=0; week_tx=0
+	prev_rx=0; prev_tx=0
+fi
+
+# ---- 跨天：把旧的一天记为「昨天」；间隔太久（设备关机）则不认 ----
+if [ "$day" != "$today" ]; then
+	if [ $((now - last_save)) -le 93600 ]; then
+		prev_rx=$day_rx; prev_tx=$day_tx
+	else
+		prev_rx=0; prev_tx=0
+	fi
+	day=$today; day_rx=0; day_tx=0
+	last_save=0   # 强制立即落盘
+fi
+
+# ---- 跨周：本周从零开始 ----
+if [ "$week_id" != "$week" ]; then
+	week_id=$week; week_rx=0; week_tx=0
+	last_save=0
+fi
+
+# ---- 增量（模组统计被清零时会变小，此时只重置基线）----
+if [ "$rx" -ge "$last_rx" ] && [ "$tx" -ge "$last_tx" ]; then
+	drx=$((rx - last_rx))
+	dtx=$((tx - last_tx))
+	day_rx=$((day_rx + drx)); day_tx=$((day_tx + dtx))
+	week_rx=$((week_rx + drx)); week_tx=$((week_tx + dtx))
+fi
+last_rx=$rx; last_tx=$tx
+
+# ---- 落盘（节流）----
+if [ $((now - last_save)) -ge "$SAVE_INTERVAL" ]; then
+	tmp="$STATE.tmp.$$"
+	if cat > "$tmp" <<EOF
+last_rx=$last_rx
+last_tx=$last_tx
+day=$day
+day_rx=$day_rx
+day_tx=$day_tx
+prev_rx=$prev_rx
+prev_tx=$prev_tx
+week_id=$week_id
+week_rx=$week_rx
+week_tx=$week_tx
+last_save=$now
+started=$started
+EOF
+	then
+		mv "$tmp" "$STATE"
+	fi
+fi
+
+printf '{"today":{"rx":%s,"tx":%s},"yesterday":{"rx":%s,"tx":%s},"week":{"rx":%s,"tx":%s},"since":%s}\n' \
+	"$day_rx" "$day_tx" "$prev_rx" "$prev_tx" "$week_rx" "$week_tx" "$started"

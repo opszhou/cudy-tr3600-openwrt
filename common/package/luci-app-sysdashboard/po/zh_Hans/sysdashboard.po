@@ -287,3 +287,12 @@ msgstr "未分配"
 
 msgid "hidden when no modem is detected"
 msgstr "未检测到模组时自动隐藏"
+
+msgid "Today"
+msgstr "今日"
+
+msgid "Yesterday"
+msgstr "昨日"
+
+msgid "This week"
+msgstr "本周"
