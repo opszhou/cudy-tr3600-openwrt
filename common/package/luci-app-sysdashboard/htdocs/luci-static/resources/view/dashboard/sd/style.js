@@ -12,10 +12,13 @@
 var STYLE_ID = 'sd-dashboard-style';
 
 var CSS = [
-	/* 面板内边距：上 8px 让第一行不贴标签栏，左右 14px 让表格不贴边 */
-	'.cbi-map-tabbed > [data-tab] { padding: 8px 14px 12px; box-sizing: border-box; }',
-	/* 面板内首个标题不要顶出额外间距 */
-	'.cbi-map-tabbed > [data-tab] > h3:first-child { margin-top: 2px; }',
+	/* 面板内边距：标签栏下方、左右、底部都留够呼吸感（第一版 8/14/12 仍嫌挤） */
+	'.cbi-map-tabbed > [data-tab] { padding: 16px 22px 20px; box-sizing: border-box; }',
+	/* 面板内的分节标题（信号强度 / 网络状态 / 流量）上下都留白 */
+	'.cbi-map-tabbed > [data-tab] > h3 { margin: 20px 0 10px; }',
+	'.cbi-map-tabbed > [data-tab] > h3:first-child { margin-top: 0; }',
+	/* 表格行加一点纵向间距，长表格不再糊成一片 */
+	'.cbi-map-tabbed > [data-tab] > .table .tr > .td { padding-top: 9px; padding-bottom: 9px; }',
 	/* 我们自己的详情容器不要再叠一层留白 */
 	'.cbi-map-tabbed > [data-tab] > .sd-detail { padding: 0; }',
 	/* 表格最后一行与面板底部留一点呼吸 */
