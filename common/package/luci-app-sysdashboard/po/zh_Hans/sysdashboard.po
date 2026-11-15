@@ -176,3 +176,114 @@ msgstr "暂无数据"
 
 msgid "Read-only view. Fan speed is controlled by the kernel thermal framework; this page only displays it."
 msgstr "本页只读。风扇转速由内核温控框架自动调节，这里仅作展示，不会改写任何 PWM 值。"
+
+msgid "System dashboard"
+msgstr "系统仪表盘"
+
+msgid "Internet"
+msgstr "互联网"
+
+msgid "System"
+msgstr "系统"
+
+msgid "Resources"
+msgstr "资源"
+
+msgid "Wireless"
+msgstr "无线"
+
+msgid "Wireless clients"
+msgstr "无线客户端"
+
+msgid "CPU usage"
+msgstr "CPU 使用率"
+
+msgid "WAN traffic"
+msgstr "WAN 流量"
+
+msgid "Signal Strength"
+msgstr "信号强度"
+
+msgid "Wireless client distribution"
+msgstr "无线客户端分布"
+
+msgid "Wireless client data usage"
+msgstr "无线客户端流量"
+
+msgid "Connected"
+msgstr "已连接"
+
+msgid "Status"
+msgstr "状态"
+
+msgid "ARP"
+msgstr "ARP"
+
+msgid "5G cellular"
+msgstr "5G 蜂窝"
+
+msgid "WAN port"
+msgstr "WAN 网口"
+
+msgid "USB tethering"
+msgstr "USB 共享"
+
+msgid "USB WAN"
+msgstr "USB WAN"
+
+msgid "hidden when offline"
+msgstr "离线时自动隐藏"
+
+msgid "hidden when there is no client"
+msgstr "无在线设备时自动隐藏"
+
+msgid "hidden when wireless is disabled"
+msgstr "未启用无线时自动隐藏"
+
+msgid "hidden when there is no wireless client"
+msgstr "无无线客户端时自动隐藏"
+
+msgid "always shown"
+msgstr "始终显示"
+
+msgid "Widgets whose data is unavailable are hidden automatically — for example when the uplink is offline, the interface is disabled, wireless is off, or there is no client. They reappear within a few seconds once the condition is restored."
+msgstr "数据不可用的部件会自动隐藏——例如上联离线、接口被禁用、无线未启用或没有客户端时。条件恢复后约 5 秒自动出现。"
+
+msgid "Network status"
+msgstr "网络状态"
+
+msgid "Data usage"
+msgstr "流量统计"
+
+msgid "Band"
+msgstr "频段"
+
+msgid "Channel"
+msgstr "信道"
+
+msgid "Carrier aggregation"
+msgstr "载波聚合"
+
+msgid "Single carrier (PCC)"
+msgstr "单载波（PCC）"
+
+msgid "Connected for"
+msgstr "连接时长"
+
+msgid "Peak down / up"
+msgstr "峰值 下 / 上"
+
+msgid "Monthly reset"
+msgstr "每月清零"
+
+msgid "Day %d of each month"
+msgstr "每月 %d 日"
+
+msgid "Disabled"
+msgstr "未启用"
+
+msgid "Not assigned"
+msgstr "未分配"
+
+msgid "hidden when no modem is detected"
+msgstr "未检测到模组时自动隐藏"

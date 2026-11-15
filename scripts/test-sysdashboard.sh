@@ -90,6 +90,7 @@ cat > "$SB/bin/ip" <<'EOS'
 #!/bin/sh
 case "$*" in
   "-4 route") printf 'default via 10.186.203.87 dev wwan0 metric 11 \ndefault via 192.168.5.254 dev br-lan metric 20 \n' ;;
+  "-6"*) : ;;
   *"addr show dev wwan0"*) printf '7: wwan0    inet 10.186.203.86/8 brd 10.255.255.255 scope global wwan0\\       valid_lft forever preferred_lft forever\n' ;;
   *) : ;;
 esac
@@ -204,6 +205,14 @@ eq("上联地址", d["uplink"]["ip"], "10.186.203.86/8")
 eq("运营商识别", d["carrier"]["name"], "中国联通")
 eq("运营商 key", d["carrier"]["key"], "unicom")
 eq("运营商 MCC/MNC", [d["carrier"]["mcc"], d["carrier"]["mnc"]], ["460", "01"])
+eq("caps.wan 可用", d["caps"]["wan"]["ok"], True)
+eq("caps.clients 计数", d["caps"]["clients"]["count"], 3)
+eq("caps 无 iw 时 wifi 不可用", d["caps"]["wifi"]["ok"], False)
+eq("caps 无 qmodem 时 modem 不可用", d["caps"]["modem"]["ok"], False)
+eq("cell 字段降级为空串", d["cell"]["band"], "")
+eq("usage 无模组统计时为 0", [d["usage"]["rx"], d["usage"]["tx"]], [0, 0])
+eq("usage 清零计划默认值", [d["usage"]["reset_enabled"], d["usage"]["reset_day"]], [False, 1])
+eq("ipv6 无地址时为空串", d["ipv6"], "")
 eq("信号 RSRP", d["signal"]["rsrp"], -89)
 eq("信号 RSRQ", d["signal"]["rsrq"], -10)
 eq("信号 SINR", d["signal"]["sinr"], 20)

@@ -249,7 +249,7 @@ fi
 # 只做「品牌名 + 主色」，不内置 logo 图片：商标图片随固件分发不合适；
 # 视图用彩色圆点 + 名称表达，后续想换真 logo 只需加静态资源。
 carrier_json='{"mcc":"","mnc":"","name":"","key":"","color":""}'
-signal_json='{"mode":"","duplex":"","rsrp":0,"rsrq":0,"sinr":0,"rssi":0,"cell_id":"","pci":"","earfcn":"","bw":""}'
+signal_json='{"mode":"","duplex":"","rsrp":0,"rsrq":0,"sinr":0,"rssi":0,"cqi":0,"tx_power":0,"srxlev":0,"tac":"","cell_id":"","pci":"","earfcn":"","bw":""}'
 if command -v "$UBUS_CMD" >/dev/null 2>&1; then
 	sec=$(uci -q show qmodem 2>/dev/null | sed -n 's/^qmodem\.\([^.=]*\)=modem-device$/\1/p' | head -n 1)
 	[ -n "$sec" ] || sec="2_1"
@@ -276,11 +276,87 @@ if command -v "$UBUS_CMD" >/dev/null 2>&1; then
 		# 信号量：只取数值型字段（缺失一律 0），文本字段去引号防坏 JSON
 		sig_num() { v=$(cell_val "$1"); case "$v" in ''|*[!0-9-]*) printf '0' ;; *) printf '%s' "$v" ;; esac; }
 		sig_txt() { cell_val "$1" | sed 's/["\\]//g; s/[[:cntrl:]]//g'; }
-		signal_json=$(printf '{"mode":"%s","duplex":"%s","rsrp":%s,"rsrq":%s,"sinr":%s,"rssi":%s,"cell_id":"%s","pci":"%s","earfcn":"%s","bw":"%s"}' \
+		signal_json=$(printf '{"mode":"%s","duplex":"%s","rsrp":%s,"rsrq":%s,"sinr":%s,"rssi":%s,"cqi":%s,"tx_power":%s,"srxlev":%s,"tac":"%s","cell_id":"%s","pci":"%s","earfcn":"%s","bw":"%s"}' \
 			"$(sig_txt network_mode)" "$(sig_txt 'Duplex Mode')" \
 			"$(sig_num RSRP)" "$(sig_num RSRQ)" "$(sig_num SINR)" "$(sig_num RSSI)" \
+			"$(sig_num CQI)" "$(sig_num 'TX Power')" "$(sig_num Srxlev)" "$(sig_txt TAC)" \
 			"$(sig_txt 'Cell ID')" "$(sig_txt 'Physical Cell ID')" "$(sig_txt EARFCN)" "$(sig_txt 'DL Bandwidth')")
 	fi
+fi
+
+# ---- 小区/频段、流量统计、清零计划 ----------------------------------------
+# 全部来自 QModem 的只读查询（不抢 AT 口）：
+#   get_current_band          频段/信道/带宽/角色（PCC 即单载波，多载波时会有 scc）
+#   get_stats                 模组自带的累计收发字节（跨重启持久）
+#   get_traffic_reset_schedule 每月清零设置
+# 频率只对常见 LTE 频段按 EARFCN 换算，NR 不硬算（避免给出错误数字）。
+cell_json='{"band":"","band_name":"","channel":"","channel_type":"","dl_bw":"","ul_bw":"","role":"","freq_mhz":""}'
+usage_json='{"rx":0,"tx":0,"since":0,"reset_enabled":false,"reset_day":1}'
+
+jget() {
+	printf '%s' "$1" | sed -n "s/.*\"$2\": *\"\([^\"]*\)\".*/\1/p" | head -n 1
+}
+jnum() {
+	printf '%s' "$1" | sed -n "s/.*\"$2\": *\([0-9][0-9]*\).*/\1/p" | head -n 1
+}
+jbool() {
+	printf '%s' "$1" | sed -n "s/.*\"$2\": *\(true\|false\).*/\1/p" | head -n 1
+}
+
+if command -v "$UBUS_CMD" >/dev/null 2>&1 && [ -n "${sec:-}" ]; then
+	band_raw=$("$UBUS_CMD" call qmodem get_current_band "{\"config_section\":\"$sec\"}" 2>/dev/null)
+	if [ -n "$band_raw" ]; then
+		b_num=$(jget "$band_raw" band)
+		b_name=$(jget "$band_raw" band_name)
+		b_ch=$(jget "$band_raw" channel)
+		b_ctype=$(jget "$band_raw" channel_type)
+		b_dl=$(jget "$band_raw" dl_bandwidth)
+		b_ul=$(jget "$band_raw" ul_bandwidth)
+		b_role=$(jget "$band_raw" role)
+		b_freq=""
+		case "$b_num" in
+			1)  [ -n "$b_ch" ] && b_freq=$(awk -v n="$b_ch" 'BEGIN{printf "%.1f", 2110 + 0.1 * (n - 0)}') ;;
+			3)  [ -n "$b_ch" ] && b_freq=$(awk -v n="$b_ch" 'BEGIN{printf "%.1f", 1805 + 0.1 * (n - 1200)}') ;;
+			5)  [ -n "$b_ch" ] && b_freq=$(awk -v n="$b_ch" 'BEGIN{printf "%.1f", 869 + 0.1 * (n - 2400)}') ;;
+			7)  [ -n "$b_ch" ] && b_freq=$(awk -v n="$b_ch" 'BEGIN{printf "%.1f", 2620 + 0.1 * (n - 2750)}') ;;
+			8)  [ -n "$b_ch" ] && b_freq=$(awk -v n="$b_ch" 'BEGIN{printf "%.1f", 925 + 0.1 * (n - 3450)}') ;;
+			20) [ -n "$b_ch" ] && b_freq=$(awk -v n="$b_ch" 'BEGIN{printf "%.1f", 791 + 0.1 * (n - 6150)}') ;;
+			28) [ -n "$b_ch" ] && b_freq=$(awk -v n="$b_ch" 'BEGIN{printf "%.1f", 758 + 0.1 * (n - 9210)}') ;;
+			38) [ -n "$b_ch" ] && b_freq=$(awk -v n="$b_ch" 'BEGIN{printf "%.1f", 2570 + 0.1 * (n - 37750)}') ;;
+			39) [ -n "$b_ch" ] && b_freq=$(awk -v n="$b_ch" 'BEGIN{printf "%.1f", 1880 + 0.1 * (n - 38250)}') ;;
+			40) [ -n "$b_ch" ] && b_freq=$(awk -v n="$b_ch" 'BEGIN{printf "%.1f", 2300 + 0.1 * (n - 38650)}') ;;
+			41) [ -n "$b_ch" ] && b_freq=$(awk -v n="$b_ch" 'BEGIN{printf "%.1f", 2496 + 0.1 * (n - 39650)}') ;;
+		esac
+		cell_json=$(printf '{"band":"%s","band_name":"%s","channel":"%s","channel_type":"%s","dl_bw":"%s","ul_bw":"%s","role":"%s","freq_mhz":"%s"}' \
+			"$b_num" "$b_name" "$b_ch" "$b_ctype" "$b_dl" "$b_ul" "$b_role" "$b_freq")
+	fi
+
+	stats_raw=$("$UBUS_CMD" call qmodem get_stats "{\"config_section\":\"$sec\"}" 2>/dev/null)
+	s_rx=0; s_tx=0
+	[ -n "$stats_raw" ] && s_rx=$(jnum "$stats_raw" total_rx_bytes)
+	[ -n "$stats_raw" ] && s_tx=$(jnum "$stats_raw" total_tx_bytes)
+
+	sch_raw=$("$UBUS_CMD" call qmodem get_traffic_reset_schedule "{\"config_section\":\"$sec\"}" 2>/dev/null)
+	s_en=false; s_day=1
+	if [ -n "$sch_raw" ]; then
+		e=$(jbool "$sch_raw" enabled); [ -n "$e" ] && s_en=$e
+		d=$(jnum "$sch_raw" day); [ -n "$d" ] && s_day=$d
+	fi
+
+	# 本次连接起始时间：backend.json 的 generation 形如 "1074-1794760729"
+	since=0
+	if [ -r "/var/run/qmodem/${sec}_dir/backend.json" ]; then
+		since=$(sed -n 's/.*"generation": *"[0-9]*-\{0,\}\([0-9]\{9,\}\)".*/\1/p' "/var/run/qmodem/${sec}_dir/backend.json" | head -n 1)
+	fi
+
+	usage_json=$(printf '{"rx":%s,"tx":%s,"since":%s,"reset_enabled":%s,"reset_day":%s}' \
+		"$(num "${s_rx:-0}")" "$(num "${s_tx:-0}")" "$(num "${since:-0}")" "$s_en" "$(num "${s_day:-1}")")
+fi
+
+# IPv6 全局地址（多数移动网络只给链路本地，此时留空由前端显示「未分配」）
+ipv6_addr=""
+if command -v "$IP_CMD" >/dev/null 2>&1 && [ -n "${rdev:-}" ]; then
+	ipv6_addr=$("$IP_CMD" -6 -o addr show dev "$rdev" scope global 2>/dev/null | awk 'NR==1 {print $4}')
 fi
 
 # ---- 多 WAN 候选（供面板标签页切换）--------------------------------------
@@ -310,10 +386,70 @@ if command -v "$IP_CMD" >/dev/null 2>&1; then
 	done
 fi
 
-printf '{"ts":%s,"uptime":%s,"load":[%s,%s,%s],"cpu":{"total":%s,"idle":%s},"memory":{"total":%s,"free":%s,"available":%s,"buffers":%s,"cached":%s},"traffic":[%s],"leases":[%s],"clients":[%s],"uplink":%s,"uplinks":%s,"carrier":%s,"signal":%s,"thermal":[%s],"fan":{"name":"%s","rpm":%s,"pwm":%s,"pwm_max":%s,"state":%s,"state_max":%s},"conntrack":%s}\n' \
+# ---- 能力表 caps -----------------------------------------------------------
+# 统一判定「某个部件现在有没有数据」，前端不再各写 if。原则：判不准就当不可用
+# （宁可少显示一张卡，也不显示一张空卡）。
+#   wan         默认路由所在设备存在且 operstate 不是 down
+#   wifi        有射频且存在 AP 接口（无线被禁用时 iw dev 里没有 Interface）
+#   wifi_clients 无线关联客户端 > 0
+#   clients     租约 + ARP 合并后的在线设备 > 0
+#   modem       qmodem 的 ubus 对象存在
+#   signal      cell_info 给出了有效 RSRP（0 视为无效）
+wifi_radios=0
+for _r in "$SYS_DIR"/class/ieee80211/*; do
+	[ -d "$_r" ] && wifi_radios=$((wifi_radios + 1))
+done
+
+wifi_ifaces=0
+wifi_stations=0
+if command -v iw >/dev/null 2>&1; then
+	wifi_ifaces=$(iw dev 2>/dev/null | grep -c 'Interface' 2>/dev/null || true)
+	wifi_ifaces=${wifi_ifaces:-0}
+	for _w in $(iw dev 2>/dev/null | awk '/Interface/ {print $2}'); do
+		_n=$(iw dev "$_w" station dump 2>/dev/null | grep -c 'Station' 2>/dev/null || true)
+		wifi_stations=$((wifi_stations + ${_n:-0}))
+	done
+fi
+
+wan_ok=false
+if [ -n "$route" ]; then
+	case "$(cat "$SYS_DIR/class/net/$rdev/operstate" 2>/dev/null)" in
+		down) wan_ok=false ;;
+		*)    wan_ok=true ;;
+	esac
+fi
+
+wifi_ok=false
+[ "$wifi_radios" -gt 0 ] && [ "$wifi_ifaces" -gt 0 ] && wifi_ok=true
+
+wifi_clients_ok=false
+[ "$wifi_ok" = true ] && [ "$wifi_stations" -gt 0 ] && wifi_clients_ok=true
+
+# END 保证空输入也输出 0（空 awk 输入不会执行规则，会导致 printf %d 收到空串）
+client_count=$(printf '%s' "$clients_json" | awk '{n += gsub(/"mac":/, "")} END {print n + 0}')
+clients_ok=false
+[ "$client_count" -gt 0 ] && clients_ok=true
+
+modem_ok=false
+if command -v "$UBUS_CMD" >/dev/null 2>&1; then
+	"$UBUS_CMD" list 2>/dev/null | grep -qx 'qmodem' && modem_ok=true
+fi
+
+signal_ok=false
+case "$signal_json" in
+	*'"rsrp":0,'*|*'"rsrp":0}'*) ;;
+	*) [ "$modem_ok" = true ] && signal_ok=true ;;
+esac
+
+caps_json=$(printf '{"wan":{"ok":%s,"device":"%s"},"wifi":{"ok":%s,"radios":%d,"ifaces":%d},"wifi_clients":{"ok":%s,"count":%d},"clients":{"ok":%s,"count":%d},"modem":{"ok":%s},"signal":{"ok":%s}}' \
+	"$wan_ok" "${rdev:-}" "$wifi_ok" "$wifi_radios" "$wifi_ifaces" \
+	"$wifi_clients_ok" "$wifi_stations" "$clients_ok" "$client_count" \
+	"$modem_ok" "$signal_ok")
+
+printf '{"ts":%s,"uptime":%s,"load":[%s,%s,%s],"cpu":{"total":%s,"idle":%s},"memory":{"total":%s,"free":%s,"available":%s,"buffers":%s,"cached":%s},"traffic":[%s],"leases":[%s],"clients":[%s],"uplink":%s,"uplinks":%s,"carrier":%s,"signal":%s,"caps":%s,"cell":%s,"usage":%s,"ipv6":"%s","thermal":[%s],"fan":{"name":"%s","rpm":%s,"pwm":%s,"pwm_max":%s,"state":%s,"state_max":%s},"conntrack":%s}\n' \
 	"$ts" "$uptime" "$load1" "$load5" "$load15" \
 	"$cpu_total" "$cpu_idle" \
 	"$mem_total" "$mem_free" "$mem_avail" "$mem_buffers" "$mem_cached" \
-	"$traffic_json" "$leases_json" "$clients_json" "$uplink_json" "$uplinks_json" "$carrier_json" "$signal_json" "$thermal_json" \
+	"$traffic_json" "$leases_json" "$clients_json" "$uplink_json" "$uplinks_json" "$carrier_json" "$signal_json" "$caps_json" "$cell_json" "$usage_json" "$ipv6_addr" "$thermal_json" \
 	"$fan_name" "$fan_rpm" "$fan_pwm" "$fan_pwm_max" "$fan_state" "$fan_state_max" \
 	"$conntrack"
