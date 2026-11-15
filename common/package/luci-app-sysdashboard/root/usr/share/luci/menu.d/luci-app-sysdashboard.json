@@ -1,7 +1,7 @@
 {
-	"admin/dashboard": {
-		"title": "Dashboard",
-		"order": 5,
+	"admin/status/sysdashboard": {
+		"title": "System Dashboard",
+		"order": 50,
 		"action": {
 			"type": "view",
 			"path": "sysdashboard"
