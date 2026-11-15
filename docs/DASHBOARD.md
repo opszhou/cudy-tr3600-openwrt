@@ -86,7 +86,30 @@ inc.available = function() { return false; };  // dashboard 不再加载/渲染�
 - 每个条目显示为「标题 · 自动隐藏条件」（由 catalog 的 `hint` 生成，改文案只改一处）
 - 布局面板顶部会插入一段总说明（`sd/layout-note.js`，幂等；注入失败只丢说明）
 
-## 七、测试
+## 七、真机上即时看中文（不重新编译固件）
+
+译文（`.lmo`）由 `luci.mk` 在**编译固件时**从 `po/zh_Hans/*.po` 生成，所以新加的
+msgid 在老固件上会回退成英文。要立刻在真机上看到中文，可以本地编译并推上去：
+
+```sh
+python3 scripts/make-lmo.py \
+  common/package/luci-app-sysdashboard/po/zh_Hans/sysdashboard.po \
+  /tmp/sysdashboard.zh-cn.lmo --verify
+
+scp /tmp/sysdashboard.zh-cn.lmo root@<router>:/usr/lib/lua/luci/i18n/
+```
+
+`make-lmo.py` 与上游 `po2lmo` 完全等价（同样的 SuperFastHash 与索引格式），
+`--verify` 会按 `lmo.c` 的方式读回来抽查几条。设备上还可以直接用 LuCI 自己的接口验证：
+
+```sh
+lua -e 'local i=require "luci.i18n"; i.setlanguage("zh-cn"); print(i.translate("Network status"))'
+```
+
+⛔ 这只用于真机临时验证，**不要在构建脚本里调用**——固件里必须由 luci.mk 正常生成，
+否则会出现两份不一致的译文来源。
+
+## 八、测试
 
 ```sh
 bash scripts/test-sysdashboard.sh     # rpcd 快照：字段解析、caps、降级
