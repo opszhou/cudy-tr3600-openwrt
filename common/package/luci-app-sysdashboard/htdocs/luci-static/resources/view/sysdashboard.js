@@ -34,7 +34,7 @@ var txHistory = [];
 var dom = {};
 
 var CSS = [
-	'.sd-root { max-width: 1100px; }',
+	'.sd-root { max-width: 1040px; }',
 	'.sd-hero { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px; }',
 	'.sd-hero h3 { margin:0; font-size:18px; }',
 	'.sd-pill { display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:2px 10px; border-radius:999px;',
@@ -46,11 +46,13 @@ var CSS = [
 	'.sd-bars { display:flex; align-items:flex-end; gap:4px; height:34px; margin:8px 0 10px; }',
 	'.sd-bars i { flex:1; border-radius:3px; background:rgba(127,127,127,.2); }',
 	'.sd-bars i.on { background:linear-gradient(180deg,#5e72e4,#4a90e2); }',
-	'.sd-kv { width:100%; border-collapse:collapse; font-size:13px; }',
-	'.sd-kv td { padding:4px 0; border:0; vertical-align:top; }',
-	'.sd-kv td.sd-k { opacity:.65; white-space:nowrap; padding-right:12px; }',
-	'.sd-kv td.sd-v { text-align:right; word-break:break-all; }',
-	'.sd-tiles { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-bottom:10px; }',
+	'.sd-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(108px,1fr)); gap:8px; }',
+	'.sd-kpi { border:1px solid rgba(127,127,127,.18); border-radius:8px; padding:8px 10px; min-width:0; }',
+	'.sd-kpi .sd-sub { font-size:11px; line-height:1.3; }',
+	'.sd-kpi b { display:block; font-size:15px; font-weight:600; margin-top:3px; word-break:break-all; }',
+	'.sd-sigrow { display:grid; grid-template-columns:minmax(0,230px) minmax(0,1fr); gap:16px; align-items:start; }',
+	'@media (max-width:760px) { .sd-sigrow { grid-template-columns:1fr; } }',
+	'.sd-tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:8px; margin-bottom:10px; }',
 	'.sd-tile { border:1px solid rgba(127,127,127,.18); border-radius:8px; padding:8px; text-align:center; min-width:0; }',
 	'.sd-tile b { font-size:12px; display:block; margin-top:2px; word-break:break-all; }',
 	'.sd-spark svg { width:100%; height:44px; display:block; }',
@@ -88,12 +90,12 @@ function humanUptime(s) {
 	return out.join(' ');
 }
 
-/* 两列键值表（table 版）：不依赖 cbi-value 的固定 label 宽度，多列/单列都安全 */
-function kv(rows) {
-	var html = '<table class="sd-kv"><tbody>';
+/* 紧凑指标网格：标签在上、数值在下，自适应列数（仪表盘观感，不做全宽行） */
+function tiles(rows) {
+	var html = '<div class="sd-kpis">';
 	for (var i = 0; i < rows.length; i++)
-		html += '<tr><td class="sd-k">' + rows[i][0] + '</td><td class="sd-v">' + rows[i][1] + '</td></tr>';
-	return html + '</tbody></table>';
+		html += '<div class="sd-kpi"><div class="sd-sub">' + rows[i][0] + '</div><b>' + rows[i][1] + '</b></div>';
+	return html + '</div>';
 }
 
 function signalLevel(rsrp) {
@@ -200,16 +202,20 @@ function paint(s) {
 	dom.hostSub.textContent = bits.join(' · ');
 
 	dom.sig.innerHTML =
-		'<div class="sd-big">' + (sig.rsrp || '—') + '<small>dBm</small></div>' +
-		'<div class="sd-sub" style="color:' + lv.color + ';font-weight:600">' + lv.text + '</div>' +
-		bars(lv.bars) +
-		kv([
-			['RSRQ', (sig.rsrq || '—') + ' dB'],
-			['SINR', (sig.sinr || '—') + ' dB'],
-			['RSSI', (sig.rssi || '—') + ' dBm'],
-			[_('Network mode'), esc(sig.mode || '—')],
-			[_('Bandwidth'), sig.bw ? esc(sig.bw) + ' MHz' : '—']
-		]);
+		'<div class="sd-sigrow">' +
+			'<div>' +
+				'<div class="sd-big">' + (sig.rsrp || '—') + '<small>dBm</small></div>' +
+				'<div class="sd-sub" style="color:' + lv.color + ';font-weight:600;margin-top:2px">' + lv.text + '</div>' +
+				bars(lv.bars) +
+			'</div>' +
+			tiles([
+				['RSRQ', (sig.rsrq || '—') + ' dB'],
+				['SINR', (sig.sinr || '—') + ' dB'],
+				['RSSI', (sig.rssi || '—') + ' dBm'],
+				[_('Network mode'), esc(sig.mode || '—')],
+				[_('Bandwidth'), sig.bw ? esc(sig.bw) + ' MHz' : '—']
+			]) +
+		'</div>';
 
 	dom.net.innerHTML =
 		'<div class="sd-tiles">' +
@@ -220,7 +226,7 @@ function paint(s) {
 			'<div class="sd-tile"><div class="sd-sub">' + _('Data network') + '</div><b>' +
 				(up.connected ? 'IPv4' : '—') + '</b></div>' +
 		'</div>' +
-		kv([
+		tiles([
 			[_('Uplink device'), esc(up.device || '—')],
 			[_('IP address'), esc(up.ip || '—')],
 			[_('Gateway'), esc(up.gateway || '—')],
@@ -230,14 +236,16 @@ function paint(s) {
 		]);
 
 	dom.tr.innerHTML =
-		kv([
-			[_('Download') + ' · ' + _('realtime'), humanRate(rateRx)],
-			[_('Upload') + ' · ' + _('realtime'), humanRate(rateTx)],
+		tiles([
+			[_('Download') + ' ' + _('realtime'), humanRate(rateRx)],
+			[_('Upload') + ' ' + _('realtime'), humanRate(rateTx)],
 			[_('Received'), c ? humanBytes(c.rx) : '—'],
 			[_('Sent'), c ? humanBytes(c.tx) : '—'],
 			[_('Total'), c ? humanBytes(c.rx + c.tx) : '—']
 		]) +
-		'<div class="sd-spark">' + spark(rxHistory, '#4a90e2') + spark(txHistory, '#7b61c9') + '</div>';
+		'<div class="sd-spark" style="margin-top:10px">' +
+			spark(rxHistory, '#4a90e2') + spark(txHistory, '#7b61c9') +
+		'</div>';
 
 	dom.clientsCount.textContent = '(' + clients.length + ')';
 	if (!clients.length) {
@@ -307,9 +315,10 @@ return view.extend({
 		dom.legendTx = E('span', {}, '—');
 		dom.mini = E('div', { 'class': 'sd-mini' });
 
+		/* Argon 会强制隐藏 .cbi-section > legend，标题必须用 h3（且为首个子元素） */
 		function section(title, extra, body) {
-			return E('fieldset', { 'class': 'cbi-section' }, [
-				E('legend', {}, [ title, extra || '' ]),
+			return E('div', { 'class': 'cbi-section' }, [
+				E('h3', {}, [ title, extra || '' ]),
 				body
 			]);
 		}
