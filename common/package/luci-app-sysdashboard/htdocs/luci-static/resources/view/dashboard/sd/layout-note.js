@@ -12,15 +12,19 @@
  * 注入失败只丢说明文字，不影响任何功能。
  */
 
-var NOTE = 'Widgets whose data is unavailable are hidden automatically — for example when the uplink is offline, the interface is disabled, wireless is off, or there is no client. They reappear within a few seconds once the condition is restored.';
+/* 只留一句：布局页会列出全部部件，长说明会占满整屏 */
+var NOTE = 'Widgets without data are hidden automatically (offline / interface disabled / wireless off / no client) and come back when the condition clears.';
 
 return baseclass.extend({
 	ensure: function() {
 		if (typeof document === 'undefined')
 			return;
 
-		var pane = document.querySelector('[data-tab="layout"]');
-		if (!pane || pane.querySelector('.sd-layout-note'))
+		/* 只认标签组下的面板：直接查 [data-tab="layout"] 会先命中菜单里的 <li>，
+		   把说明文字插进标签栏（用户实测截图就是这么错的） */
+		var group = document.querySelector('.cbi-map-tabbed');
+		var pane = group && group.querySelector(':scope > [data-tab="layout"]');
+		if (!pane || pane.closest('.cbi-tabmenu') || pane.querySelector('.sd-layout-note'))
 			return;
 
 		var note = E('div', { 'class': 'cbi-section-descr sd-layout-note' }, [ _(NOTE) ]);

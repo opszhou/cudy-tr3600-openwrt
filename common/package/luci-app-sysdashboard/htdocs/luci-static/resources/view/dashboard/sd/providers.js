@@ -88,7 +88,7 @@ return baseclass.extend({
 
 		if (id === 'internet')
 			return charts.kpi({
-				icon: 'internet',
+				icon: 'sd-internet',
 				title: _('Internet'),
 				value: car.name || up.device || '—',
 				sub: [ up.ip || '', up.gateway ? _('Gateway') + ' ' + up.gateway : '' ],
@@ -99,7 +99,7 @@ return baseclass.extend({
 		if (id === 'cell-signal') {
 			var lv = signalLevel(sig.rsrp);
 			return charts.kpi({
-				icon: 'wireless',
+				icon: 'sd-signal',
 				title: _('Signal strength'),
 				value: (sig.rsrp || '—') + ' dBm',
 				sub: [
@@ -120,7 +120,7 @@ return baseclass.extend({
 			if (cell.freq_mhz) radio.push(cell.freq_mhz + ' MHz');
 			if (cell.dl_bw) radio.push(cell.dl_bw + ' MHz');
 			return charts.kpi({
-				icon: 'router',
+				icon: 'sd-5g',
 				title: _('Network status'),
 				value: car.name || '—',
 				sub: [ net.join(' '), radio.join(' · ') ],
@@ -132,7 +132,7 @@ return baseclass.extend({
 		if (id === 'traffic-usage') {
 			var total = (usage.rx || 0) + (usage.tx || 0);
 			return charts.kpi({
-				icon: 'devices',
+				icon: 'sd-activity',
 				title: _('Data usage'),
 				value: util.fmtBytes(total),
 				sub: [ '↓ ' + util.fmtBytes(usage.rx) + ' · ↑ ' + util.fmtBytes(usage.tx) ],
@@ -142,7 +142,7 @@ return baseclass.extend({
 
 		if (id === 'dhcp')
 			return charts.kpi({
-				icon: 'devices',
+				icon: 'sd-device',
 				title: _('DHCP Devices'),
 				value: String(caps.count.clients),
 				sub: [ _('DHCP leases') + ' + ' + _('ARP') ],

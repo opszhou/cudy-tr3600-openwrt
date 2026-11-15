@@ -1,0 +1,15 @@
+Icons
+-----
+The SVG files under
+  htdocs/luci-static/resources/view/dashboard/icons/sd-*.svg
+are taken from the project LianXia233/luci-app-mt5700
+(https://github.com/LianXia233/luci-app-mt5700), directory
+  htdocs/luci-static/resources/at-webserver/icons/normal/
+and renamed with an "sd-" prefix so they never collide with the icons shipped
+by luci-mod-dashboard.
+
+Upstream license: GPL-3.0. They are included here at the project owner's
+explicit request, purely as static UI assets (no upstream code is used).
+
+The rest of this package (rpcd backend, dashboard include/catalog modules,
+LuCI view code) is original work licensed Apache-2.0.

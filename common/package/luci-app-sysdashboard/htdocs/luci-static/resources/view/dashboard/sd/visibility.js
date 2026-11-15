@@ -48,12 +48,18 @@ return baseclass.extend({
 			var panes = Array.prototype.filter.call(group.children, function(el) {
 				return el.dataset && el.dataset.tab;
 			});
-			var active = panes.filter(function(el) { return el.dataset.tabActive === 'true'; })[0];
-
-			if (!active || getComputedStyle(active).display !== 'none')
+			if (!panes.length)
 				return;
 
-			var next = panes.filter(function(el) { return getComputedStyle(el).display !== 'none'; })[0];
+			/* ⛔ 不要用 data-tab-active 判断当前标签：LuCI 在用户点击切换时不会更新它，
+			   拿它做判断会在切走之后把用户弹回第一个标签（实测「标签不能切换」）。
+			   只看结果：还有任何面板是可见的就什么都不做。 */
+			var shown = panes.filter(function(el) { return getComputedStyle(el).display !== 'none'; });
+			if (shown.length)
+				return;
+
+			/* 所有面板都被隐藏（当前标签的数据没了）→ 切到第一个「应显示」的标签 */
+			var next = panes.filter(function(el) { return vis[el.dataset.tab] !== false; })[0];
 			if (!next)
 				return;
 

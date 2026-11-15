@@ -213,7 +213,7 @@ check('tabs 5 个', catalog.widgets.filter(w => w.slot === 'tabs').length, 5);
 const decl = catalog.declare();
 check('声明保留 hidden 标记', decl.filter(d => d.hidden).map(d => d.slot + ':' + d.id).sort(),
 	[ 'cards:dhcp', 'cards:load', 'cards:wifi', 'charts:distribution', 'charts:signal', 'charts:traffic', 'tabs:wifi' ]);
-check('标题都带自动隐藏说明', decl.every(d => d.title.indexOf(' · ') > 0), true);
+check('标题保持干净（无后缀）', decl.every(d => d.title.indexOf(' · ') < 0), true);
 
 /* ---------------- 2. 官方 include 降级 ---------------- */
 console.log('== 官方 include 降级 ==');

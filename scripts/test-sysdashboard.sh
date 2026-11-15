@@ -7,11 +7,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PKG="$ROOT/common/package/luci-app-sysdashboard"
 RPCD="$PKG/root/usr/libexec/rpcd/sysdashboard"
-JS="$PKG/htdocs/luci-static/resources/view/sysdashboard.js"
+# 独立页面已删除，只剩管理面板部件：入口 include + sd/*.js
+JS="$PKG/htdocs/luci-static/resources/view/dashboard/include/50-cellular.js"
+SD_DIR="$PKG/htdocs/luci-static/resources/view/dashboard/sd"
 PY="${PYTHON:-$(command -v python3 || command -v python)}"
 
 [ -f "$RPCD" ] || { echo "FAIL: 找不到 rpcd 脚本 $RPCD" >&2; exit 1; }
-[ -f "$JS" ] || { echo "FAIL: 找不到视图 $JS" >&2; exit 1; }
+[ -f "$JS" ] || { echo "FAIL: 找不到入口部件 $JS" >&2; exit 1; }
+[ -d "$SD_DIR" ] || { echo "FAIL: 找不到 sd 模块目录 $SD_DIR" >&2; exit 1; }
 
 mkdir -p "$ROOT/.workbuddy/tmp"
 SB=$(mktemp -d "$ROOT/.workbuddy/tmp/sysdashboard-test.XXXXXX")
@@ -28,15 +31,17 @@ if [ -x "$RPCD" ]; then ok "rpcd 脚本带可执行位"; else bad "rpcd 脚本�
 grep -qF 'include $(TOPDIR)/feeds/luci/luci.mk' "$PKG/Makefile" \
 	&& ok "Makefile 指向 feed 里的 luci.mk" || bad "Makefile 的 luci.mk 路径不对"
 if command -v node >/dev/null 2>&1; then
-	node --check "$JS" >/dev/null 2>&1 && ok "视图 JS 语法" || bad "视图 JS 语法"
+	node --check "$JS" >/dev/null 2>&1 && ok "入口部件 JS 语法" || bad "入口部件 JS 语法"
+	for f in "$SD_DIR"/*.js; do
+		node --check "$f" >/dev/null 2>&1 && ok "sd 模块语法: $(basename "$f")" || bad "sd 模块语法: $(basename "$f")"
+	done
 else
 	echo "  · 跳过 JS 语法检查（本机无 node）"
 fi
 "$PY" - "$PKG" <<'PYEOF'
 import json, sys, os
 pkg = sys.argv[1]
-for rel in ("root/usr/share/luci/menu.d/luci-app-sysdashboard.json",
-            "root/usr/share/rpcd/acl.d/luci-app-sysdashboard.json"):
+for rel in ("root/usr/share/rpcd/acl.d/luci-app-sysdashboard.json",):
     with open(os.path.join(pkg, rel), encoding="utf-8") as f:
         json.load(f)
     print("  ✓ JSON 合法: " + rel)
