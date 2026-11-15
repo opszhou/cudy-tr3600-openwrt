@@ -21,6 +21,10 @@
 PROC_DIR="${SYSDASH_PROC_DIR:-/proc}"
 SYS_DIR="${SYSDASH_SYS_DIR:-/sys}"
 LEASES_FILE="${SYSDASH_LEASES_FILE:-/tmp/dhcp.leases}"
+# 邻居表（ARP）与 ip 命令也可注入，沙箱测试用假文件/假命令替换
+ARP_FILE="${SYSDASH_ARP_FILE:-$PROC_DIR/net/arp}"
+IP_CMD="${SYSDASH_IP_CMD:-ip}"
+UBUS_CMD="${SYSDASH_UBUS_CMD:-ubus}"
 
 case "$1" in
 	list)
@@ -179,10 +183,102 @@ conntrack=-1
 [ -r "$PROC_DIR/sys/net/netfilter/nf_conntrack_count" ] && \
 	conntrack=$(read_num "$PROC_DIR/sys/net/netfilter/nf_conntrack_count")
 
-printf '{"ts":%s,"uptime":%s,"load":[%s,%s,%s],"cpu":{"total":%s,"idle":%s},"memory":{"total":%s,"free":%s,"available":%s,"buffers":%s,"cached":%s},"traffic":[%s],"leases":[%s],"thermal":[%s],"fan":{"name":"%s","rpm":%s,"pwm":%s,"pwm_max":%s,"state":%s,"state_max":%s},"conntrack":%s}\n' \
+# ---- 在线设备：DHCP 租约 + ARP 邻居表 合并（按 MAC 去重）-------------------
+# 为什么不能只看租约：租约表在 /tmp（重启即空），无限租期（leasetime=0）的
+# 客户端永不续约，静态 IP 设备根本不发 DHCP——三种情况下租约里都没有它们，
+# 但 ARP 表里能看到。合并后「在线设备」才是真的在线设备。
+clients_json=""
+if [ -r "$LEASES_FILE" ] || [ -r "$ARP_FILE" ]; then
+	clients_json=$(awk -v leases="$LEASES_FILE" -v arp="$ARP_FILE" '
+		function clean(s) { gsub(/["\\]/, "", s); gsub(/[[:cntrl:]]/, "", s); return s }
+		BEGIN {
+			n = 0
+			if (leases != "") {
+				while ((getline line < leases) > 0) {
+					split(line, f, " ")
+					if (f[2] == "") continue
+					mac = tolower(clean(f[2])); ip = clean(f[3]); host = clean(f[4])
+					if (host == "" || host == "*") host = ip
+					if (mac in seen) continue
+					seen[mac] = 1
+					printf "%s{\"mac\":\"%s\",\"ip\":\"%s\",\"host\":\"%s\",\"source\":\"dhcp\",\"online\":1}", (n++ ? "," : ""), mac, ip, host
+				}
+				close(leases)
+			}
+			if (arp != "") {
+				while ((getline line < arp) > 0) {
+					if (line ~ /^IP address/) continue
+					split(line, a, " ")
+					if (a[1] == "" || a[4] == "") continue
+					mac = tolower(clean(a[4])); ip = clean(a[1])
+					if (mac == "00:00:00:00:00:00") continue
+					if (mac in seen) continue
+					seen[mac] = 1
+					printf "%s{\"mac\":\"%s\",\"ip\":\"%s\",\"host\":\"%s\",\"source\":\"arp\",\"online\":%d}", (n++ ? "," : ""), mac, ip, ip, (a[3] == "0x2" ? 1 : 0)
+				}
+				close(arp)
+			}
+		}')
+fi
+
+# ---- 上联（默认路由所在接口）-----------------------------------------------
+# 不依赖 netifd：QModem 的 wwan0 由 quectel-CM 直接配 IP/路由，netifd 里没有它，
+# 所以 LuCI 自带的「互联网」判定会说未连接，而这里直接读内核路由。
+uplink_json='{"connected":false,"device":"","gateway":"","ip":""}'
+route=$("$IP_CMD" -4 route 2>/dev/null | awk '
+	/^default/ {
+		d = ""; g = ""; m = 0
+		for (i = 1; i <= NF; i++) {
+			if ($i == "via") g = $(i + 1)
+			if ($i == "dev") d = $(i + 1)
+			if ($i == "metric") m = $(i + 1)
+		}
+		if (d != "" && (!best_set || m + 0 < best)) { best = m + 0; bd = d; bg = g; best_set = 1 }
+	}
+	END { if (best_set) printf "%s %s", bd, bg }
+')
+if [ -n "$route" ]; then
+	set -- $route
+	rdev=$(printf '%s' "$1" | sed 's/["\\]//g')
+	rgw=$(printf '%s' "${2:-}" | sed 's/["\\]//g')
+	raddr=$("$IP_CMD" -4 -o addr show dev "$rdev" 2>/dev/null | awk 'NR==1{print $4}' | sed 's/["\\]//g')
+	uplink_json="{\"connected\":true,\"device\":\"$rdev\",\"gateway\":\"$rgw\",\"ip\":\"$raddr\"}"
+fi
+
+# ---- 运营商：从 QModem 的 cell_info 读 MCC/MNC（不抢 AT 口）----------------
+# 只做「品牌名 + 主色」，不内置 logo 图片：商标图片随固件分发不合适；
+# 视图用彩色圆点 + 名称表达，后续想换真 logo 只需加静态资源。
+carrier_json='{"mcc":"","mnc":"","name":"","key":"","color":""}'
+if command -v "$UBUS_CMD" >/dev/null 2>&1; then
+	sec=$(uci -q show qmodem 2>/dev/null | sed -n 's/^qmodem\.\([^.=]*\)=modem-device$/\1/p' | head -n 1)
+	[ -n "$sec" ] || sec="2_1"
+	cell=$("$UBUS_CMD" call qmodem cell_info "{\"config_section\":\"$sec\"}" 2>/dev/null)
+	if [ -n "$cell" ]; then
+		cell_val() {
+			printf '%s\n' "$cell" | awk -v k="\"$1\"" '$0 ~ ("\"key\": *" k) { getline; print; exit }' |
+				sed -n 's/.*"value": *"\([^"]*\)".*/\1/p'
+		}
+		mcc=$(cell_val MCC)
+		mnc=$(cell_val MNC)
+		case "$mcc$mnc" in
+			46000|46002|46004|46007|46008) ck=cmcc;    cn='中国移动'; cc='#009FE3' ;;
+			46001|46006|46009)            ck=unicom;  cn='中国联通'; cc='#E60012' ;;
+			46003|46005|46011)            ck=telecom; cn='中国电信'; cc='#004B9B' ;;
+			46015)                        ck=cbn;     cn='中国广电'; cc='#FF6A00' ;;
+			*)
+				if [ -n "$mcc" ]; then ck=other; cn="$mcc$mnc"; cc='#8a8a8a'; fi
+				;;
+		esac
+		if [ -n "${ck:-}" ]; then
+			carrier_json="{\"mcc\":\"$mcc\",\"mnc\":\"$mnc\",\"name\":\"$cn\",\"key\":\"$ck\",\"color\":\"$cc\"}"
+		fi
+	fi
+fi
+
+printf '{"ts":%s,"uptime":%s,"load":[%s,%s,%s],"cpu":{"total":%s,"idle":%s},"memory":{"total":%s,"free":%s,"available":%s,"buffers":%s,"cached":%s},"traffic":[%s],"leases":[%s],"clients":[%s],"uplink":%s,"carrier":%s,"thermal":[%s],"fan":{"name":"%s","rpm":%s,"pwm":%s,"pwm_max":%s,"state":%s,"state_max":%s},"conntrack":%s}\n' \
 	"$ts" "$uptime" "$load1" "$load5" "$load15" \
 	"$cpu_total" "$cpu_idle" \
 	"$mem_total" "$mem_free" "$mem_avail" "$mem_buffers" "$mem_cached" \
-	"$traffic_json" "$leases_json" "$thermal_json" \
+	"$traffic_json" "$leases_json" "$clients_json" "$uplink_json" "$carrier_json" "$thermal_json" \
 	"$fan_name" "$fan_rpm" "$fan_pwm" "$fan_pwm_max" "$fan_state" "$fan_state_max" \
 	"$conntrack"

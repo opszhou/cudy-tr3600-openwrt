@@ -190,7 +190,8 @@ function paintGauges(s) {
 }
 
 function paintTables(s) {
-	var traffic = s.traffic || [], leases = s.leases || [], html, i;
+	var traffic = s.traffic || [], clients = s.clients || s.leases || [], html, i;
+	var srcLabel = { dhcp: 'DHCP', arp: 'ARP' };
 
 	if (!traffic.length) {
 		dom.iftable.innerHTML = '<div class="sd-empty">' + _('No data') + '</div>';
@@ -204,20 +205,40 @@ function paintTables(s) {
 		dom.iftable.innerHTML = html + '</tbody></table>';
 	}
 
-	if (!leases.length) {
+	/*
+	 * 在线设备 = DHCP 租约 + ARP 邻居合并（后端按 MAC 去重）。
+	 * 只列租约的话：无限租期 / 静态 IP / 重启后未续约的设备都会消失。
+	 */
+	if (!clients.length) {
 		dom.clients.innerHTML = '<div class="sd-empty">' + _('No data') + '</div>';
 	} else {
 		html = '<table class="sd-table"><thead><tr><th>' + _('Hostname') +
-			'</th><th>' + _('IP address') + '</th><th>' + _('MAC address') + '</th></tr></thead><tbody>';
-		for (i = 0; i < leases.length; i++)
-			html += '<tr><td>' + esc(leases[i].host) + '</td><td>' + esc(leases[i].ip) +
-				'</td><td>' + esc(leases[i].mac) + '</td></tr>';
+			'</th><th>' + _('IP address') + '</th><th>' + _('MAC address') +
+			'</th><th>' + _('Source') + '</th></tr></thead><tbody>';
+		for (i = 0; i < clients.length; i++)
+			html += '<tr><td>' + esc(clients[i].host || clients[i].ip) + '</td><td>' + esc(clients[i].ip) +
+				'</td><td>' + esc(clients[i].mac) + '</td><td>' +
+				esc(srcLabel[clients[i].source] || clients[i].source || '—') + '</td></tr>';
 		dom.clients.innerHTML = html + '</tbody></table>';
 	}
 }
 
 function paint(s) {
-	dom.kpiClients.textContent = (s.leases || []).length;
+	var clients = s.clients || s.leases || [];
+	var up = s.uplink || {};
+	var car = s.carrier || {};
+	dom.kpiClients.textContent = clients.length;
+	dom.kpiUplink.textContent = up.connected ? (up.device || '—') : _('Disconnected');
+	if (up.connected) {
+		var parts = [];
+		if (car.name)
+			parts.push('<span class="sd-dot" style="background:' + esc(car.color || '#8a8a8a') + '"></span>' + esc(car.name));
+		if (up.ip) parts.push(esc(up.ip));
+		if (up.gateway) parts.push(_('Gateway') + ' ' + esc(up.gateway));
+		dom.uplinkSub.innerHTML = parts.join(' · ');
+	} else {
+		dom.uplinkSub.textContent = _('No default route');
+	}
 	dom.kpiConn.textContent = s.conntrack >= 0 ? s.conntrack : '—';
 	dom.kpiUptime.textContent = humanUptime(s.uptime);
 	dom.kpiLoad.textContent = (s.load || [0, 0, 0]).join(' / ');
@@ -255,6 +276,8 @@ function card(label, valueNode, sub) {
 return view.extend({
 	render: function() {
 		dom.kpiClients = E('div', { 'class': 'sd-kpi' }, '—');
+		dom.kpiUplink = E('div', { 'class': 'sd-kpi' }, '—');
+		dom.uplinkSub = E('div', { 'class': 'sd-sub' }, '');
 		dom.kpiConn = E('div', { 'class': 'sd-kpi' }, '—');
 		dom.kpiUptime = E('div', { 'class': 'sd-kpi' }, '—');
 		dom.kpiLoad = E('div', { 'class': 'sd-kpi' }, '—');
@@ -274,7 +297,12 @@ return view.extend({
 				dom.status
 			]),
 			E('div', { 'class': 'sd-grid' }, [
-				card(_('Online clients'), dom.kpiClients, _('DHCP leases')),
+				card(_('Online clients'), dom.kpiClients, _('DHCP + ARP')),
+				E('div', { 'class': 'sd-card' }, [
+					E('div', { 'class': 'sd-label' }, _('Uplink')),
+					dom.kpiUplink,
+					dom.uplinkSub
+				]),
 				card(_('Connections'), dom.kpiConn, _('Tracked connections')),
 				card(_('Uptime'), dom.kpiUptime, _('Since last boot')),
 				card(_('Load average'), dom.kpiLoad, '1 / 5 / 15 min')

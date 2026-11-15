@@ -84,8 +84,49 @@ cat > "$SB/leases" <<'EOF'
 1762350001 aa:bb:cc:dd:ee:02 192.168.10.102 "phone\evil" 01:aa:bb:cc:dd:ee:02
 EOF
 
+# 假 ip：默认路由两条（验证取最小 metric）+ wwan0 地址
+mkdir -p "$SB/bin"
+cat > "$SB/bin/ip" <<'EOS'
+#!/bin/sh
+case "$*" in
+  "-4 route") printf 'default via 10.186.203.87 dev wwan0 metric 11 \ndefault via 192.168.5.254 dev br-lan metric 20 \n' ;;
+  *"addr show dev wwan0"*) printf '7: wwan0    inet 10.186.203.86/8 brd 10.255.255.255 scope global wwan0\\       valid_lft forever preferred_lft forever\n' ;;
+  *) : ;;
+esac
+EOS
+# 假 ubus：模拟 qmodem cell_info 的真实输出结构（key 一行、value 一行）
+cat > "$SB/bin/ubus" <<'EOS'
+#!/bin/sh
+cat <<'JSON'
+{
+	"modem_info": [
+		{
+			"key": "Network Type",
+			"value": "FDD LTE"
+		},
+		{
+			"key": "MCC",
+			"value": "460"
+		},
+		{
+			"key": "MNC",
+			"value": "01"
+		}
+	]
+}
+JSON
+EOS
+chmod +x "$SB/bin/ip" "$SB/bin/ubus"
+# ARP：第一条与租约同一 MAC（验证去重），第二条只有 ARP（静态 IP 设备）
+cat > "$SB/arp" <<'EOS'
+IP address       HW type     Flags       HW address            Mask     Device
+192.168.10.101   0x1         0x2         aa:bb:cc:dd:ee:01     *        br-lan
+192.168.10.150   0x1         0x2         11:22:33:44:55:66     *        br-lan
+EOS
+
 OUT="$SB/full.json"
 SYSDASH_PROC_DIR="$SB/proc" SYSDASH_SYS_DIR="$SB/sys" SYSDASH_LEASES_FILE="$SB/leases" \
+	SYSDASH_ARP_FILE="$SB/arp" SYSDASH_IP_CMD="$SB/bin/ip" SYSDASH_UBUS_CMD="$SB/bin/ubus" \
 	"$RPCD" call get > "$OUT"
 
 if "$PY" - "$OUT" <<'PYEOF'
@@ -111,6 +152,18 @@ eq("风扇 PWM", d["fan"]["pwm"], 128)
 eq("温控档位", d["fan"]["state"], 2)
 eq("温控最大档", d["fan"]["state_max"], 4)
 eq("连接数", d["conntrack"], 998)
+eq("在线设备数(租约2+ARP新增1)", len(d["clients"]), 3)
+eq("租约设备来源", d["clients"][0]["source"], "dhcp")
+eq("ARP 设备来源", d["clients"][2]["source"], "arp")
+eq("ARP 设备无主机名时用 IP", d["clients"][2]["host"], "192.168.10.150")
+eq("ARP 与租约同 MAC 不重复", len([c for c in d["clients"] if c["mac"] == "aa:bb:cc:dd:ee:01"]), 1)
+eq("上联已连接", d["uplink"]["connected"], True)
+eq("上联取最小 metric 的接口", d["uplink"]["device"], "wwan0")
+eq("上联网关", d["uplink"]["gateway"], "10.186.203.87")
+eq("上联地址", d["uplink"]["ip"], "10.186.203.86/8")
+eq("运营商识别", d["carrier"]["name"], "中国联通")
+eq("运营商 key", d["carrier"]["key"], "unicom")
+eq("运营商 MCC/MNC", [d["carrier"]["mcc"], d["carrier"]["mnc"]], ["460", "01"])
 assert d["ts"] > 0, "ts 应为正整数"
 print("  ✓ ts 为正整数")
 PYEOF
@@ -125,6 +178,7 @@ echo "== 全缺失降级（无风扇/无温度/无租约的设备）=="
 mkdir -p "$SB/empty/proc" "$SB/empty/sys"
 OUT2="$SB/empty.json"
 SYSDASH_PROC_DIR="$SB/empty/proc" SYSDASH_SYS_DIR="$SB/empty/sys" SYSDASH_LEASES_FILE="$SB/empty/nope" \
+	SYSDASH_ARP_FILE="$SB/empty/nope.arp" SYSDASH_IP_CMD="$SB/empty/no-ip" SYSDASH_UBUS_CMD="$SB/empty/no-ubus" \
 	"$RPCD" call get > "$OUT2"
 if "$PY" - "$OUT2" <<'PYEOF'
 import json, sys
@@ -132,6 +186,9 @@ d = json.load(open(sys.argv[1], encoding="utf-8"))
 assert d["fan"]["rpm"] == -1 and d["fan"]["pwm"] == -1, "无风扇时必须为 -1（视图显示 N/A）"
 assert d["thermal"] == [] and d["traffic"] == [] and d["leases"] == [], "缺失源必须为空数组"
 assert d["conntrack"] == -1, "无 conntrack 文件时必须为 -1"
+assert d["clients"] == [], "无租约且无 ARP 时 clients 必须为空数组"
+assert d["uplink"]["connected"] is False, "无默认路由时 uplink.connected 必须为 false"
+assert d["carrier"]["name"] == "", "无 ubus / 无模组时运营商名必须为空"
 assert isinstance(d["ts"], int), "ts 必须仍是整数"
 print("  ✓ 空环境下仍输出合法 JSON，所有缺失项优雅降级")
 PYEOF

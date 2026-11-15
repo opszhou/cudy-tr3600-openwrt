@@ -24,6 +24,24 @@ msgstr "在线终端"
 msgid "DHCP leases"
 msgstr "DHCP 租约数"
 
+msgid "DHCP + ARP"
+msgstr "DHCP 租约 + ARP 邻居"
+
+msgid "Uplink"
+msgstr "上联线路"
+
+msgid "Source"
+msgstr "来源"
+
+msgid "Disconnected"
+msgstr "未连接"
+
+msgid "No default route"
+msgstr "无默认路由"
+
+msgid "Gateway"
+msgstr "网关"
+
 msgid "Connections"
 msgstr "连接数"
 
