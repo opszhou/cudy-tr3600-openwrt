@@ -31,3 +31,13 @@ if [ ! -f "$ROOT/scripts/apply-qmodem-nat2.sh" ]; then
     exit 1
 fi
 bash "$ROOT/scripts/apply-qmodem-nat2.sh" "$PWD" || exit 1
+
+# ---- QModem 版本号规范化：apk 不接受连字符预发布写法 ----
+# v3.4.0-rc.3 tag 的 version.mk 是 3.4.0-rc.3，apk mkpkg 直接拒绝出包
+# （run#53: package version is invalid）——编译成功、炸在打包。改法与影响面见
+# scripts/apply-qmodem-apk-version.sh；格式不符同样直接构建失败。
+if [ ! -f "$ROOT/scripts/apply-qmodem-apk-version.sh" ]; then
+    echo "错误: 缺少 scripts/apply-qmodem-apk-version.sh" >&2
+    exit 1
+fi
+bash "$ROOT/scripts/apply-qmodem-apk-version.sh" "$PWD" || exit 1
