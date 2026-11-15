@@ -62,10 +62,20 @@ awk -v marker="$MARKER" -v ins="$INSERT_LINE" '
 	}
 	{ print }
 ' "$QM_DIAL" > "$TMP"
-mv "$TMP" "$QM_DIAL"
+# ⚠️ 用 cat 写回而不是 mv：mv 会把临时文件的 0644 换成目标文件的权限，
+# 丢掉可执行位 → procd 启动实例时 execve 失败（exit_code=127），拨号永远起不来。
+# 这个坑在设备上真实踩过一次（2026-11-15）。
+cat "$TMP" > "$QM_DIAL"
+rm -f "$TMP"
+# 兜底：这个脚本必须可执行，否则 procd 的实例起不来
+chmod 755 "$QM_DIAL"
 
 if [ "$(grep -cF "$INSERT_LINE" "$QM_DIAL")" -ne 1 ]; then
 	echo "错误: 补丁写入后回读失败（$QM_DIAL）" >&2
+	exit 1
+fi
+if [ ! -x "$QM_DIAL" ]; then
+	echo "错误: 补丁后 modem_dial.sh 不可执行（procd 会 exit 127）: $QM_DIAL" >&2
 	exit 1
 fi
 if ! sh -n "$QM_DIAL"; then

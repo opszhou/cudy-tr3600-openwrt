@@ -85,5 +85,17 @@ else
 	check "缺少文件应失败" "失败" "失败"
 fi
 
+# 用例 6：原文件可执行位必须保住（procd 需要 execve；2026-11-15 真机踩坑）
+sample
+chmod 755 "$F"
+bash "$APPLY" "$TMP" > /dev/null
+if [ -x "$F" ]; then check "补丁后仍可执行" "可执行" "可执行"; else check "补丁后仍可执行" "丢了可执行位" "可执行"; fi
+
+# 用例 7：原文件是 644 也要被兜底修成可执行
+sample
+chmod 644 "$F"
+bash "$APPLY" "$TMP" > /dev/null
+if [ -x "$F" ]; then check "644 输入被兜底为可执行" "可执行" "可执行"; else check "644 输入被兜底为可执行" "不可执行" "可执行"; fi
+
 echo "---- 通过 $pass / 失败 $fail ----"
 [ "$fail" -eq 0 ]
