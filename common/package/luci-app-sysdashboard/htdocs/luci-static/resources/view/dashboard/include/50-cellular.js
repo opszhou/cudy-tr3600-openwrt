@@ -68,6 +68,85 @@ function svgSeries(values, color, w, h) {
 	return svg;
 }
 
+/* DHCP/ARP 合并后的设备表 */
+function dhcpTable(clients) {
+	var srcLabel = { dhcp: 'DHCP', arp: 'ARP' };
+	var tbody = E('tbody', {});
+
+	clients.forEach(function(c) {
+		tbody.appendChild(E('tr', { 'class': 'tr' }, [
+			E('td', { 'class': 'td', 'data-title': _('Hostname') }, [ c.host || c.ip ]),
+			E('td', { 'class': 'td', 'data-title': _('IP address') }, [ c.ip ]),
+			E('td', { 'class': 'td', 'data-title': _('MAC address') }, [ c.mac ]),
+			E('td', { 'class': 'td', 'data-title': _('Source') }, [ srcLabel[c.source] || c.source || '—' ])
+		]));
+	});
+
+	return E('table', { 'class': 'table' }, [
+		E('thead', {}, [ E('tr', { 'class': 'tr table-titles' }, [
+			E('th', { 'class': 'th' }, [ _('Hostname') ]),
+			E('th', { 'class': 'th' }, [ _('IP address') ]),
+			E('th', { 'class': 'th' }, [ _('MAC address') ]),
+			E('th', { 'class': 'th' }, [ _('Source') ])
+		]) ]),
+		tbody
+	]);
+}
+
+/*
+ * 标签显隐：用 body 状态类 + CSS，而不是删 DOM 节点。
+ * 这样官方的 tab 机制（ui.tabs.initTabGroup / updateTabs）不受影响，
+ * 数据恢复时只要去掉状态类，标签立刻回来。
+ */
+var TAB_CSS = [
+	'body.sd-no-internet-tab [data-tab="internet"] { display: none !important; }',
+	'body.sd-no-dhcp-tab [data-tab="dhcp"] { display: none !important; }'
+].join('\n');
+
+var cssReady = false;
+
+function setTabState(showUplink, showDhcp) {
+	if (typeof document === 'undefined' || !document.body)
+		return;
+
+	if (!cssReady) {
+		var head = document.head || document.querySelector('head');
+		if (head)
+			head.appendChild(E('style', { 'type': 'text/css' }, TAB_CSS));
+		cssReady = true;
+	}
+
+	document.body.classList.toggle('sd-no-internet-tab', !showUplink);
+	document.body.classList.toggle('sd-no-dhcp-tab', !showDhcp);
+
+	/* 选中项被隐藏时切到第一个可见标签，避免内容区空白 */
+	if (typeof requestAnimationFrame !== 'function')
+		return;
+
+	requestAnimationFrame(function() {
+		var group = document.querySelector('.cbi-map-tabbed');
+		if (!group)
+			return;
+
+		var panes = Array.prototype.filter.call(group.children, function(el) {
+			return el.dataset && el.dataset.tab;
+		});
+		var active = panes.filter(function(el) { return el.dataset.tabActive === 'true'; })[0];
+
+		if (!active || getComputedStyle(active).display !== 'none')
+			return;
+
+		var next = panes.filter(function(el) { return getComputedStyle(el).display !== 'none'; })[0];
+		if (!next)
+			return;
+
+		var menu = group.querySelector('.cbi-tabmenu');
+		var link = menu && menu.querySelector('li[data-tab="' + next.dataset.tab + '"] > a');
+		if (link)
+			link.click();
+	});
+}
+
 return baseclass.extend({
 	title: _('Cellular'),
 	widgets: [
@@ -158,35 +237,40 @@ return baseclass.extend({
 		for (i = 0; i < (snap.traffic || []).length; i++)
 			if (snap.traffic[i].device === up.device) cur = snap.traffic[i];
 
-		var cards = [];
-		if (up.connected)
-			cards.push({
+		/*
+		 * 显隐规则：我们接管的 id 一律「始终注册」，无数据时把 node 置 null。
+		 * 原因：官方 collectSections 里 found[slot][id] 是后注册覆盖先注册——若干脆
+		 * 不返回该 id，10_router / 20_lan 里的同 id 官方部件就会回填，于是又冒出一张
+		 * 「未连接」空卡（上一版正是栽在这里）。置 null 会被布局映射后的
+		 * .filter(item => item != null) 丢掉，既不显示也不会回填官方版本。
+		 */
+		var cards = [
+			{
 				id: 'internet',
-				node: charts.kpi({
+				node: up.connected ? charts.kpi({
 					icon: 'internet',
 					title: _('Internet'),
 					value: car.name || up.device || '—',
 					sub: [ up.ip || '', up.gateway ? _('Gateway') + ' ' + up.gateway : '' ],
 					stacked: true
-				})
-			});
-		if (sig.rsrp)
-			cards.push({
+				}) : null
+			},
+			{
 				id: 'cell-signal',
-				node: charts.kpi({
+				node: sig.rsrp ? charts.kpi({
 					icon: 'wireless',
 					title: _('Signal'),
 					value: sig.rsrp + ' dBm',
 					sub: [ sig.mode || '', (sig.sinr ? 'SINR ' + sig.sinr + ' dB' : '') ],
 					stacked: true
-				})
-			});
+				}) : null
+			}
+		];
 
-		var chartNodes = [];
-		if (up.connected)
-			chartNodes.push({
+		var chartNodes = [
+			{
 				id: 'wan',
-				node: charts.card({
+				node: up.connected ? charts.card({
 					title: _('WAN traffic'),
 					desc: (DEV_LABEL[up.device] || up.device || '') + ' · ' +
 						fmtRate(cur ? cur.rxRate || 0 : 0) + ' ↓ / ' +
@@ -195,44 +279,34 @@ return baseclass.extend({
 						svgSeries(rxHist, '#4a90e2', 600, 120),
 						svgSeries(txHist, '#7b61c9', 600, 120)
 					]
-				})
-			});
+				}) : null
+			}
+		];
+
+		/*
+		 * 标签：官方对 tabs 不做 null 过滤（item 会被包成对象，content 为 null 也照样建
+		 * 空面板），所以两个 id 都注册，再用 body 状态类 + CSS 把没数据的标签连同菜单项
+		 * 一起隐藏。官方 updateTabs 在数量不变时只更新标题/内容，故状态类每轮都稳定生效；
+		 * 数据恢复后下一轮轮询（默认 5s）标签会自动出现。
+		 */
+		var showUplink = !!(up.connected && ups.length);
+		var showDhcp = clients.length > 0;
 
 		var tabs = [
 			{
 				id: 'internet',
 				title: _('Internet'),
-				content: this.uplinkPane(ups)
+				content: showUplink ? this.uplinkPane(ups) : charts.empty('')
 			},
 			{
 				id: 'dhcp',
 				title: _('DHCP Devices'),
-				count: clients.length,
-				content: (function() {
-					if (!clients.length)
-						return charts.empty(_('No data'));
-					var srcLabel = { dhcp: 'DHCP', arp: 'ARP' };
-					var tbody = E('tbody', {});
-					clients.forEach(function(c) {
-						tbody.appendChild(E('tr', { 'class': 'tr' }, [
-							E('td', { 'class': 'td', 'data-title': _('Hostname') }, [ c.host || c.ip ]),
-							E('td', { 'class': 'td', 'data-title': _('IP address') }, [ c.ip ]),
-							E('td', { 'class': 'td', 'data-title': _('MAC address') }, [ c.mac ]),
-							E('td', { 'class': 'td', 'data-title': _('Source') }, [ srcLabel[c.source] || c.source || '—' ])
-						]));
-					});
-					return E('table', { 'class': 'table' }, [
-						E('thead', {}, [ E('tr', { 'class': 'tr table-titles' }, [
-							E('th', { 'class': 'th' }, [ _('Hostname') ]),
-							E('th', { 'class': 'th' }, [ _('IP address') ]),
-							E('th', { 'class': 'th' }, [ _('MAC address') ]),
-							E('th', { 'class': 'th' }, [ _('Source') ])
-						]) ]),
-						tbody
-					]);
-				})()
+				count: showDhcp ? clients.length : null,
+				content: showDhcp ? dhcpTable(clients) : charts.empty('')
 			}
 		];
+
+		setTabState(showUplink, showDhcp);
 
 		return { cards: cards, charts: chartNodes, tabs: tabs };
 	}
