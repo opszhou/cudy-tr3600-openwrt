@@ -51,6 +51,15 @@ return baseclass.extend({
 	track: function(snap) {
 		var dt = snap.ts - prevTs, i;
 
+		/* 信号与设备数：每次采样都记，不要等第二次轮询（否则首屏只有 0 个点，画不出线） */
+		var _sig = snap.signal || {};
+		if (_sig.rsrp) {
+			rsrpHist.push(_sig.rsrp);
+			if (rsrpHist.length > HIST) rsrpHist.shift();
+		}
+		clientHist.push((snap.clients || []).length);
+		if (clientHist.length > HIST) clientHist.shift();
+
 		if (prev && dt > 0 && dt < 60) {
 			var pmap = {};
 			(prev.traffic || []).forEach(function(t) { pmap[t.device] = t; });
@@ -59,14 +68,6 @@ return baseclass.extend({
 				t.rxRate = p ? Math.max(0, (t.rx - p.rx) / dt) : 0;
 				t.txRate = p ? Math.max(0, (t.tx - p.tx) / dt) : 0;
 			});
-
-			clientHist.push((snap.clients || []).length);
-			if (clientHist.length > HIST) clientHist.shift();
-
-			var sig = snap.signal || {};
-			if (sig.rsrp)
-				rsrpHist.push(sig.rsrp);
-			if (rsrpHist.length > HIST) rsrpHist.shift();
 
 			var cur = this.uplinkTraffic(snap);
 			var rx = cur ? cur.rxRate : 0, tx = cur ? cur.txRate : 0;
@@ -198,7 +199,8 @@ return baseclass.extend({
 			if (!sig.rsrp)
 				return null;
 
-			var lo = Math.min.apply(null, rsrpHist), hi = Math.max.apply(null, rsrpHist);
+			var lo = rsrpHist.length ? Math.min.apply(null, rsrpHist) : sig.rsrp;
+			var hi = rsrpHist.length ? Math.max.apply(null, rsrpHist) : sig.rsrp;
 			return charts.card({
 				title: _('Signal trend'),
 				desc: '%s %d dBm · %s %d · %s %d'.format(

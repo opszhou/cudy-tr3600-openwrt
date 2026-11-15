@@ -45,11 +45,31 @@ return baseclass.extend({
 		svg.setAttribute('height', h);
 		svg.setAttribute('preserveAspectRatio', 'none');
 		var path = document.createElementNS(ns, 'path');
-		path.setAttribute('d', pts.join(' ') || 'M0 0');
+
+		if (values.length === 1) {
+			/* 只有一个采样点：画一条水平基线 + 圆点，否则只剩一个 moveTo，看起来像没数据 */
+			var y1 = h - 3 - (h - 6) * values[0] / max;
+			path.setAttribute('d', 'M3 ' + y1.toFixed(1) + ' L' + (w - 3) + ' ' + y1.toFixed(1));
+		}
+		else {
+			path.setAttribute('d', pts.join(' ') || 'M0 0');
+		}
+
 		path.setAttribute('fill', 'none');
 		path.setAttribute('stroke', color);
 		path.setAttribute('stroke-width', '2');
 		svg.appendChild(path);
+
+		if (values.length === 1) {
+			var dot = document.createElementNS(ns, 'circle');
+			var y2 = h - 3 - (h - 6) * values[0] / max;
+			dot.setAttribute('cx', String(w / 2));
+			dot.setAttribute('cy', y2.toFixed(1));
+			dot.setAttribute('r', '2.5');
+			dot.setAttribute('fill', color);
+			svg.appendChild(dot);
+		}
+
 		return svg;
 	}
 });
