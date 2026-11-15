@@ -41,3 +41,15 @@ if [ ! -f "$ROOT/scripts/apply-qmodem-apk-version.sh" ]; then
     exit 1
 fi
 bash "$ROOT/scripts/apply-qmodem-apk-version.sh" "$PWD" || exit 1
+
+# ---- QModem 拨号自愈：模组处于 CFUN=0 时先把射频打开 ----
+# 实测（P3 + RM500U-CNV / MBIM）：CFUN=0 时点「拨号」不会有任何效果——
+#   dial() 卡在 prepare 等待循环、连接管理器 quectel-CM-M 又一直占着 dial.lock，
+#   UI 再点拨号在 flock 处静默 return 1（ubus 照样回「执行成功」）。
+# 补法见 scripts/apply-qmodem-cfun-fix.sh：dial() 开头先 check_cfun（CFUN≠1 就发
+# AT+CFUN=1）。只在 dail 实例启动时才需要，正常 CFUN=1 时仅多一次 AT 查询。
+if [ ! -f "$ROOT/scripts/apply-qmodem-cfun-fix.sh" ]; then
+    echo "错误: 缺少 scripts/apply-qmodem-cfun-fix.sh" >&2
+    exit 1
+fi
+bash "$ROOT/scripts/apply-qmodem-cfun-fix.sh" "$PWD" || exit 1
