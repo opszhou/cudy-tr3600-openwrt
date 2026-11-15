@@ -13,7 +13,7 @@
  */
 
 /* 追加到官方那句「列表从上到下…空列表显示默认」之后，不另起一块 */
-var NOTE = 'Widgets without data are hidden automatically (offline, disabled interface, wireless off, no client) and reappear once the condition clears.';
+var NOTE = 'Widgets without data are hidden automatically (offline, disabled interface, wireless off, no client) and reappear once the condition clears. Newly added widgets must be dragged into a list here and saved.';
 
 return baseclass.extend({
 	ensure: function() {
