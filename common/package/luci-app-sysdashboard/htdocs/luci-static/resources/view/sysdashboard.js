@@ -35,6 +35,10 @@ var dom = {};
 
 var CSS = [
 	'.sd-root { max-width: 1040px; }',
+	'.sd-root > .cbi-section { padding: 14px 18px; }',
+	'.sd-root > .cbi-section > h3 { margin: 0 0 10px; }',
+	'.sd-hero { padding: 0 4px; }',
+	'.sd-foot { padding: 0 4px; }',
 	'.sd-hero { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px; }',
 	'.sd-hero h3 { margin:0; font-size:18px; }',
 	'.sd-pill { display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:2px 10px; border-radius:999px;',
@@ -220,7 +224,7 @@ function paint(s) {
 	dom.net.innerHTML =
 		'<div class="sd-tiles">' +
 			'<div class="sd-tile"><div class="sd-sub">' + _('Operator') + '</div><b>' +
-				(car.name ? '<span class="sd-dot" style="background:' + esc(car.color || '#8a8a8a') + '"></span>' + esc(car.name) : '—') + '</b></div>' +
+				(car.name ? '<span class="sd-dot" style="background:' + (up.connected ? '#38a89b' : '#e05a4f') + '"></span>' + esc(car.name) : '—') + '</b></div>' +
 			'<div class="sd-tile"><div class="sd-sub">' + _('Network mode') + '</div><b>' +
 				esc((sig.mode || '—') + (sig.duplex ? ' ' + sig.duplex : '')) + '</b></div>' +
 			'<div class="sd-tile"><div class="sd-sub">' + _('Data network') + '</div><b>' +
