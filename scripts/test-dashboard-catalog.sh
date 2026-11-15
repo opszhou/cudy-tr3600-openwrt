@@ -245,6 +245,14 @@ check('互联网卡用我们的实现（非官方）', r.cards.filter(c => c.id 
 check('WAN 图用我们的实现', r.charts.filter(c => c.id === 'wan')[0].node.kind, 'card');
 check('系统卡沿用官方内容', r.cards.filter(c => c.id === 'uptime')[0].node, 'UPTIME');
 
+/* 单条在线链路时，互联网详情不应再套一层「5G cellular」二级标签 */
+const providers = req('view.dashboard.sd.providers');
+const oneTab = providers.tab('internet', S, { count: { clients: 0 } });
+const detailKids = oneTab.content.children || [];
+check('单条链路无二级标签（无 cbi-tabmenu）',
+	detailKids.some(k => k.tag === 'ul'), false);
+check('详情第一块是链路上报表', detailKids[0] && detailKids[0].tag, 'table');
+
 console.log('== 断网（无默认路由）==');
 r = renderWith(snap({ clients: true, wifi: true, wifiClients: true, modem: true, signal: true }));
 check('互联网卡隐藏', present(r.cards).includes('internet'), false);

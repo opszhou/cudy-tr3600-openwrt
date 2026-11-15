@@ -230,9 +230,19 @@ return baseclass.extend({
 		return E('div', {}, parts);
 	},
 
-	/* 上联详情：每个在线 WAN 一个子标签，点选切换（选中项跨刷新保持） */
+	/*
+	 * 上联详情：只有一条在线链路时不显示二级标签（否则「互联网」里又套一个
+	 * 「5G cellular」，纯属多余）；两条以上才出现切换标签，选中项跨刷新保持。
+	 */
 	uplinkPane: function(snap) {
 		var ups = (snap.uplinks || []).filter(function(u) { return u.connected; });
+
+		if (!ups.length)
+			return charts.empty(_('No data'));
+
+		if (ups.length === 1)
+			return this.uplinkTable(ups[0]);
+
 		var body = E('div', {});
 		var menu = E('ul', { 'class': 'cbi-tabmenu' });
 
@@ -244,20 +254,11 @@ return baseclass.extend({
 				else
 					li.removeAttribute('class');
 			});
-			var cur = ups.filter(function(u) { return u.device === dev; })[0] || {};
-			L.dom.content(body, util.kvTable([
-				[ _('Uplink device'), cur.device || '—' ],
-				[ _('Status'), _('Connected') ],
-				[ _('IP address'), cur.ip || '—' ],
-				[ _('Gateway'), cur.gateway || '—' ],
-				[ _('Received'), util.fmtBytes(cur.rx) ],
-				[ _('Sent'), util.fmtBytes(cur.tx) ]
-			]));
+			var cur = ups.filter(function(u) { return u.device === dev; })[0];
+			L.dom.content(body, cur ? self.uplinkTable(cur) : charts.empty(_('No data')));
 		}
 
-		if (!ups.length)
-			return charts.empty(_('No data'));
-
+		var self = this;
 		ups.forEach(function(u) {
 			menu.appendChild(E('li', { 'data-tab': u.device }, [
 				E('a', { 'href': '#', 'click': function(ev) { ev.preventDefault(); paint(u.device); } },
@@ -270,6 +271,17 @@ return baseclass.extend({
 		paint(init);
 
 		return E('div', {}, [ menu, body ]);
+	},
+
+	uplinkTable: function(cur) {
+		return util.kvTable([
+			[ _('Uplink device'), cur.device || '—' ],
+			[ _('Status'), _('Connected') ],
+			[ _('IP address'), cur.ip || '—' ],
+			[ _('Gateway'), cur.gateway || '—' ],
+			[ _('Received'), util.fmtBytes(cur.rx) ],
+			[ _('Sent'), util.fmtBytes(cur.tx) ]
+		]);
 	},
 
 	/* 在线设备表：租约 + ARP 合并结果，标注来源 */
