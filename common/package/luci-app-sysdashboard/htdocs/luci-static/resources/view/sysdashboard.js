@@ -37,7 +37,7 @@ var CSS = [
 	'.sd-root { max-width: 1040px; }',
 	'.sd-root > .cbi-section { padding: 14px 18px; }',
 	'.sd-root > .cbi-section > h3 { margin: 0 0 10px; }',
-	'.sd-hero { padding: 0 4px; }',
+	'.sd-hero { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:2px; }',
 	'.sd-foot { padding: 0 4px; }',
 	'.sd-hero { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px; }',
 	'.sd-hero h3 { margin:0; font-size:18px; }',
@@ -197,7 +197,6 @@ function paint(s) {
 
 	dom.pill.className = 'sd-pill' + (up.connected ? '' : ' off');
 	dom.pill.textContent = up.connected ? _('Online') : _('Offline');
-	dom.host.textContent = _('System Dashboard');
 	var bits = [];
 	if (car.name) bits.push(car.name);
 	if (up.device) bits.push(up.device);
@@ -329,8 +328,11 @@ return view.extend({
 
 		var root = E('div', { 'class': 'sd-root' }, [
 			E('style', { 'type': 'text/css' }, CSS),
-			E('div', { 'class': 'sd-hero' }, [ dom.pill, dom.host, dom.status ]),
-			dom.hostSub,
+			E('div', { 'class': 'cbi-section' }, [
+				E('h3', {}, _('System Dashboard')),
+				E('div', { 'class': 'sd-hero' }, [ dom.pill, dom.status ]),
+				E('div', { 'class': 'sd-sub', 'style': 'margin-top:4px' }, [ dom.hostSub ])
+			]),
 			section(_('Signal strength'), '', dom.sig),
 			section(_('Uplink & network'), '', dom.net),
 			section(_('Traffic'), '', dom.tr),
