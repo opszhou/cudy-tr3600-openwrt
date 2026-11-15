@@ -86,12 +86,17 @@ return baseclass.extend({
 		var up = snap.uplink || {}, car = snap.carrier || {};
 		var sig = snap.signal || {}, cell = snap.cell || {}, usage = snap.usage || {};
 
+		/* 互联网卡只讲链路：IP / 网关 / 承载设备。
+		   ⛔ 不要再放运营商名——「网络状态」卡已经显示，会被读成两张重复的卡 */
 		if (id === 'internet')
 			return charts.kpi({
 				icon: 'sd-internet',
 				title: _('Internet'),
-				value: car.name || up.device || '—',
-				sub: [ up.ip || '', up.gateway ? _('Gateway') + ' ' + up.gateway : '' ],
+				value: up.ip || '—',
+				sub: [
+					up.gateway ? _('Gateway') + ' ' + up.gateway : '',
+					up.device || ''
+				],
 				stacked: true
 			});
 
