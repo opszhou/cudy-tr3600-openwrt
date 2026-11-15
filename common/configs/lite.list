@@ -100,6 +100,8 @@ CONFIG_PACKAGE_luci-i18n-nlbwmon-zh-cn=y
 # 数据来自 rpcd 脚本读 /proc、/sys、/tmp/dhcp.leases，纯只读、不装守护进程、不写 sysfs，
 # 因此不会与内核 thermal 框架的 PWM 风扇调速抢控制权（TR3600 风扇已由 cooling-maps 自动管理）。
 # 菜单注册在 admin/dashboard（order=5），登录后默认首页；原生「状态 → 概况」仍保留。
+# 我们的面板是 luci-mod-dashboard 的扩展部件，必须保证宿主存在且不被裁掉
+CONFIG_PACKAGE_luci-mod-dashboard=y
 CONFIG_PACKAGE_luci-app-sysdashboard=y
 CONFIG_PACKAGE_luci-i18n-sysdashboard-zh-cn=y
 # autoreboot 面板已被上游 feeds 删除，定时重启由 uci-defaults 写入 crontab 实现

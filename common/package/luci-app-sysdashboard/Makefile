@@ -6,7 +6,7 @@
 include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=Dashboard widgets for luci-mod-dashboard (signal / uplink / clients / traffic)
-LUCI_DEPENDS:=+luci-base
+LUCI_DEPENDS:=+luci-base +luci-mod-dashboard
 
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=cudy-tr3600-openwrt

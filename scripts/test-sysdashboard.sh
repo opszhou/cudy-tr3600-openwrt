@@ -8,7 +8,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PKG="$ROOT/common/package/luci-app-sysdashboard"
 RPCD="$PKG/root/usr/libexec/rpcd/sysdashboard"
 # 独立页面已删除，只剩管理面板部件：入口 include + sd/*.js
-JS="$PKG/htdocs/luci-static/resources/view/dashboard/include/50-cellular.js"
+JS="$PKG/htdocs/luci-static/resources/view/dashboard/include/99-sd-dashboard.js"
 SD_DIR="$PKG/htdocs/luci-static/resources/view/dashboard/sd"
 PY="${PYTHON:-$(command -v python3 || command -v python)}"
 

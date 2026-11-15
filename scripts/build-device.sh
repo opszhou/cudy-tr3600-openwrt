@@ -33,6 +33,12 @@ grep -aE "Ignoring feed" "$FEEDS_LOG" | head -10 || true
 rm -f "$FEEDS_LOG"
 echo "✅ feeds update/install 完成"
 
+echo "==== 管理面板接口契约校验 ===="
+# 我们以「扩展点」方式接管 luci-mod-dashboard：不改官方文件，靠同目录 include 与同 id 覆盖。
+# 这一步校验上游契约（charts API / null 过滤 / widgets 语义 / 官方 widget id）没变，
+# 变了就直接失败，避免「面板白屏」的固件发出去。
+bash "$ROOT/scripts/verify-dashboard-api.sh" "$OPENWRT"
+
 echo "==== 运行公共定制脚本（feeds 就绪后）===="
 if [ -f "$ROOT/common/customize.sh" ]; then
     echo "→ 执行 $ROOT/common/customize.sh"

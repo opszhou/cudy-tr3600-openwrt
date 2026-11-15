@@ -7,7 +7,7 @@
 
 ```
 view/dashboard/
-  include/50-cellular.js    入口（3 行）：return registry.build()
+  include/99-sd-dashboard.js    入口（3 行）：return registry.build()
   sd/catalog.js             部件清单 —— 唯一声明处
   sd/caps.js                能力模型 —— 唯一「有没有数据」判定入口
   sd/providers.js           网络侧内容（信号/网络状态/流量/上联/在线设备）
@@ -65,7 +65,22 @@ inc.available = function() { return false; };  // dashboard 不再加载/渲染�
 - **系统类**（运行时间、CPU、内存、负载、系统负载图、系统/资源标签）内容不重写，只统一注册与显隐；
 - **网络类**（互联网、WAN 流量、DHCP、信号、网络状态、流量统计）由 `providers.js` 实现。
 
-## 五、三种槽位的分工
+## 五、构建集成（扩展点方式）
+
+**不 vendor 官方模块**：`luci-mod-dashboard` 仍由 luci feed 提供，我们只往它扫描的目录里加文件，
+并用同 id 覆盖部件。卸载我们的包，面板自动回退成官方原样。
+
+| 项 | 做法 |
+|---|---|
+| 依赖 | `LUCI_DEPENDS:=+luci-base +luci-mod-dashboard`，并在 `common/configs/lite.list` 显式选包（防被裁剪） |
+| 命名空间 | 入口 `include/99-sd-dashboard.js`：`99` 保证最后加载（同 id 覆盖才生效），`sd-` 前缀避免与上游新增 include 撞名；其余自定义文件在 `view/dashboard/sd/`、图标用 `icons/sd-*.svg` |
+| 契约校验 | `scripts/verify-dashboard-api.sh`，在 `build-device.sh` 的 **feeds 安装之后、编译之前**执行：校验 `charts.kpi/card/empty`、`index.js` 的 `found[slot]` + `!=null` 过滤、`widgets` 的 `available/defaults/slots`、官方 16 个 widget id 是否齐全。任一不满足 **构建失败**，不让白屏固件出门 |
+| 上游版本 | 校验通过时打印 luci feed 的 `git describe`，便于回溯漂移 |
+| 例外 | 只有扩展点做不到时才打最小 patch（带目标文件哈希守卫），放 `common/patches/luci/` |
+
+测试：`bash scripts/test-verify-dashboard-api.sh`（5 条断言：正常通过、缺 null 过滤、缺 widget id、目录不存在）。
+
+## 六、三种槽位的分工
 
 面板只有三种槽位：**状态卡（cards）/ 实时图表（charts）/ 详情标签页（tabs）**。
 分配原则：能形成时间序列的才配图表；纯状态字段不配图；详情页只给「字段多到一张卡放不下」的主题。
@@ -81,7 +96,7 @@ inc.available = function() { return false; };  // dashboard 不再加载/渲染�
 
 ⛔ 不要为了「凑齐三件套」给纯状态字段硬加图表。
 
-## 六、新增一个部件
+## 七、新增一个部件
 
 只改三处，不要另外写注册代码：
 
@@ -97,12 +112,12 @@ inc.available = function() { return false; };  // dashboard 不再加载/渲染�
 2. `sd/providers.js` 增加 `card()` / `chart()` / `tab()` 分支（`own: true` 时）
 3. `po/zh_Hans/sysdashboard.po` 补中文
 
-## 七、布局页说明
+## 八、布局页说明
 
 - 每个条目显示为「标题 · 自动隐藏条件」（由 catalog 的 `hint` 生成，改文案只改一处）
 - 布局面板顶部会插入一段总说明（`sd/layout-note.js`，幂等；注入失败只丢说明）
 
-## 八、今日 / 昨日 / 本周用量
+## 九、今日 / 昨日 / 本周用量
 
 QModem 只提供「累计收发」（`get_stats`，模组侧持久），没有日统计，所以由我们自己记账：
 
@@ -117,7 +132,7 @@ QModem 只提供「累计收发」（`get_stats`，模组侧持久），没有�
 
 ⛔ 这是本包唯一会写盘的地方；rpcd 其它逻辑仍然只读。
 
-## 九、真机上即时看中文（不重新编译固件）
+## 十、真机上即时看中文（不重新编译固件）
 
 译文（`.lmo`）由 `luci.mk` 在**编译固件时**从 `po/zh_Hans/*.po` 生成，所以新加的
 msgid 在老固件上会回退成英文。要立刻在真机上看到中文，可以本地编译并推上去：
@@ -140,7 +155,7 @@ lua -e 'local i=require "luci.i18n"; i.setlanguage("zh-cn"); print(i.translate("
 ⛔ 这只用于真机临时验证，**不要在构建脚本里调用**——固件里必须由 luci.mk 正常生成，
 否则会出现两份不一致的译文来源。
 
-## 十、测试
+## 十一、测试
 
 ```sh
 bash scripts/test-sysdashboard.sh     # rpcd 快照：字段解析、caps、降级

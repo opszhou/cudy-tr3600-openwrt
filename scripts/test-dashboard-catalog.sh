@@ -125,8 +125,8 @@ const RAW = {};
 function resolve(name) {
 	if (OFFICIAL[name]) return { kind: 'official', name: name };
 	if (name === 'view.dashboard.lib.charts') return { kind: 'charts' };
-	if (name === 'view.dashboard.include.50-cellular')
-		return { kind: 'file', file: path.join(MODROOT, 'view/dashboard/include/50-cellular.js') };
+	if (name === 'view.dashboard.include.99-sd-dashboard')
+		return { kind: 'file', file: path.join(MODROOT, 'view/dashboard/include/99-sd-dashboard.js') };
 	const m = name.match(/^view\.dashboard\.sd\.([\w-]+)$/);
 	if (m) return { kind: 'file', file: path.join(MODROOT, 'view/dashboard/sd', m[1] + '.js') };
 	return { kind: 'unknown', name: name };
@@ -221,8 +221,8 @@ const registry = req('view.dashboard.sd.registry');
 check('官方 widgets 被清空', Object.keys(OFFICIAL).map(k => OFFICIAL[k].widgets.length), [ 0, 0, 0, 0, 0 ]);
 check('官方 available 返回 false', Object.keys(OFFICIAL).map(k => OFFICIAL[k].available()), [ false, false, false, false, false ]);
 check('我们的 widgets 声明 22 条', registry.widgets.length, 22);
-req('view.dashboard.include.50-cellular');
-const entryFile = path.join(MODROOT, 'view/dashboard/include/50-cellular.js');
+req('view.dashboard.include.99-sd-dashboard');
+const entryFile = path.join(MODROOT, 'view/dashboard/include/99-sd-dashboard.js');
 check('入口模块返回构造函数（LuCI 会 new 它）', typeof RAW[entryFile], 'function');
 check('入口实例化后带 widgets 声明', cache[entryFile].widgets.length, 22);
 
