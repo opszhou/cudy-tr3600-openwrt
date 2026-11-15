@@ -27,12 +27,14 @@ return baseclass.extend({
 		{ id: 'uptime',      slot: 'cards',  title: _('Uptime'),            order: 15, need: null,          own: false },
 		{ id: 'cpu',         slot: 'cards',  title: _('CPU usage'),         order: 20, need: null,          own: false },
 		{ id: 'memory',      slot: 'cards',  title: _('Memory'),            order: 30, need: null,          own: false },
-		{ id: 'dhcp',        slot: 'cards',  title: _('DHCP Devices'),      order: 50, need: 'clients',     own: true,  hidden: true },
+		{ id: 'dhcp',        slot: 'cards',  title: _('DHCP Devices'),      order: 50, need: 'clients',     own: true },
 		{ id: 'wifi',        slot: 'cards',  title: _('Wireless clients'),  order: 60, need: 'wifi',        own: false, hidden: true },
 		{ id: 'load',        slot: 'cards',  title: _('Load average'),      order: 80, need: null,          own: false, hidden: true },
 
 		/* ---- 实时图表 ---- */
 		{ id: 'wan',         slot: 'charts', title: _('WAN traffic'),       order: 10, need: 'wan',         own: true },
+		{ id: 'signal-trend',slot: 'charts', title: _('Signal trend'),       order: 15, need: 'signal',      own: true },
+		{ id: 'clients-trend',slot:'charts', title: _('Online device trend'),order: 18, need: 'clients',     own: true },
 		{ id: 'system',      slot: 'charts', title: _('System load'),       order: 20, need: null,          own: false },
 		{ id: 'distribution',slot: 'charts', title: _('Wireless client distribution'), order: 30, need: 'wifiActive', own: false, hidden: true },
 		{ id: 'signal',      slot: 'charts', title: _('Signal Strength'),   order: 40, need: 'wifiActive', own: false, hidden: true },

@@ -296,3 +296,24 @@ msgstr "昨日"
 
 msgid "This week"
 msgstr "本周"
+
+msgid "Signal trend"
+msgstr "信号趋势"
+
+msgid "Lowest"
+msgstr "最低"
+
+msgid "Highest"
+msgstr "最高"
+
+msgid "Current"
+msgstr "当前"
+
+msgid "Online device trend"
+msgstr "在线设备趋势"
+
+msgid "Now"
+msgstr "当前"
+
+msgid "Peak"
+msgstr "峰值"

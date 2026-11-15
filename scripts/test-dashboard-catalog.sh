@@ -205,14 +205,14 @@ const classes = () => Object.keys(BODY_CLASSES).sort();
 /* ---------------- 1. catalog ---------------- */
 console.log('== 部件目录 ==');
 const catalog = req('view.dashboard.sd.catalog');
-check('声明 20 个部件', catalog.widgets.length, 20);
+check('声明 22 个部件', catalog.widgets.length, 22);
 check('cards 10 个', catalog.widgets.filter(w => w.slot === 'cards').length, 10);
-check('charts 5 个', catalog.widgets.filter(w => w.slot === 'charts').length, 5);
+check('charts 7 个', catalog.widgets.filter(w => w.slot === 'charts').length, 7);
 check('tabs 5 个', catalog.widgets.filter(w => w.slot === 'tabs').length, 5);
 
 const decl = catalog.declare();
 check('声明保留 hidden 标记', decl.filter(d => d.hidden).map(d => d.slot + ':' + d.id).sort(),
-	[ 'cards:dhcp', 'cards:load', 'cards:wifi', 'charts:distribution', 'charts:signal', 'charts:traffic', 'tabs:wifi' ]);
+	[ 'cards:load', 'cards:wifi', 'charts:distribution', 'charts:signal', 'charts:traffic', 'tabs:wifi' ]);
 check('标题保持干净（无后缀）', decl.every(d => d.title.indexOf(' · ') < 0), true);
 
 /* ---------------- 2. 官方 include 降级 ---------------- */
@@ -220,11 +220,11 @@ console.log('== 官方 include 降级 ==');
 const registry = req('view.dashboard.sd.registry');
 check('官方 widgets 被清空', Object.keys(OFFICIAL).map(k => OFFICIAL[k].widgets.length), [ 0, 0, 0, 0, 0 ]);
 check('官方 available 返回 false', Object.keys(OFFICIAL).map(k => OFFICIAL[k].available()), [ false, false, false, false, false ]);
-check('我们的 widgets 声明 20 条', registry.widgets.length, 20);
+check('我们的 widgets 声明 22 条', registry.widgets.length, 22);
 req('view.dashboard.include.50-cellular');
 const entryFile = path.join(MODROOT, 'view/dashboard/include/50-cellular.js');
 check('入口模块返回构造函数（LuCI 会 new 它）', typeof RAW[entryFile], 'function');
-check('入口实例化后带 widgets 声明', cache[entryFile].widgets.length, 20);
+check('入口实例化后带 widgets 声明', cache[entryFile].widgets.length, 22);
 
 /* ---------------- 3. 场景矩阵 ---------------- */
 const S = snap({ wan: true, clients: true, wifi: true, wifiClients: true, modem: true, signal: true });
@@ -239,7 +239,7 @@ let r = renderWith(S);
 check('卡片全部有内容', present(r.cards).sort(),
 	[ 'cell-signal', 'cellular', 'cpu', 'dhcp', 'internet', 'load', 'memory', 'traffic-usage', 'uptime', 'wifi' ].sort());
 check('图表全部有内容', present(r.charts).sort(),
-	[ 'distribution', 'signal', 'system', 'traffic', 'wan' ].sort());
+	[ 'clients-trend', 'distribution', 'signal', 'signal-trend', 'system', 'traffic', 'wan' ].sort());
 check('标签全部可见', classes(), []);
 check('互联网卡用我们的实现（非官方）', r.cards.filter(c => c.id === 'internet')[0].node.kind, 'kpi');
 check('WAN 图用我们的实现', r.charts.filter(c => c.id === 'wan')[0].node.kind, 'card');
@@ -303,7 +303,7 @@ console.log('== 恢复后自动回来 ==');
 r = renderWith(S);
 check('状态类全部清除', classes(), []);
 check('卡片恢复', present(r.cards).length, 10);
-check('图表恢复', present(r.charts).length, 5);
+check('图表恢复', present(r.charts).length, 7);
 
 console.log('\n---- 通过 ' + pass + ' / 失败 ' + fail + ' ----');
 process.exit(fail ? 1 : 0);

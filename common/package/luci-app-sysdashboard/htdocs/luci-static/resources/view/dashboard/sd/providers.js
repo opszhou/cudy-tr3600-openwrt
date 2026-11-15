@@ -24,7 +24,7 @@ var DEV_LABEL = {
 	wanusb: _('USB WAN')
 };
 
-var HIST = 40, rxHist = [], txHist = [];
+var HIST = 40, rxHist = [], txHist = [], rsrpHist = [], clientHist = [];
 var prev = null, prevTs = 0;
 var peakRx = 0, peakTx = 0;
 
@@ -59,6 +59,14 @@ return baseclass.extend({
 				t.rxRate = p ? Math.max(0, (t.rx - p.rx) / dt) : 0;
 				t.txRate = p ? Math.max(0, (t.tx - p.tx) / dt) : 0;
 			});
+
+			clientHist.push((snap.clients || []).length);
+			if (clientHist.length > HIST) clientHist.shift();
+
+			var sig = snap.signal || {};
+			if (sig.rsrp)
+				rsrpHist.push(sig.rsrp);
+			if (rsrpHist.length > HIST) rsrpHist.shift();
 
 			var cur = this.uplinkTraffic(snap);
 			var rx = cur ? cur.rxRate : 0, tx = cur ? cur.txRate : 0;
@@ -162,19 +170,53 @@ return baseclass.extend({
 			});
 		}
 
-		if (id === 'dhcp')
+		if (id === 'dhcp') {
+			var list = snap.clients || [], nDhcp = 0, nArp = 0;
+			list.forEach(function(c) { if (c.source === 'arp') nArp++; else nDhcp++; });
+
 			return charts.kpi({
 				icon: 'sd-device',
 				title: _('DHCP Devices'),
 				value: String(caps.count.clients),
-				sub: [ _('DHCP leases') + ' + ' + _('ARP') ],
+				sub: [
+					'DHCP ' + nDhcp + ' · ARP ' + nArp,
+					list.length ? (list[0].host || list[0].ip) : ''
+				],
 				stacked: true
 			});
+		}
 
 		return null;
 	},
 
 	chart: function(id, snap) {
+		if (id === 'signal-trend') {
+			clientHist.push((snap.clients || []).length);
+			if (clientHist.length > HIST) clientHist.shift();
+
+			var sig = snap.signal || {};
+			if (!sig.rsrp)
+				return null;
+
+			var lo = Math.min.apply(null, rsrpHist), hi = Math.max.apply(null, rsrpHist);
+			return charts.card({
+				title: _('Signal trend'),
+				desc: '%s %d dBm · %s %d · %s %d'.format(
+					_('Current'), sig.rsrp, _('Lowest'), lo, _('Highest'), hi),
+				body: [ util.svgSeries(rsrpHist, '#e2a03f', 600, 90, HIST) ]
+			});
+		}
+
+		if (id === 'clients-trend') {
+			var cur = (snap.clients || []).length;
+			var peaks = clientHist.length ? Math.max.apply(null, clientHist) : cur;
+			return charts.card({
+				title: _('Online device trend'),
+				desc: _('Now') + ' ' + cur + ' · ' + _('Peak') + ' ' + peaks,
+				body: [ util.svgSeries(clientHist, '#38a89b', 600, 90, HIST) ]
+			});
+		}
+
 		if (id !== 'wan')
 			return null;
 
@@ -304,6 +346,11 @@ return baseclass.extend({
 		if (!clients.length)
 			return charts.empty(_('No data'));
 
+		var nArp = clients.filter(function(c) { return c.source === 'arp'; }).length;
+		var summary = E('div', { 'class': 'cbi-section-descr' }, [
+			_('Online') + ': ' + clients.length + ' · DHCP ' + (clients.length - nArp) + ' · ARP ' + nArp
+		]);
+
 		var srcLabel = { dhcp: 'DHCP', arp: 'ARP' };
 		var tbody = E('tbody', {});
 
@@ -316,14 +363,17 @@ return baseclass.extend({
 			]));
 		});
 
-		return E('table', { 'class': 'table' }, [
-			E('thead', {}, [ E('tr', { 'class': 'tr table-titles' }, [
-				E('th', { 'class': 'th' }, [ _('Hostname') ]),
-				E('th', { 'class': 'th' }, [ _('IP address') ]),
-				E('th', { 'class': 'th' }, [ _('MAC address') ]),
-				E('th', { 'class': 'th' }, [ _('Source') ])
-			]) ]),
-			tbody
+		return E('div', {}, [
+			summary,
+			E('table', { 'class': 'table' }, [
+				E('thead', {}, [ E('tr', { 'class': 'tr table-titles' }, [
+					E('th', { 'class': 'th' }, [ _('Hostname') ]),
+					E('th', { 'class': 'th' }, [ _('IP address') ]),
+					E('th', { 'class': 'th' }, [ _('MAC address') ]),
+					E('th', { 'class': 'th' }, [ _('Source') ])
+				]) ]),
+				tbody
+			])
 		]);
 	}
 });
