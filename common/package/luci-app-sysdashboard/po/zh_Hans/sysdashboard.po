@@ -246,8 +246,8 @@ msgstr "无无线客户端时自动隐藏"
 msgid "always shown"
 msgstr "始终显示"
 
-msgid "Widgets whose data is unavailable are hidden automatically — for example when the uplink is offline, the interface is disabled, wireless is off, or there is no client. They reappear within a few seconds once the condition is restored."
-msgstr "数据不可用的部件会自动隐藏——例如上联离线、接口被禁用、无线未启用或没有客户端时。条件恢复后约 5 秒自动出现。"
+msgid "Widgets without data are hidden automatically (offline, disabled interface, wireless off, no client) and reappear once the condition clears."
+msgstr "数据不可用的部件会自动隐藏（未联网、接口禁用、无线未启用、无客户端），条件恢复后自动出现。"
 
 msgid "Network status"
 msgstr "网络状态"

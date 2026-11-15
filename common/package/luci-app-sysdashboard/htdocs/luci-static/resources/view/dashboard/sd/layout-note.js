@@ -12,8 +12,8 @@
  * 注入失败只丢说明文字，不影响任何功能。
  */
 
-/* 只留一句：布局页会列出全部部件，长说明会占满整屏 */
-var NOTE = 'Widgets without data are hidden automatically (offline / interface disabled / wireless off / no client) and come back when the condition clears.';
+/* 追加到官方那句「列表从上到下…空列表显示默认」之后，不另起一块 */
+var NOTE = 'Widgets without data are hidden automatically (offline, disabled interface, wireless off, no client) and reappear once the condition clears.';
 
 return baseclass.extend({
 	ensure: function() {
@@ -27,7 +27,15 @@ return baseclass.extend({
 		if (!pane || pane.closest('.cbi-tabmenu') || pane.querySelector('.sd-layout-note'))
 			return;
 
-		var note = E('div', { 'class': 'cbi-section-descr sd-layout-note' }, [ _(NOTE) ]);
-		pane.insertBefore(note, pane.firstChild);
+		var note = E('span', { 'class': 'sd-layout-note' }, [ ' ', _(NOTE) ]);
+
+		/* 优先挂到官方那段说明后面，读起来是一段话；找不到描述时才自己起一行 */
+		var descr = pane.querySelector('.cbi-section-descr');
+		if (descr) {
+			descr.appendChild(note);
+		}
+		else {
+			pane.insertBefore(E('div', { 'class': 'cbi-section-descr' }, [ note ]), pane.firstChild);
+		}
 	}
 });
