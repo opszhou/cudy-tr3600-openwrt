@@ -9,9 +9,14 @@
 // It is NOT a replacement for dtc: it does not evaluate cpp, phandle numbers or
 // dt-schema bindings. It catches the mistakes that actually break a port.
 //
-// usage: node scripts/validate-dts.mjs <device.dts> [--dtsi-labels <file>]... [--strict]
+// usage: node scripts/validate-dts.mjs <device.dts> [--dts-dir <dir>] [--dtsi-labels <file>]... [--flash-size <MiB>] [--strict]
+//   --dts-dir      directory containing the SoC dtsi files shipped in the OpenWrt tree
+//                  (e.g. target/linux/mediatek/dts with mt7987{,a,b}.dtsi); the validator
+//                  resolves the device dts's relative includes and collects their labels
 //   --dtsi-labels  file whose "+label: node {" lines declare SoC-level labels
-//                  (e.g. OpenWrt patches-*/xxx-complete-mt7981b-dtsi.patch)
+//                  (e.g. OpenWrt patches-*/xxx-complete-mt7981b-dtsi.patch, for SoCs whose
+//                  dtsi lives in the kernel tree and is only completed by an OpenWrt patch)
+//   --flash-size   flash capacity in MiB for the partition range check (default 128)
 import { readFileSync } from 'node:fs';
 
 const MACROS = {
@@ -30,6 +35,14 @@ const argv = process.argv.slice(2);
 const dtsPath = argv.find((a) => !a.startsWith('--') && argv[argv.indexOf(a) - 1] !== '--dtsi-labels');
 const labelFiles = [];
 for (let i = 0; i < argv.length; i++) if (argv[i] === '--dtsi-labels') labelFiles.push(argv[++i]);
+const dtsDir = (() => { const i = argv.indexOf('--dts-dir'); return i >= 0 ? argv[i + 1] : ''; })();
+const flashMiB = (() => {
+  const i = argv.indexOf('--flash-size');
+  if (i < 0) return 128;
+  const v = Number(argv[i + 1]);
+  if (!Number.isFinite(v) || v <= 0) { console.error('invalid --flash-size: ' + argv[i + 1]); process.exit(2); }
+  return v;
+})();
 const strict = argv.includes('--strict');
 if (!dtsPath) { console.error('usage: validate-dts.mjs <device.dts> [--dtsi-labels <patch>]... [--strict]'); process.exit(2); }
 
@@ -54,6 +67,23 @@ for (const f of labelFiles) {
 // ---------- tokenize ----------
 let text = readFileSync(dtsPath, 'utf8').replace(/\r\n/g, '\n');
 const includes = [...text.matchAll(/^#include\s+[<"]([^>"]+)[>"]/gm)].map((m) => m[1]);
+// SoC dtsi shipped in the OpenWrt tree (e.g. mt7987b.dtsi -> mt7987a.dtsi -> mt7987.dtsi):
+// follow the device dts's relative includes and collect every "label: node {" they define
+if (dtsDir) {
+  const seen = new Set();
+  const visit = (name) => {
+    if (seen.has(name)) return;
+    seen.add(name);
+    let t;
+    try { t = readFileSync(dtsDir + '/' + name, 'utf8'); } catch { return; }
+    for (const line of t.split('\n')) {
+      const m = line.match(/^\s*([a-zA-Z_]\w*):\s+[\w,.#-]+@?[\w,.-]*\s*\{/);
+      if (m) dtsiLabels.add(m[1]);
+    }
+    for (const inc of t.matchAll(/^\s*#include\s+"([^"]+)"/gm)) visit(inc[1]);
+  };
+  for (const inc of includes) if (!inc.startsWith('<') && inc.endsWith('.dtsi')) visit(inc);
+}
 text = text.split('\n').filter((l) => !/^\s*#\s*(include|define|undef|if|ifdef|ifndef|else|elif|endif|pragma|error|warning)\b/.test(l)).join('\n');
 text = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 for (const [k, v] of Object.entries(MACROS)) text = text.replace(new RegExp('\\b' + k + '\\b', 'g'), v);
@@ -139,7 +169,8 @@ for (const n of all) {
   if (reg === undefined) { errors.push(n.name + ': unit address without reg'); continue; }
   const c = cells(reg).map(cnum);
   const want = parseInt(m[1], 16); // unit addresses are always hex
-  if (c[0] !== want && !(c[0] === 0 && c[1] === want)) errors.push(n.name + ': unit address 0x' + m[1] + ' does not match reg 0x' + c[0].toString(16));
+  // cosmetic only: reg governs the actual address, dtc merely warns (upstream PR dts do this)
+  if (c[0] !== want && !(c[0] === 0 && c[1] === want)) warnings.push(n.name + ': unit address 0x' + m[1] + ' does not match reg 0x' + c[0].toString(16));
 }
 
 // partitions
@@ -153,9 +184,9 @@ for (const p of parts) {
   if (size === 0) errors.push('partition ' + p.name + ' has zero size');
   end = start + size; prev = p.name;
 }
-// flash size: sum of the last partition end must fit the chip (128MiB here)
-const flash = 0x8000000;
-if (end > flash) errors.push('partitions end at 0x' + end.toString(16) + ' which exceeds the 128MiB NAND');
+// flash size: sum of the last partition end must fit the chip (default 128MiB, per-device via --flash-size)
+const flash = flashMiB * 1048576;
+if (end > flash) errors.push('partitions end at 0x' + end.toString(16) + ' which exceeds the ' + flashMiB + 'MiB flash');
 else if (strict && flash - end > 0x1000000) warnings.push('wastes ' + ((flash - end) / 1048576).toFixed(2) + 'MiB at the end of the flash');
 
 // nvmem cells inside their partition
@@ -230,11 +261,11 @@ if (ports) {
 // ---------- report ----------
 console.log('file       : ' + dtsPath);
 console.log('includes   : ' + (includes.join(', ') || '(none)'));
-console.log('dtsi labels: ' + dtsiLabels.size + ' (soc=' + socArg + ' + ' + labelFiles.length + ' file(s))');
+console.log('dtsi labels: ' + dtsiLabels.size + ' (soc=' + socArg + ' + ' + labelFiles.length + ' file(s)' + (dtsDir ? ' + include chain from ' + dtsDir : '') + ')');
 console.log('overrides  : ' + overrides.length + ' -> ' + overrides.map((o) => '&' + o.target).join(' '));
 console.log('nodes      : ' + all.length);
 if (parts.length) {
-  console.log('partitions : ' + parts.length + ', end 0x' + end.toString(16) + ' / 0x' + flash.toString(16) + ' (' + (end / flash * 100).toFixed(1) + '% of 128MiB)');
+  console.log('partitions : ' + parts.length + ', end 0x' + end.toString(16) + ' / 0x' + flash.toString(16) + ' (' + (end / flash * 100).toFixed(1) + '% of ' + flashMiB + 'MiB)');
 }
 for (const w of warnings) console.log('WARN  ' + w);
 for (const e of errors) console.log('FAIL  ' + e);

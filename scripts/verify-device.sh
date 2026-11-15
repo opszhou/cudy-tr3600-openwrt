@@ -80,12 +80,28 @@ for p in "${PATCHES[@]:-}"; do
 	if [ -n "$f" ]; then DTS_FILE="$f"; break; fi
 done
 
+# verify.conf 提前读：DTS 校验要用的 FLASH_MB 与后面的 02_network 期望都来自这里
+VERIFY_CONF="$ROOT/devices/$DEV/verify.conf"
+if [ -f "$VERIFY_CONF" ]; then . "$VERIFY_CONF"; fi
+
 if [ -n "$DTS_FILE" ] && [ -f "$WT/$DTS_FILE" ]; then
-	LABELS="$WT/target/linux/mediatek/patches-6.12/117-complete-mt7981b-dtsi.patch"
-	[ -f "$LABELS" ] || LABELS=""
+	# SoC 名 = dts 文件名首个 '-' 前缀（mt7987b-cudy-tr3600-v1 -> mt7987b）
+	SOC="$(basename "$DTS_FILE" | cut -d- -f1)"
+	DTS_ARGS=()
+	MTK_DTS_DIR="$WT/target/linux/mediatek/dts"
+	if [ -f "$MTK_DTS_DIR/$SOC.dtsi" ]; then
+		# SoC dtsi 就在 openwrt 树里（如 mt7987b）：顺着 include 链从真实文件收集标签
+		DTS_ARGS+=(--dts-dir "$MTK_DTS_DIR")
+	else
+		# SoC dtsi 只在内核源码树、由 OpenWrt 补丁补全（如 mt7981b）：从补丁收集标签
+		KV="$(sed -n 's/^KERNEL_PATCHVER:=//p' "$WT/target/linux/mediatek/Makefile" | head -n1)"
+		LABELS="$WT/target/linux/mediatek/patches-${KV:-6.12}/117-complete-mt7981b-dtsi.patch"
+		if [ -f "$LABELS" ]; then DTS_ARGS+=(--dtsi-labels "$LABELS"); fi
+	fi
+	if [ -n "${FLASH_MB:-}" ]; then DTS_ARGS+=(--flash-size "$FLASH_MB"); fi
 	if ! command -v node >/dev/null 2>&1; then
 		err "缺少 node，无法运行 scripts/validate-dts.mjs"
-	elif node "$ROOT/scripts/validate-dts.mjs" "$WT/$DTS_FILE" ${LABELS:+--dtsi-labels "$LABELS"}; then
+	elif node "$ROOT/scripts/validate-dts.mjs" "$WT/$DTS_FILE" ${DTS_ARGS[@]+"${DTS_ARGS[@]}"}; then
 		ok "DTS 结构校验 ($DTS_FILE)"
 	else
 		err "DTS 结构校验失败 ($DTS_FILE)"
@@ -112,17 +128,15 @@ else
 fi
 
 # ---- 02_network 端口映射功能测试 ----
-VERIFY_CONF="$ROOT/devices/$DEV/verify.conf"
 NET_FILE="$WT/target/linux/mediatek/filogic/base-files/etc/board.d/02_network"
-if [ -f "$VERIFY_CONF" ] && [ -f "$NET_FILE" ]; then
-	. "$VERIFY_CONF"
-	if bash "$ROOT/scripts/test-02network.sh" "$NET_FILE" "${BOARD:?verify.conf 缺 BOARD}" "${LAN:-}" "${WAN:-}"; then
+if [ -n "${BOARD:-}" ] && [ -f "$NET_FILE" ]; then
+	if bash "$ROOT/scripts/test-02network.sh" "$NET_FILE" "$BOARD" "${LAN:-}" "${WAN:-}"; then
 		ok "02_network 映射 ($BOARD -> LAN:[${LAN:-}] WAN:[${WAN:-}])"
 	else
 		err "02_network 映射不符合 verify.conf 期望"
 	fi
 else
-	echo "  WARN: 无 verify.conf 或无 02_network，跳过端口映射测试"
+	echo "  WARN: verify.conf 无 BOARD 或无 02_network，跳过端口映射测试"
 fi
 
 if [ "$fail" -ne 0 ]; then
