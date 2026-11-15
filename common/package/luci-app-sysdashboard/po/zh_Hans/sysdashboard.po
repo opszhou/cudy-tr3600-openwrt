@@ -42,6 +42,72 @@ msgstr "无默认路由"
 msgid "Gateway"
 msgstr "网关"
 
+msgid "Online"
+msgstr "在线"
+
+msgid "Offline"
+msgstr "离线"
+
+msgid "Signal strength"
+msgstr "信号强度"
+
+msgid "No signal"
+msgstr "无信号"
+
+msgid "Excellent"
+msgstr "优秀"
+
+msgid "Good"
+msgstr "良好"
+
+msgid "Fair"
+msgstr "一般"
+
+msgid "Weak"
+msgstr "较弱"
+
+msgid "Very weak"
+msgstr "很弱"
+
+msgid "Uplink & network"
+msgstr "上联与网络"
+
+msgid "Uplink device"
+msgstr "上联设备"
+
+msgid "Operator"
+msgstr "运营商"
+
+msgid "Network mode"
+msgstr "网络制式"
+
+msgid "Data network"
+msgstr "数据网络"
+
+msgid "Bandwidth"
+msgstr "带宽"
+
+msgid "Cell ID"
+msgstr "小区 ID"
+
+msgid "Traffic"
+msgstr "流量统计"
+
+msgid "realtime"
+msgstr "实时"
+
+msgid "Received"
+msgstr "累计接收"
+
+msgid "Sent"
+msgstr "累计发送"
+
+msgid "Total"
+msgstr "合计"
+
+msgid "Online devices"
+msgstr "在线设备"
+
 msgid "Connections"
 msgstr "连接数"
 

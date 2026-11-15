@@ -111,6 +111,46 @@ cat <<'JSON'
 		{
 			"key": "MNC",
 			"value": "01"
+		},
+		{
+			"key": "Duplex Mode",
+			"value": "FDD"
+		},
+		{
+			"key": "network_mode",
+			"value": "LTE Mode"
+		},
+		{
+			"key": "RSRP",
+			"value": "-89"
+		},
+		{
+			"key": "RSRQ",
+			"value": "-10"
+		},
+		{
+			"key": "SINR",
+			"value": "20"
+		},
+		{
+			"key": "RSSI",
+			"value": "-60"
+		},
+		{
+			"key": "Cell ID",
+			"value": "DB9CA31"
+		},
+		{
+			"key": "Physical Cell ID",
+			"value": "210"
+		},
+		{
+			"key": "EARFCN",
+			"value": "1650"
+		},
+		{
+			"key": "DL Bandwidth",
+			"value": "20"
 		}
 	]
 }
@@ -164,6 +204,15 @@ eq("上联地址", d["uplink"]["ip"], "10.186.203.86/8")
 eq("运营商识别", d["carrier"]["name"], "中国联通")
 eq("运营商 key", d["carrier"]["key"], "unicom")
 eq("运营商 MCC/MNC", [d["carrier"]["mcc"], d["carrier"]["mnc"]], ["460", "01"])
+eq("信号 RSRP", d["signal"]["rsrp"], -89)
+eq("信号 RSRQ", d["signal"]["rsrq"], -10)
+eq("信号 SINR", d["signal"]["sinr"], 20)
+eq("信号 RSSI", d["signal"]["rssi"], -60)
+eq("信号制式", d["signal"]["mode"], "LTE Mode")
+eq("信号双工", d["signal"]["duplex"], "FDD")
+eq("小区 ID", d["signal"]["cell_id"], "DB9CA31")
+eq("PCI", d["signal"]["pci"], "210")
+eq("带宽", d["signal"]["bw"], "20")
 assert d["ts"] > 0, "ts 应为正整数"
 print("  ✓ ts 为正整数")
 PYEOF
@@ -189,6 +238,7 @@ assert d["conntrack"] == -1, "无 conntrack 文件时必须为 -1"
 assert d["clients"] == [], "无租约且无 ARP 时 clients 必须为空数组"
 assert d["uplink"]["connected"] is False, "无默认路由时 uplink.connected 必须为 false"
 assert d["carrier"]["name"] == "", "无 ubus / 无模组时运营商名必须为空"
+assert d["signal"]["rsrp"] == 0 and d["signal"]["mode"] == "", "无模组时信号字段必须降级"
 assert isinstance(d["ts"], int), "ts 必须仍是整数"
 print("  ✓ 空环境下仍输出合法 JSON，所有缺失项优雅降级")
 PYEOF
