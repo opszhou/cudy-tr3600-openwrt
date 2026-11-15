@@ -36,7 +36,7 @@
   - 5G SSID 自动加 `_5G` 后缀（双频同名会导致终端漫游到错误频段）
   - 每周一凌晨 04:30 自动重启；UPnP 默认安全模式；BBR 拥塞控制默认启用
   - **dufs** 默认 8080 端口、根目录 `/mnt`、仅 U 盘可写；**Transmission** 下载目录迁出内存盘（插着 U 盘则落在盘上）并开机自启
-  - **系统仪表盘是登录默认首页**（只读）：在线终端 / 连接数 / 运行时长 / 负载、实时流量曲线、CPU·内存·温度·风扇圆环、接口与终端列表。温度与转速直接读 sysfs，**不接管内核温控**（详见下方「系统仪表盘」）
+  - **管理面板接管为官方框架 + 自研逻辑**：沿用 `luci-mod-dashboard` 的卡片/图表/拖拽布局，网络侧判定改用默认路由与自研能力表（5G 的 `wwan0` 不在 netifd 里，原生会一直显示「未连接」）。未联网 / 接口禁用 / 无模组 / 无客户端时相关部件自动隐藏，恢复后 5 秒内自动出现（详见 `docs/DASHBOARD.md`）
 - **全套中文 LuCI** + Argon 主题（默认主题，含 argon-config 配置器）
 - **随身 WiFi 场景拉满**：QModem 管理 UI，USB RNDIS / QMI / NCM / MBIM / 串口全驱动，即插即用
 - **插件永远新鲜**：所有第三方插件 feed 构建时自动追踪上游最新稳定版（自动跳过 rc/beta 预发布）
@@ -58,7 +58,7 @@
 | 文件服务 | dufs 网页文件浏览器 + WebDAV 一体（**8080** 端口，80 保留给 LuCI；仅 U 盘可写其余只读；LuCI 面板「服务 → Dufs」，见下方「dufs 文件服务」） |
 | USB 存储 | UAS 高速协议 + ext4 / exFAT / NTFS3 / FAT32 文件系统 + 自动挂载（block-mount） |
 | 网络质量 | SQM 智能队列（消除 bufferbloat）+ nlbwmon 按主机流量统计 |
-| 系统界面 | **系统仪表盘**（登录默认首页，只读）：实时流量 / 在线终端 / 连接数 / CPU·内存·温度·风扇 |
+| 系统界面 | **管理面板**（官方框架 + 自研逻辑，只读）：信号强度 / 网络状态 / 流量统计 / 在线设备 / 实时流量曲线，未联网的部件自动隐藏 |
 
 ### ultimate（全能 = lite 全部，再加：）
 
@@ -70,16 +70,25 @@
 | 运维工具 | ttyd 网页终端 + luci-app-statistics 轻量监控（CPU/内存/接口图表） |
 | 网络 | ip-full / yq |
 
-### 系统仪表盘（只读首页）
+### 管理面板（官方框架 + 自研逻辑）
 
-登录后默认进入「仪表盘」（侧边栏第一项），原生页面仍可从「状态 → 概况」进入。
+侧边栏第一项「仪表盘」。视觉、卡片、图表、拖拽布局全部沿用官方 `luci-mod-dashboard`（Apache-2.0），
+逻辑与判定由 `luci-app-sysdashboard` 提供，**不自己画样式**。
 
-- **展示**：在线终端数（DHCP 租约）、连接跟踪数、运行时长、1/5/15 分钟负载；实时上下行曲线与每接口速率；CPU / 内存 / 温度 / 风扇圆环；接口与终端列表（主机名、IP、MAC）。3 秒刷新。
-- **数据来源**：`luci-app-sysdashboard` 自带一个 rpcd **只读**脚本，从 `/proc`（uptime / loadavg / stat / meminfo / net/dev / conntrack）、`/sys`（thermal_zone、hwmon 的 `fan1_input`·`pwm1`、cooling_device 档位）、`/tmp/dhcp.leases` 取一次快照；前端对相邻两次快照差分算速率与 CPU 使用率。
-- **不做什么**：不写任何 sysfs、不装常驻守护进程、不识别 App/URL、不记录上网行为。TR3600 风扇由内核 thermal 框架按 65/72/80/88 °C 四档自动调速（见 `9000-tr3600-v1-hw-fixes.patch`），本页只显示转速/PWM，⛔ 不装 `fancontrol` 之类用户态调速器去抢 PWM 控制权。
-- **无风扇/无温度传感器的设备**：对应圆环显示「不可用」，其余功能照常。
-- **测试**：`bash scripts/test-sysdashboard.sh`（沙箱注入假数据，校验 JSON 合法性与缺失降级）。
-- **想改回原生概况当首页**：把 `common/package/luci-app-sysdashboard/root/usr/share/luci/menu.d/luci-app-sysdashboard.json` 里的 `order` 改成大于 10，或删掉该菜单文件后重新构建。
+- **部件**：信号强度（RSRP / 等级 / RSRQ·SINR）、网络状态（运营商 / 制式 / 频段·频率·带宽）、
+  流量统计（本次累计收发）、互联网（运营商 + 上联 IP/网关）、在线设备（租约 + ARP 合并）、
+  WAN 实时流量；系统类（运行时间 / CPU / 内存 / 负载 / 系统负载图）沿用官方内容。
+- **自动显隐**：上联断开 → 互联网卡、WAN 流量图、流量统计卡与「互联网」标签消失；
+  无客户端 → 设备卡/标签消失；无模组 → 信号与网络状态卡消失；无线未启用 → 无线相关卡片/标签消失。
+  条件恢复后下一轮轮询（5 秒）自动回来。判定集中在 rpcd 的 `caps` 能力表，前端不再各写 if。
+- **数据来源**：`luci-app-sysdashboard` 的 rpcd **只读**脚本 —— `/proc`（uptime / loadavg / stat / meminfo /
+  net/dev / conntrack）、`/sys`（thermal_zone、hwmon、cooling_device）、`/tmp/dhcp.leases` + `/proc/net/arp`、
+  QModem 只读查询（`cell_info` / `get_current_band` / `get_stats` / `get_traffic_reset_schedule`）。
+- **不做什么**：不写任何 sysfs、不装常驻守护进程、不识别 App/URL、不记录上网行为。TR3600 风扇仍由内核
+  thermal 框架按 65/72/80/88 °C 四档自动调速（见 `9000-tr3600-v1-hw-fixes.patch`），面板只读转速/PWM。
+- **测试**：`bash scripts/test-sysdashboard.sh`（rpcd 快照与降级）、
+  `bash scripts/test-dashboard-catalog.sh`（部件声明 + 能力模型 + 显隐场景矩阵）。
+- **架构与扩展方式**：见 `docs/DASHBOARD.md`（新增部件只改 `sd/catalog.js` 一条 + `sd/providers.js` 一个分支）。
 
 ### dufs 文件服务（网页文件管理 + WebDAV）
 

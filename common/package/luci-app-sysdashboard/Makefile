@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# luci-app-sysdashboard -- read-only system dashboard (this project's own code)
+# luci-app-sysdashboard -- read-only dashboard widgets for luci-mod-dashboard
+# (rpcd snapshot + include/catalog modules; there is no standalone LuCI page)
 
 include $(TOPDIR)/rules.mk
 
-LUCI_TITLE:=LuCI support for the system dashboard (CPU / memory / traffic / fan)
+LUCI_TITLE:=Dashboard widgets for luci-mod-dashboard (signal / uplink / clients / traffic)
 LUCI_DEPENDS:=+luci-base
 
 PKG_LICENSE:=Apache-2.0
