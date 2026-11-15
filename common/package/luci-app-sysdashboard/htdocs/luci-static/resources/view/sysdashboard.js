@@ -45,8 +45,6 @@ var CSS = [
 	'.sd-pill.off { background:rgba(224,90,79,.16); color:#d3544a; }',
 	'.sd-cols { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }',
 	'@media (max-width:1050px) { .sd-cols { grid-template-columns:1fr; } }',
-	'.sd-card { background:rgba(127,127,127,.07); border:1px solid rgba(127,127,127,.16); border-radius:14px; padding:16px; min-width:0; }',
-	'.sd-cardtitle { font-size:13px; font-weight:600; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; gap:8px; }',
 	'.sd-big { font-size:30px; font-weight:700; line-height:1.15; }',
 	'.sd-big small { font-size:13px; font-weight:500; opacity:.65; margin-left:3px; }',
 	'.sd-label { opacity:.65; font-size:12px; }',
@@ -72,7 +70,6 @@ var CSS = [
 	'.sd-table th { opacity:.65; font-weight:600; }',
 	'.sd-empty { opacity:.6; font-size:12px; padding:10px 0; }',
 	'.sd-mini { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px; margin-top:12px; }',
-	'.sd-mini .sd-card { padding:12px; }',
 	'.sd-foot { margin-top:12px; line-height:1.6; }'
 ].join('\n');
 
@@ -102,6 +99,14 @@ function humanUptime(s) {
 }
 
 /* 信号等级：按 RSRP 分档，返回 0..5 格与文案 */
+/* 原生 cbi-value 行：跟随主题排版，不自绘 label/value 样式 */
+function kv(rows) {
+	return rows.map(function(r) {
+		return '<div class="cbi-value"><label class="cbi-value-title">' + r[0] +
+			'</label><div class="cbi-value-field">' + r[1] + '</div></div>';
+	}).join('');
+}
+
 function signalLevel(rsrp) {
 	if (!rsrp) return { bars: 0, text: _('No signal'), color: '#e05a4f' };
 	if (rsrp >= -85) return { bars: 5, text: _('Excellent'), color: '#38a89b' };
@@ -211,12 +216,13 @@ function paintSignal(s) {
 	dom.sigPill.textContent = lv.text;
 	dom.sigPill.style.color = lv.color;
 	dom.sigBars.innerHTML = bars(lv.bars);
-	dom.sigKv.innerHTML =
-		'<b>RSRQ</b><span>' + (sig.rsrq || '—') + ' dB</span>' +
-		'<b>SINR</b><span>' + (sig.sinr || '—') + ' dB</span>' +
-		'<b>RSSI</b><span>' + (sig.rssi || '—') + ' dBm</span>' +
-		'<b>' + _('Network mode') + '</b><span>' + esc(sig.mode || '—') + '</span>' +
-		'<b>' + _('Bandwidth') + '</b><span>' + (sig.bw ? esc(sig.bw) + ' MHz' : '—') + '</span>';
+	dom.sigKv.innerHTML = kv([
+		['RSRQ', (sig.rsrq || '—') + ' dB'],
+		['SINR', (sig.sinr || '—') + ' dB'],
+		['RSSI', (sig.rssi || '—') + ' dBm'],
+		[_('Network mode'), esc(sig.mode || '—')],
+		[_('Bandwidth'), sig.bw ? esc(sig.bw) + ' MHz' : '—']
+	]);
 }
 
 function paintUplink(s) {
@@ -229,13 +235,14 @@ function paintUplink(s) {
 			esc((sig.mode || '—') + (sig.duplex ? ' ' + sig.duplex : '')) + '</b></div>' +
 		'<div class="sd-tile"><div class="sd-label">' + _('Data network') + '</div><b>' +
 			(up.connected ? 'IPv4' : '—') + '</b></div>';
-	dom.upKv.innerHTML =
-		'<b>' + _('Uplink device') + '</b><span>' + esc(up.device || '—') + '</span>' +
-		'<b>' + _('IP address') + '</b><span>' + esc(up.ip || '—') + '</span>' +
-		'<b>' + _('Gateway') + '</b><span>' + esc(up.gateway || '—') + '</span>' +
-		'<b>' + _('Cell ID') + '</b><span>' + esc(sig.cell_id || '—') + '</span>' +
-		'<b>PCI</b><span>' + esc(sig.pci || '—') + '</span>' +
-		'<b>EARFCN</b><span>' + esc(sig.earfcn || '—') + '</span>';
+	dom.upKv.innerHTML = kv([
+		[_('Uplink device'), esc(up.device || '—')],
+		[_('IP address'), esc(up.ip || '—')],
+		[_('Gateway'), esc(up.gateway || '—')],
+		[_('Cell ID'), esc(sig.cell_id || '—')],
+		['PCI', esc(sig.pci || '—')],
+		['EARFCN', esc(sig.earfcn || '—')]
+	]);
 }
 
 function paintTraffic(s) {
@@ -244,10 +251,11 @@ function paintTraffic(s) {
 	dom.rxBig.innerHTML = humanRate(rateTx);
 	dom.rateSparkDown.innerHTML = spark(rxHistory, '#4a90e2');
 	dom.rateSparkUp.innerHTML = spark(txHistory, '#7b61c9');
-	dom.trKv.innerHTML =
-		'<b>' + _('Received') + '</b><span>' + (c ? humanBytes(c.rx) : '—') + '</span>' +
-		'<b>' + _('Sent') + '</b><span>' + (c ? humanBytes(c.tx) : '—') + '</span>' +
-		'<b>' + _('Total') + '</b><span>' + (c ? humanBytes(c.rx + c.tx) : '—') + '</span>';
+	dom.trKv.innerHTML = kv([
+		[_('Received'), c ? humanBytes(c.rx) : '—'],
+		[_('Sent'), c ? humanBytes(c.tx) : '—'],
+		[_('Total'), c ? humanBytes(c.rx + c.tx) : '—']
+	]);
 }
 
 function paintClients(s) {
@@ -276,12 +284,15 @@ function paintMini(s) {
 	var tempC = maxMillic > -273000 ? (maxMillic / 1000).toFixed(1) : '—';
 	var fan = s.fan || {};
 	var fanText = fan.rpm >= 0 ? fan.rpm + ' RPM' : (fan.pwm >= 0 ? Math.round(100 * fan.pwm / (fan.pwm_max || 255)) + '%' : '—');
+	function mini(title, value) {
+		return '<fieldset class="cbi-section"><legend>' + title + '</legend><div class="sd-big">' + value + '</div></fieldset>';
+	}
 	dom.mini.innerHTML =
-		'<div class="sd-card"><div class="sd-label">' + _('CPU') + '</div><div class="sd-big">' + Math.round(cpuUsage) + '<small>%</small></div></div>' +
-		'<div class="sd-card"><div class="sd-label">' + _('Memory') + '</div><div class="sd-big">' + memUsed + '<small>%</small></div></div>' +
-		'<div class="sd-card"><div class="sd-label">' + _('Temperature') + '</div><div class="sd-big">' + tempC + '<small>°C</small></div></div>' +
-		'<div class="sd-card"><div class="sd-label">' + _('Fan') + '</div><div class="sd-big" style="font-size:20px">' + fanText + '</div></div>' +
-		'<div class="sd-card"><div class="sd-label">' + _('Connections') + '</div><div class="sd-big">' + (s.conntrack >= 0 ? s.conntrack : '—') + '</div></div>';
+		mini(_('CPU'), Math.round(cpuUsage) + '<small>%</small>') +
+		mini(_('Memory'), memUsed + '<small>%</small>') +
+		mini(_('Temperature'), tempC + '<small>°C</small>') +
+		mini(_('Fan'), '<span style="font-size:19px">' + fanText + '</span>') +
+		mini(_('Connections'), s.conntrack >= 0 ? s.conntrack : '—');
 }
 
 function paint(s) {
@@ -340,54 +351,42 @@ return view.extend({
 		dom.chart = E('div', { 'class': 'sd-chart' });
 		dom.mini = E('div', { 'class': 'sd-mini' });
 
-		var root = E('div', { 'class': 'cbi-section sd-root' }, [
+		function section(title, extra, body) {
+			return E('fieldset', { 'class': 'cbi-section' }, [
+				E('legend', {}, [ title, extra || '' ]),
+				body
+			]);
+		}
+
+		var root = E('div', { 'class': 'sd-root' }, [
 			E('style', { 'type': 'text/css' }, CSS),
-			E('div', { 'class': 'sd-hero' }, [
-				dom.pill,
-				dom.host,
-				dom.status,
-				dom.hostSub
-			]),
+			section([ dom.pill, ' ', dom.host ], dom.status, dom.hostSub),
 			E('div', { 'class': 'sd-cols' }, [
-				E('div', { 'class': 'sd-card' }, [
-					E('div', { 'class': 'sd-cardtitle' }, [E('span', {}, _('Signal strength')), dom.sigPill]),
-					dom.sigBig,
-					dom.sigBars,
-					dom.sigKv
-				]),
-				E('div', { 'class': 'sd-card' }, [
-					E('div', { 'class': 'sd-cardtitle' }, _('Uplink & network')),
-					dom.upTiles,
-					dom.upKv
-				]),
-				E('div', { 'class': 'sd-card' }, [
-					E('div', { 'class': 'sd-cardtitle' }, _('Traffic')),
-					E('div', { 'class': 'sd-label' }, _('Download') + ' (' + _('realtime') + ')'),
-					dom.txBig,
-					dom.rateSparkDown,
-					E('div', { 'class': 'sd-label', 'style': 'margin-top:10px' }, _('Upload') + ' (' + _('realtime') + ')'),
-					dom.rxBig,
-					dom.rateSparkUp,
-					dom.trKv
-				])
+				section(_('Signal strength'), dom.sigPill,
+					E('div', {}, [ dom.sigBig, dom.sigBars, dom.sigKv ])),
+				section(_('Uplink & network'), '',
+					E('div', {}, [ dom.upTiles, dom.upKv ])),
+				section(_('Traffic'), '',
+					E('div', {}, [
+						E('div', { 'class': 'sd-sub' }, _('Download') + ' · ' + _('realtime')),
+						dom.txBig,
+						dom.rateSparkDown,
+						E('div', { 'class': 'sd-sub', 'style': 'margin-top:8px' }, _('Upload') + ' · ' + _('realtime')),
+						dom.rxBig,
+						dom.rateSparkUp,
+						dom.trKv
+					]))
 			]),
 			E('div', { 'class': 'sd-row2' }, [
-				E('div', { 'class': 'sd-card' }, [
-					E('div', { 'class': 'sd-cardtitle' }, [E('span', {}, _('Online devices')), dom.clientsCount]),
-					dom.clients
-				]),
-				E('div', { 'class': 'sd-card' }, [
-					E('div', { 'class': 'sd-cardtitle' }, [
-						E('span', {}, _('Realtime traffic')),
-						E('span', { 'class': 'sd-label' }, [
-							E('span', { 'class': 'sd-dot', 'style': 'background:#4a90e2' }),
-							dom.legendRx, '  ',
-							E('span', { 'class': 'sd-dot', 'style': 'background:#7b61c9' }),
-							dom.legendTx
-						])
+				section([ _('Online devices'), dom.clientsCount ], '', dom.clients),
+				section(_('Realtime traffic'),
+					E('span', { 'class': 'sd-sub' }, [
+						E('span', { 'class': 'sd-dot', 'style': 'background:#4a90e2' }),
+						dom.legendRx, '  ',
+						E('span', { 'class': 'sd-dot', 'style': 'background:#7b61c9' }),
+						dom.legendTx
 					]),
-					dom.chart
-				])
+					dom.chart)
 			]),
 			dom.mini,
 			E('div', { 'class': 'sd-foot sd-sub' },
