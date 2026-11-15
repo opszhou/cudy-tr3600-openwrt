@@ -145,8 +145,13 @@ return baseclass.extend({
 				' · ↑ ' + util.fmtRate(cur ? cur.txRate || 0 : 0)
 			];
 
-			if (today.rx || today.tx)
-				sub.push(_('Today') + ' ' + util.fmtBytes((today.rx || 0) + (today.tx || 0)));
+			/* 今日 / 昨日 / 本周 放在同一行，跟在实时速率后面 */
+			var dPrev = daily.yesterday || {}, dWeek = daily.week || {};
+			sub.push([
+				_('Today') + ' ' + util.fmtBytes((today.rx || 0) + (today.tx || 0)),
+				_('Yesterday') + ' ' + util.fmtBytes((dPrev.rx || 0) + (dPrev.tx || 0)),
+				_('This week') + ' ' + util.fmtBytes((dWeek.rx || 0) + (dWeek.tx || 0))
+			].join(' · '));
 
 			return charts.kpi({
 				icon: 'sd-activity',

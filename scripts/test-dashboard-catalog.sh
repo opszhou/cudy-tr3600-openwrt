@@ -76,7 +76,7 @@ globalThis.L = {
 	resource: p => p
 };
 globalThis.charts = {
-	kpi: o => ({ kind: 'kpi', title: o.title }),
+	kpi: o => ({ kind: 'kpi', title: o.title, sub: o.sub }),
 	card: o => ({ kind: 'card', title: o.title }),
 	empty: () => ({ kind: 'empty' }),
 	badge: () => null,
@@ -264,6 +264,16 @@ const twoTab = providers.tab('internet', twoSnap, { count: { clients: 1 } });
 const grid = (twoTab.content.children || [])[0];
 check('多链路使用 dashboard-net-grid', grid && grid.attrs && grid.attrs.class, 'dashboard-net-grid');
 check('每条链路一张卡', (grid.children || []).length, 2);
+
+/* 流量卡副行：实时速率 + 今日/昨日/本周 同一行 */
+const usageSnap = Object.assign({}, S, {
+	daily: { today: { rx: 1, tx: 1 }, yesterday: { rx: 2, tx: 2 }, week: { rx: 3, tx: 3 } }
+});
+const trafficCard = providers.card('traffic-usage', usageSnap, { count: { clients: 0 } });
+const subLine = (trafficCard.sub || []).join(' | ');
+check('副行含今日', subLine.indexOf('Today') >= 0, true);
+check('副行含昨日', subLine.indexOf('Yesterday') >= 0, true);
+check('副行含本周', subLine.indexOf('This week') >= 0, true);
 
 console.log('== 断网（无默认路由）==');
 r = renderWith(snap({ clients: true, wifi: true, wifiClients: true, modem: true, signal: true }));
