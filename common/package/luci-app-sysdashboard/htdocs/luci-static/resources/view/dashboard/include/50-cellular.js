@@ -117,29 +117,38 @@ return baseclass.extend({
 
 		var sig = snap.signal || {}, up = snap.uplink || {}, car = snap.carrier || {};
 		var ups = snap.uplinks || [], clients = snap.clients || snap.leases || [];
+		var live = ups.filter(function(u) { return u.connected; });
+		if (live.length) ups = live;
 
-		var cards = [
-			{
+		/*
+		 * 只返回“有数据”的卡片：官方面板按 id 从 layout 里取节点，缺 id 即不渲染。
+		 * 这样未连接/没模组时，对应的状态卡会自动消失，而不是挂一张“未连接”的空卡。
+		 */
+		var cards = [];
+
+		if (sig.rsrp)
+			cards.push({
 				id: 'cell-signal',
 				node: charts.kpi({
 					icon: 'wireless',
 					title: _('Signal'),
-					value: sig.rsrp ? sig.rsrp + ' dBm' : '—',
+					value: sig.rsrp + ' dBm',
 					sub: [ car.name || '', sig.mode || '' ],
 					stacked: true
 				})
-			},
-			{
+			});
+
+		if (up.connected)
+			cards.push({
 				id: 'cell-uplink',
 				node: charts.kpi({
-					icon: up.connected ? 'internet' : 'not-internet',
+					icon: 'internet',
 					title: _('Uplink'),
-					value: up.device || _('Not connected'),
+					value: up.device || '—',
 					sub: [ up.ip || '', up.gateway ? _('Gateway') + ' ' + up.gateway : '' ],
 					stacked: true
 				})
-			}
-		];
+			});
 
 		var tabs = [
 			{
