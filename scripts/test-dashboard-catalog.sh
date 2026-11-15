@@ -63,7 +63,13 @@ globalThis.document = {
 };
 
 globalThis.rpc = { declare: () => (async () => null) };
-globalThis.baseclass = { extend: o => o };
+globalThis.baseclass = {
+	extend: function(o) {
+		function C() {}
+		Object.assign(C.prototype, o);
+		return C;
+	}
+};
 globalThis.L = {
 	resolveDefault: (p, d) => Promise.resolve(d),
 	dom: { content() {} },
@@ -114,10 +120,13 @@ const OFFICIAL = {
 
 /* ---------------- 模块加载器（模拟 LuCI require） ---------------- */
 const cache = {};
+const RAW = {};
 
 function resolve(name) {
 	if (OFFICIAL[name]) return { kind: 'official', name: name };
 	if (name === 'view.dashboard.lib.charts') return { kind: 'charts' };
+	if (name === 'view.dashboard.include.50-cellular')
+		return { kind: 'file', file: path.join(MODROOT, 'view/dashboard/include/50-cellular.js') };
 	const m = name.match(/^view\.dashboard\.sd\.([\w-]+)$/);
 	if (m) return { kind: 'file', file: path.join(MODROOT, 'view/dashboard/sd', m[1] + '.js') };
 	return { kind: 'unknown', name: name };
@@ -135,7 +144,7 @@ function loadFile(file) {
 	if (cache[file]) return cache[file];
 
 	const src = fs.readFileSync(file, 'utf8');
-	const re = /'require\s+([A-Za-z0-9_.\-]+)(?:\s+as\s+(\w+))?'/g;
+	const re = /^\s*'require\s+([A-Za-z0-9_.\-]+)(?:\s+as\s+(\w+))?'/gm;
 	const prelude = [];
 	const seen = new Set();
 	let m;
@@ -146,7 +155,9 @@ function loadFile(file) {
 	}
 
 	const fn = new Function('__req', prelude.join('\n') + '\n' + src);
-	const mod = fn(req);
+	const raw = fn(req);
+	RAW[file] = raw;
+	const mod = (typeof raw === 'function') ? new raw() : raw;
 	cache[file] = mod;
 	return mod;
 }
@@ -209,7 +220,11 @@ console.log('== 官方 include 降级 ==');
 const registry = req('view.dashboard.sd.registry');
 check('官方 widgets 被清空', Object.keys(OFFICIAL).map(k => OFFICIAL[k].widgets.length), [ 0, 0, 0, 0, 0 ]);
 check('官方 available 返回 false', Object.keys(OFFICIAL).map(k => OFFICIAL[k].available()), [ false, false, false, false, false ]);
-check('我们的 widgets 声明 20 条', registry.build().widgets.length, 20);
+check('我们的 widgets 声明 20 条', registry.widgets.length, 20);
+req('view.dashboard.include.50-cellular');
+const entryFile = path.join(MODROOT, 'view/dashboard/include/50-cellular.js');
+check('入口模块返回构造函数（LuCI 会 new 它）', typeof RAW[entryFile], 'function');
+check('入口实例化后带 widgets 声明', cache[entryFile].widgets.length, 20);
 
 /* ---------------- 3. 场景矩阵 ---------------- */
 const S = snap({ wan: true, clients: true, wifi: true, wifiClients: true, modem: true, signal: true });

@@ -40,6 +40,11 @@ PROVIDERS.forEach(function(inc) {
 });
 
 return baseclass.extend({
+	/* 作为 include 被 LuCI 实例化：模块必须返回构造函数，这里直接带上声明 */
+	title: _('System dashboard'),
+	params: [],
+	widgets: catalog.declare(),
+
 	load: function() {
 		var tasks = PROVIDERS.map(function(inc) {
 			return new Promise(function(resolve) {
@@ -190,15 +195,4 @@ return baseclass.extend({
 
 		return out;
 	},
-
-	/* 交给官方面板的 include 对象 */
-	build: function() {
-		return {
-			title: _('System dashboard'),
-			params: [],
-			widgets: catalog.declare(),
-			load: this.load.bind(this),
-			render: this.render.bind(this)
-		};
-	}
 });
