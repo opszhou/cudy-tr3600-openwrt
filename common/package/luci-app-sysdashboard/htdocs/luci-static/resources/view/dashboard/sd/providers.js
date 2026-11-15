@@ -25,7 +25,7 @@ var DEV_LABEL = {
 };
 
 var HIST = 40, rxHist = [], txHist = [];
-var prev = null, prevTs = 0, selectedDev = null;
+var prev = null, prevTs = 0;
 var peakRx = 0, peakTx = 0;
 
 /* RSRP 分档（与信号卡片一致） */
@@ -138,7 +138,12 @@ return baseclass.extend({
 			var total = (usage.rx || 0) + (usage.tx || 0);
 			var daily = snap.daily || {};
 			var today = daily.today || {};
-			var sub = [ '↓ ' + util.fmtBytes(usage.rx) + ' · ↑ ' + util.fmtBytes(usage.tx) ];
+			/* 副行放实时速率：累计值在卡片主值上，速率能看出「在动」 */
+			var cur = this.uplinkTraffic(snap);
+			var sub = [
+				'↓ ' + util.fmtRate(cur ? cur.rxRate || 0 : 0) +
+				' · ↑ ' + util.fmtRate(cur ? cur.txRate || 0 : 0)
+			];
 
 			if (today.rx || today.tx)
 				sub.push(_('Today') + ' ' + util.fmtBytes((today.rx || 0) + (today.tx || 0)));
@@ -232,7 +237,10 @@ return baseclass.extend({
 		function sum(o) { return (o.rx || 0) + (o.tx || 0); }
 
 		parts.push(E('h3', {}, [ _('Traffic') ]));
+		var live = this.uplinkTraffic(snap);
 		parts.push(util.kvTable([
+			[ _('Download') + ' · ' + _('realtime'), util.fmtRate(live ? live.rxRate || 0 : 0) ],
+			[ _('Upload') + ' · ' + _('realtime'), util.fmtRate(live ? live.txRate || 0 : 0) ],
 			[ _('Today'), util.fmtBytes(sum(dToday)) ],
 			[ _('Yesterday'), util.fmtBytes(sum(dPrev)) ],
 			[ _('This week'), util.fmtBytes(sum(dWeek)) ],
@@ -250,11 +258,14 @@ return baseclass.extend({
 	},
 
 	/*
-	 * 上联详情：只有一条在线链路时不显示二级标签（否则「互联网」里又套一个
-	 * 「5G cellular」，纯属多余）；两条以上才出现切换标签，选中项跨刷新保持。
+	 * 上联详情：
+	 *   1 条在线链路  → 直接一张表
+	 *   多条在线链路  → 与官方「无线」标签页同款 dashboard-net-grid 卡片网格，
+	 *                   每条链路一张卡（不再自己造 cbi-tabmenu 子标签）
 	 */
 	uplinkPane: function(snap) {
 		var ups = (snap.uplinks || []).filter(function(u) { return u.connected; });
+		var self = this;
 
 		if (!ups.length)
 			return charts.empty(_('No data'));
@@ -262,34 +273,13 @@ return baseclass.extend({
 		if (ups.length === 1)
 			return this.uplinkTable(ups[0]);
 
-		var body = E('div', {});
-		var menu = E('ul', { 'class': 'cbi-tabmenu' });
-
-		function paint(dev) {
-			selectedDev = dev;
-			Array.prototype.forEach.call(menu.children, function(li) {
-				if (li.getAttribute('data-tab') === dev)
-					li.setAttribute('class', 'cbi-tab');
-				else
-					li.removeAttribute('class');
+		return E('div', { 'class': 'dashboard-net-grid' }, ups.map(function(u) {
+			return charts.card({
+				title: DEV_LABEL[u.device] || u.device,
+				desc: _('Connected') + (u.metric ? ' · metric ' + u.metric : ''),
+				body: [ self.uplinkTable(u) ]
 			});
-			var cur = ups.filter(function(u) { return u.device === dev; })[0];
-			L.dom.content(body, cur ? self.uplinkTable(cur) : charts.empty(_('No data')));
-		}
-
-		var self = this;
-		ups.forEach(function(u) {
-			menu.appendChild(E('li', { 'data-tab': u.device }, [
-				E('a', { 'href': '#', 'click': function(ev) { ev.preventDefault(); paint(u.device); } },
-					[ DEV_LABEL[u.device] || u.device ])
-			]));
-		});
-
-		var init = (selectedDev && ups.some(function(u) { return u.device === selectedDev; }))
-			? selectedDev : ups[0].device;
-		paint(init);
-
-		return E('div', {}, [ menu, body ]);
+		}));
 	},
 
 	uplinkTable: function(cur) {

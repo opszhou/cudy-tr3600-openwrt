@@ -253,6 +253,18 @@ check('单条链路无二级标签（无 cbi-tabmenu）',
 	detailKids.some(k => k.tag === 'ul'), false);
 check('详情第一块是链路上报表', detailKids[0] && detailKids[0].tag, 'table');
 
+/* 多条在线链路：用官方 dashboard-net-grid 卡片网格（与无线标签页同款） */
+const twoSnap = Object.assign({}, S, {
+	uplinks: [
+		{ device: 'wwan0', connected: true, ip: '10.0.0.2/8', gateway: '10.0.0.1', rx: 100, tx: 50 },
+		{ device: 'wan', connected: true, ip: '192.168.1.2/24', gateway: '192.168.1.1', metric: 20, rx: 9, tx: 3 }
+	]
+});
+const twoTab = providers.tab('internet', twoSnap, { count: { clients: 1 } });
+const grid = (twoTab.content.children || [])[0];
+check('多链路使用 dashboard-net-grid', grid && grid.attrs && grid.attrs.class, 'dashboard-net-grid');
+check('每条链路一张卡', (grid.children || []).length, 2);
+
 console.log('== 断网（无默认路由）==');
 r = renderWith(snap({ clients: true, wifi: true, wifiClients: true, modem: true, signal: true }));
 check('互联网卡隐藏', present(r.cards).includes('internet'), false);
