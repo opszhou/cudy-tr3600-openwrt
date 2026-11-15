@@ -97,5 +97,30 @@ chmod 644 "$F"
 bash "$APPLY" "$TMP" > /dev/null
 if [ -x "$F" ]; then check "644 输入被兜底为可执行" "可执行" "可执行"; else check "644 输入被兜底为可执行" "不可执行" "可执行"; fi
 
+# 用例 8：别的 feed 里有同名杂项时不能误判（run#56：feeds/base/feeds/qmodem/...）
+sample
+mkdir -p "$TMP/feeds/base/feeds/qmodem/qmodem/files/usr/share/qmodem"
+cp -p "$F" "$TMP/feeds/base/feeds/qmodem/qmodem/files/usr/share/qmodem/modem_dial.sh"
+if bash "$APPLY" "$TMP" > /dev/null 2>&1; then
+	check "其它 feed 的同名文件不干扰" "成功" "成功"
+else
+	check "其它 feed 的同名文件不干扰" "失败" "成功"
+fi
+check "只改了 qmodem feed 里的那份" "$(grep -cF "$INS" "$TMP/feeds/base/feeds/qmodem/qmodem/files/usr/share/qmodem/modem_dial.sh")" "0"
+rm -rf "$TMP/feeds/base"
+
+# 用例 9：feeds/qmodem 是符号链接时也要能找到
+sample
+mkdir -p "$TMP/real/qmodem/application/qmodem/files/usr/share/qmodem"
+mv "$F" "$TMP/real/qmodem/application/qmodem/files/usr/share/qmodem/modem_dial.sh"
+rm -rf "$TMP/feeds/qmodem"
+ln -sfn "$TMP/real/qmodem" "$TMP/feeds/qmodem"
+if bash "$APPLY" "$TMP" > /dev/null 2>&1; then
+	check "符号链接布局应成功" "成功" "成功"
+else
+	check "符号链接布局应成功" "失败" "成功"
+fi
+rm -rf "$TMP/real" "$TMP/feeds/qmodem"
+
 echo "---- 通过 $pass / 失败 $fail ----"
 [ "$fail" -eq 0 ]

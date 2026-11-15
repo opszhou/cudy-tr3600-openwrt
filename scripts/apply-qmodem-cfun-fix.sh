@@ -24,11 +24,18 @@ OPENWRT="$(cd "${1:?缺少 openwrt 根目录}" && pwd)"
 MARKER='# QModem-hotfix: CFUN=0 时拨号会空转'
 INSERT_LINE='check_cfun >/dev/null 2>&1'
 
-# 不用 find -exec：部分环境（Windows Git Bash）会因环境变量过大而 exec 失败
+# 只扫 qmodem 这个 feed：全 feeds 扫描会撞上别的 feed 里的同名杂项
+# （run#56 实测 feeds/base/feeds/qmodem/... 也被匹配到，脚本误判为 2 个）。
+# 不用 find -exec：部分环境（Windows Git Bash）会因环境变量过大而 exec 失败。
+QM_FEED="$OPENWRT/feeds/qmodem"
+if [ ! -e "$QM_FEED" ]; then
+	echo "错误: 未找到 qmodem feed 目录: $QM_FEED" >&2
+	exit 1
+fi
 CANDIDATES=()
 while IFS= read -r f; do
 	CANDIDATES+=("$f")
-done < <(find -L "$OPENWRT/feeds" -type f -path '*/usr/share/qmodem/modem_dial.sh' 2>/dev/null | sort)
+done < <(find -L "$QM_FEED" -type f -path '*/usr/share/qmodem/modem_dial.sh' 2>/dev/null | sort)
 if [ "${#CANDIDATES[@]}" -ne 1 ]; then
 	echo "错误: 期望恰好 1 个 qmodem modem_dial.sh，实际 ${#CANDIDATES[@]} 个" >&2
 	printf '  %s\n' "${CANDIDATES[@]}" >&2
