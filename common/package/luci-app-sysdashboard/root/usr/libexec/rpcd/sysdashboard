@@ -283,10 +283,37 @@ if command -v "$UBUS_CMD" >/dev/null 2>&1; then
 	fi
 fi
 
-printf '{"ts":%s,"uptime":%s,"load":[%s,%s,%s],"cpu":{"total":%s,"idle":%s},"memory":{"total":%s,"free":%s,"available":%s,"buffers":%s,"cached":%s},"traffic":[%s],"leases":[%s],"clients":[%s],"uplink":%s,"carrier":%s,"signal":%s,"thermal":[%s],"fan":{"name":"%s","rpm":%s,"pwm":%s,"pwm_max":%s,"state":%s,"state_max":%s},"conntrack":%s}\n' \
+# ---- 多 WAN 候选（供面板标签页切换）--------------------------------------
+# 候选 = 默认路由里出现的设备 + 常见的 WAN 设备名（存在才列）。
+# 每个候选给出：是否承载默认路由、IP、网关、metric、累计收发。
+uplinks_json="[]"
+if command -v "$IP_CMD" >/dev/null 2>&1; then
+	route_all=$("$IP_CMD" -4 route 2>/dev/null | awk '/^default/ {d="";g="";m=0;for(i=1;i<=NF;i++){if($i=="via")g=$(i+1);if($i=="dev")d=$(i+1);if($i=="metric")m=$(i+1)}; if(d!="") printf "%s|%s|%s\n", d, g, m}')
+	cands=$(printf '%s\n' "$route_all" | cut -d'|' -f1 | sed '/^$/d' | sort -u)
+	for d in wwan0 wan usb0 wanusb; do
+		[ -d "/sys/class/net/$d" ] && cands=$(printf '%s\n%s\n' "$cands" "$d")
+	done
+	cands=$(printf '%s\n' "$cands" | sed '/^$/d' | sort -u)
+	sep=""
+	for d in $cands; do
+		line=$(printf '%s\n' "$route_all" | awk -F'|' -v d="$d" '$1==d {print; exit}')
+		rgw=$(printf '%s' "$line" | cut -d'|' -f2)
+		rmet=$(printf '%s' "$line" | cut -d'|' -f3)
+		[ -n "$line" ] && rconn=true || rconn=false
+		raddr=$("$IP_CMD" -4 -o addr show dev "$d" 2>/dev/null | awk 'NR==1{print $4}')
+		rrx=0; rtx=0
+		[ -r "$PROC_DIR/net/dev" ] && rrx=$(awk -v d="$d" '$1==d":" {print $2; exit}' "$PROC_DIR/net/dev")
+		[ -r "$PROC_DIR/net/dev" ] && rtx=$(awk -v d="$d" '$1==d":" {print $10; exit}' "$PROC_DIR/net/dev")
+		uplinks_json=$(printf '%s' "$uplinks_json" | sed 's/^\[//; s/\]$//')
+		uplinks_json="[${uplinks_json}${sep}{\"device\":\"$d\",\"connected\":$rconn,\"ip\":\"${raddr:-}\",\"gateway\":\"${rgw:-}\",\"metric\":${rmet:-0},\"rx\":$(num "${rrx:-0}"),\"tx\":$(num "${rtx:-0}")}]"
+		sep=","
+	done
+fi
+
+printf '{"ts":%s,"uptime":%s,"load":[%s,%s,%s],"cpu":{"total":%s,"idle":%s},"memory":{"total":%s,"free":%s,"available":%s,"buffers":%s,"cached":%s},"traffic":[%s],"leases":[%s],"clients":[%s],"uplink":%s,"uplinks":%s,"carrier":%s,"signal":%s,"thermal":[%s],"fan":{"name":"%s","rpm":%s,"pwm":%s,"pwm_max":%s,"state":%s,"state_max":%s},"conntrack":%s}\n' \
 	"$ts" "$uptime" "$load1" "$load5" "$load15" \
 	"$cpu_total" "$cpu_idle" \
 	"$mem_total" "$mem_free" "$mem_avail" "$mem_buffers" "$mem_cached" \
-	"$traffic_json" "$leases_json" "$clients_json" "$uplink_json" "$carrier_json" "$signal_json" "$thermal_json" \
+	"$traffic_json" "$leases_json" "$clients_json" "$uplink_json" "$uplinks_json" "$carrier_json" "$signal_json" "$thermal_json" \
 	"$fan_name" "$fan_rpm" "$fan_pwm" "$fan_pwm_max" "$fan_state" "$fan_state_max" \
 	"$conntrack"
