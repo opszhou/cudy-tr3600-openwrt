@@ -108,7 +108,8 @@ fi
 # 落地一律 644。结果 fzs-p3-diag / fzs-p3-set-apn 进了镜像却不可执行（Permission denied）。
 # OpenWrt 的 files/ 机制按源文件模式安装，所以拷进源码树后统一兜底一次。
 if [ -d "$OPENWRT/files" ]; then
-    find "$OPENWRT/files" -type f \( -path '*/usr/bin/*' -o -path '*/usr/sbin/*' -o -path '*/etc/init.d/*' -o -path '*/etc/hotfix.d/*' \) -exec chmod 755 {} + 2>/dev/null || true
+    # hotplug.d 才是真实目录（曾误写成 hotfix.d，导致热插拔钩子进了镜像却是 644 不执行）
+    find "$OPENWRT/files" -type f \( -path '*/usr/bin/*' -o -path '*/usr/sbin/*' -o -path '*/etc/init.d/*' -o -path '*/etc/hotplug.d/*' \) -exec chmod 755 {} + 2>/dev/null || true
 fi
 
 # 6) 组装 .config：交给 assemble-config.sh（单一真源）

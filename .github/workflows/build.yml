@@ -207,8 +207,11 @@ jobs:
       - name: 设备移植前置校验（补丁 / 设备树 / 网口映射）
         # 秒级失败闸门：补丁漂移、dts 结构错、02_network 网口映射写错都在这里拦下，
         # 不用等 90 分钟编译。逻辑见 scripts/verify-device.sh（worktree 内校验，不改主树）。
+        # 第 4 个参数必须是「上游分支」而不是空：传空会让脚本回落到 device.yml 的 branch
+        # （那个字段描述的是 openwrt 的分支），上游换成 immortalwrt 时会去 patches/immortalwrt-main
+        # 找补丁——实际目录是 immortalwrt-master，于是误判「无补丁 → 设备定义缺失」（run#67）。
         run: |
-          bash scripts/verify-device.sh . openwrt "${{ matrix.device }}" "" "${{ inputs.upstream_repo }}"
+          bash scripts/verify-device.sh . openwrt "${{ matrix.device }}" "${{ inputs.upstream_branch }}" "${{ inputs.upstream_repo }}"
 
       - name: 缓存源码包（dl）
         uses: actions/cache@v5
