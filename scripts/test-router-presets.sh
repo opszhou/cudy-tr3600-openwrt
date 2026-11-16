@@ -117,6 +117,14 @@ config dufs 'config'
 FIX
 export DUFS_CONF="$SB/dufs.config"
 
+# UPnP 配置（不装 UPnP 的设备没有这个文件，预设应跳过而不是凭空建一个）
+cat > "$SB/upnpd.config" <<'FIX'
+config upnpd 'config'
+	option enabled '0'
+	option secure_mode '0'
+FIX
+export UPNP_CONF="$SB/upnpd.config"
+
 # transmission 配置（匿名节，模拟上游 /etc/config/transmission 的首行结构）
 cat > "$SB/transmission.config" <<'FIX'
 config transmission

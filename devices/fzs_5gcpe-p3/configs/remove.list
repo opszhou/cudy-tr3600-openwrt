@@ -5,3 +5,47 @@
 # 首轮 CI 若报「被丢弃: CONFIG_PACKAGE_xxx」，按下面两类处理：
 #   1) 25.12 里包名变了 → 去 configs/add.list 用新名重新启用
 #   2) 25.12 里没有该包 → 把 "# CONFIG_PACKAGE_xxx is not set" 写到这里
+#
+# ============================================================================
+# 本机定位：5G CPE，233 MiB RAM / MT7981B 双核 A53。
+# 瓶颈在 CPU 与内存，不在存储（overlay 58.9 MiB 还剩 47 MiB）。
+#
+# 2026-11-16 定稿：**只排除透明代理全家**，其余评估后全部保留。
+#   理由：mihomo 做透明代理要对每个转发包走一遍规则匹配，双核 A53 在满速转发时
+#   会被顶满；同时它是固件里最大的单体（mihomo-meta 57.2 MB + yq 12.8 MB），
+#   而且 yq 与 mihomo **只被 nikki 依赖**，关掉 nikki 三件套它们会一起消失，
+#   不必显式关（显式关不存在的符号反而会污染 .config）。
+#
+# 想恢复透明代理：删掉下面三行即可。设备侧 /etc/nikki/ 的 profile 不受影响。
+# ============================================================================
+
+# CONFIG_PACKAGE_nikki is not set
+# CONFIG_PACKAGE_luci-app-nikki is not set
+# CONFIG_PACKAGE_luci-i18n-nikki-zh-cn is not set
+
+
+# ============================================================================
+# 评估过、明确保留 —— 以下是 2026-11-16 在设备上实测的体积/内存与保留理由。
+# 需要减的时候逐条启用，不要整块打开；每条前面加 "# " 让 Kconfig 的 not set 生效
+# 的写法见文件最上面那一组。
+#
+#   体积（安装后）      实测 RSS     包 / 说明
+#   4.7 MB             4.0 MB       dufs + luci-app-dufs —— 保留
+#   1.0 MB             2.1 MB       luci-app-statistics + collectd —— 保留（历史曲线）
+#   0.06 MB            0.95 MB      luci-app-nlbwmon —— 保留（按主机流量）
+#   10.9 MB            未运行        ddns-go —— 保留（以后可能配 IPv6 + DDNS）
+#   0.45 MB            未运行        sqm-scripts + luci-app-sqm —— 保留（备用）
+#   0.20 MB            未运行        miniupnpd-nftables + luci-app-upnp —— 保留（备用）
+#   0.26 MB            未运行        acme-acmesh + luci-app-acme —— 保留（备用）
+#   0.32 MB            未运行        socat —— 保留（备用）
+#   0.01 MB            未运行        luci-app-wol —— 保留（备用）
+#   1.05 MB            无进程        USB 存储栈 / USB 网卡 / USB 转串口驱动 —— 保留
+#                                   （删了不释放任何内存，只省 1 MB flash，收益太低）
+#
+# 明确不动：
+#   argon 主题与 argon-config          —— 界面观感，~700 KB，无进程
+#   luci-app-turboacc + kmod-nft-offload + kmod-tcp-bbr —— 流卸载/BBR 对 5G 吞吐有收益
+#   QModem 全家 + umbim/uqmi + 模组侧 USB 驱动 —— 核心功能，实测约 11 MB RSS
+#   luci-mod-dashboard + luci-app-sysdashboard —— 自研面板，开销落在 rpcd 里
+#   dnsmasq / odhcpd / firewall4 / netifd / wpad / dropbear / uhttpd —— 系统底座
+# ============================================================================

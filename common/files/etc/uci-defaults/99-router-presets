@@ -7,6 +7,7 @@
 BBR_DIR="${BBR_SYS_DIR:-/sys/module/tcp_bbr}"
 SYSCTL_CONF="${SYSCTL_CONF:-/etc/sysctl.conf}"
 DUFS_CONF="${DUFS_CONF:-/etc/config/dufs}"
+UPNP_CONF="${UPNP_CONF:-/etc/config/upnpd}"
 
 # ---- 默认 LAN：192.168.10.1/24，DHCP 池 .100~.249 ----
 uci -q set network.lan.ipaddr='192.168.10.1'
@@ -26,8 +27,11 @@ uci -q set system.@system[0].clock_hourcycle='h23'
 uci -q commit system
 
 # ---- UPnP：默认启用安全模式（仅允许位于 DMZ/已映射主机的请求）
-uci -q set upnpd.config.secure_mode=1
-uci -q commit upnpd
+# 不装 UPnP 的设备（如精简版 CPE）没有这个配置文件，跳过以免 uci 建出一个孤立配置
+if [ -f "$UPNP_CONF" ]; then
+	uci -q set upnpd.config.secure_mode=1
+	uci -q commit upnpd
+fi
 
 # ---- 运行期补丁（hotfix）：开机重放 /etc/hotfix.d/*.sh ----
 # 配置级修复（兜底 DNS 等）统一放 /etc/hotfix.d/，好处是同一份脚本两处复用：
