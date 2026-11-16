@@ -1,0 +1,269 @@
+#!/bin/sh
+# lan-fixed-ip -- 把 DHCP 静态租约的「末位」固定住，网段跟随 LAN 自动变。
+#
+# 为什么需要它：
+#   dnsmasq 的静态租约（dhcp host 段的 ip）只接受完整 IPv4 地址，没有
+#   「相对末位」的写法。本工具把规则记成「末位 + MAC」，在 LAN 每次 ifup
+#   时按当前网段前缀重算一次，于是：
+#       网段 192.168.5.0/24 -> 192.168.5.10
+#       网段 10.0.0.0/24    -> 10.0.0.10
+#   末位不变，网段跟随，不需要手工改任何 IP。
+#
+# 用法：
+#   lan-fixed-ip add <MAC> <末位> [主机名]        新增/覆盖规则并立即生效
+#   lan-fixed-ip add --from-lease <主机名|当前IP> <末位> [主机名]
+#                                                 从当前租约里查出 MAC，免手输
+#   lan-fixed-ip del <MAC|末位>                   删除规则（同时删掉对应静态租约）
+#   lan-fixed-ip list                             查看规则
+#   lan-fixed-ip sync                             按当前网段重算（热插拔钩子调用）
+#
+# 规则文件：/etc/config/lan-fixed-ip.conf
+#   每行一条，格式 <末位> <MAC> [主机名]，# 开头为注释。
+#   放在 /etc/config/ 下是为了让 sysupgrade 默认保留，重刷固件不丢。
+#
+# 刻意不加 set -e：任何一步失败只该安静退出，不能影响热插拔事件里的其他钩子
+# （与 rpcd/sysdashboard 同一处理原则）。
+
+CONF="${LAN_FIXED_CONF:-/etc/config/lan-fixed-ip.conf}"
+DNSMASQ_INIT="${LAN_FIXED_DNSMASQ_INIT:-/etc/init.d/dnsmasq}"
+LEASES="${LAN_FIXED_LEASES:-/tmp/dhcp.leases}"
+
+usage() {
+	cat <<'USAGE'
+用法: lan-fixed-ip <命令> [参数]
+
+  add <MAC> <末位> [主机名]              新增或覆盖一条固定末位规则
+  add --from-lease <主机名|IP> <末位> [主机名]
+                                        从当前 DHCP 租约查 MAC，免手输
+  del <MAC|末位>                        删除规则
+  list                                  查看规则
+  sync                                  按当前网段重算（通常由热插拔钩子调用）
+
+示例:
+  lan-fixed-ip add 0a:af:fc:4f:1d:fd 10 armbian
+  lan-fixed-ip add --from-lease armbian 10
+  lan-fixed-ip del 10
+USAGE
+}
+
+# 当前 LAN 网段前缀（不带最后一段）。取不到就输出空表示「不要动」。
+lan_prefix() {
+	ip=$(uci -q get network.lan.ipaddr)
+	if [ -z "$ip" ]; then
+		dev=$(uci -q get network.lan.device)
+		[ -n "$dev" ] || dev=br-lan
+		ip=$(ip -4 -o addr show dev "$dev" 2>/dev/null |
+			awk 'NR==1 { split($4, a, "/"); print a[1] }')
+	fi
+	case "$ip" in
+		*.*.*.*) printf '%s' "${ip%.*}" ;;
+		*) printf '' ;;
+	esac
+}
+
+valid_mac() {
+	printf '%s' "$1" | grep -qE '^[0-9a-f]{2}(:[0-9a-f]{2}){5}$'
+}
+
+valid_last() {
+	case "$1" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+	[ "$1" -ge 1 ] && [ "$1" -le 254 ]
+}
+
+# 找出这个 MAC 对应的 host 段名
+find_sec_by_mac() {
+	local s
+	for s in $(uci -q show dhcp | sed -n 's/^dhcp\.\([^.]*\)=host$/\1/p'); do
+		if [ "$(uci -q get dhcp.$s.mac)" = "$1" ]; then
+			printf '%s' "$s"
+			return 0
+		fi
+	done
+	return 1
+}
+
+# 按 /etc/config/lan-fixed-ip.conf 重算全部规则；只改有变化的、只 commit 一次
+sync_rules() {
+	local prefix changed last mac name _rest sec target
+
+	prefix=$(lan_prefix)
+	if [ -z "$prefix" ]; then
+		logger -t lan-fixed-ip "LAN 前缀未知，跳过本次同步"
+		return 0
+	fi
+
+	changed=0
+	# 注意：这里是同一 shell 的重定向（不是管道），所以必须把循环变量声明成
+	# local，否则 read 结束后会把调用者的 last/mac/name 一起清空。
+	while read -r last mac name _rest; do
+		case "$last" in ''|\#*) continue ;; esac
+		[ -n "$mac" ] || continue
+		valid_last "$last" || continue
+		valid_mac "$mac" || continue
+		[ -n "$name" ] || name="host$last"
+
+		target="$prefix.$last"
+		sec=$(find_sec_by_mac "$mac")
+		if [ -z "$sec" ]; then
+			sec=$(uci add dhcp host) || continue
+			uci set dhcp.$sec.mac="$mac"
+			uci set dhcp.$sec.name="$name"
+			uci set dhcp.$sec.leasetime='infinite'
+			changed=1
+		fi
+
+		if [ "$(uci -q get dhcp.$sec.ip)" != "$target" ]; then
+			uci set dhcp.$sec.ip="$target"
+			changed=1
+			logger -t lan-fixed-ip "static lease $mac -> $target"
+		fi
+	done < "$CONF"
+
+	[ "$changed" = 1 ] || return 0
+
+	uci commit dhcp
+	"$DNSMASQ_INIT" running && "$DNSMASQ_INIT" reload
+	return 0
+}
+
+conf_init() {
+	[ -f "$CONF" ] && return 0
+	mkdir -p "$(dirname "$CONF")"
+	cat > "$CONF" <<'HEADER'
+# 固定末位规则：每行一条  <末位> <MAC> [主机名]
+# 末位在当前 LAN 网段内固定，换网段自动跟随（LAN 每次 up 时重算）。
+# 用 lan-fixed-ip 命令管理，格式 <末位> <MAC> [主机名]，# 开头为注释。
+HEADER
+}
+
+cmd_add() {
+	local from_lease key mac last name tmp stale m s p
+
+	from_lease=0
+	if [ "$1" = "--from-lease" ]; then
+		from_lease=1
+		shift
+	fi
+
+	if [ "$from_lease" = 1 ]; then
+		key=$1; last=$2; name=$3
+		[ -n "$key" ] && [ -n "$last" ] || { usage; exit 1; }
+		[ -r "$LEASES" ] || { echo "读不到租约表 $LEASES" >&2; exit 1; }
+		mac=$(awk -v k="$key" '$4 == k || $3 == k { print $2; exit }' "$LEASES")
+		[ -n "$mac" ] || { echo "租约里找不到「$key」，先让设备连上网或换用 MAC 方式" >&2; exit 1; }
+		[ -n "$name" ] || name=$key
+	else
+		mac=$1; last=$2; name=$3
+		[ -n "$mac" ] && [ -n "$last" ] || { usage; exit 1; }
+	fi
+
+	mac=$(printf '%s' "$mac" | tr 'A-Z' 'a-z')
+	valid_mac "$mac" || { echo "MAC 格式不对：$mac（要 aa:bb:cc:dd:ee:ff）" >&2; exit 1; }
+	valid_last "$last" || { echo "末位要是 1-254 的整数：$last" >&2; exit 1; }
+	[ -n "$name" ] || name="host$last"
+
+	conf_init
+
+	# 同一末位被别的 MAC 占着时，那条旧规则的静态租约必须一起删掉，
+	# 否则 dnsmasq 里会同时存在「旧 MAC -> .N」和「新 MAC -> .N」两条，地址直接冲突。
+	stale=$(awk -v l="$last" -v m="$mac" '
+		/^[[:space:]]*#/ { next }
+		NF < 2 { next }
+		$1 == l && tolower($2) != m { print tolower($2) }
+	' "$CONF")
+
+	# 同一 MAC 或同一末位都算冲突，先清掉旧规则再写新的
+	tmp="$CONF.new"
+	awk -v m="$mac" -v l="$last" '
+		/^[[:space:]]*#/ { print; next }
+		NF < 2 { print; next }
+		tolower($2) == m || $1 == l { next }
+		{ print }
+	' "$CONF" > "$tmp" && mv "$tmp" "$CONF"
+	printf '%s %s %s\n' "$last" "$mac" "$name" >> "$CONF"
+
+	if [ -n "$stale" ]; then
+		for m in $stale; do
+			s=$(find_sec_by_mac "$m")
+			[ -n "$s" ] && uci -q delete dhcp.$s
+		done
+	fi
+
+	sync_rules
+
+	# 只删旧段、新增段本身没有变化时，sync_rules 不会 commit，这里补一次
+	if [ -n "$stale" ]; then
+		uci commit dhcp
+		"$DNSMASQ_INIT" running && "$DNSMASQ_INIT" reload
+	fi
+
+	p=$(lan_prefix)
+	if [ -n "$p" ]; then
+		echo "已固定：$name $mac -> $p.$last"
+	else
+		echo "已固定：$name $mac -> .$last（当前取不到 LAN 前缀，等 LAN up 后自动生效）"
+	fi
+}
+
+cmd_del() {
+	local key mac tmp sec
+
+	key=$1
+	[ -n "$key" ] || { usage; exit 1; }
+	[ -f "$CONF" ] || { echo "没有规则文件"; exit 0; }
+
+	key=$(printf '%s' "$key" | tr 'A-Z' 'a-z')
+	mac="$key"
+	case "$key" in
+		*:*) ;;
+		*) mac=$(awk -v l="$key" '!/^[[:space:]]*#/ && $1 == l { print $2; exit }' "$CONF") ;;
+	esac
+
+	tmp="$CONF.new"
+	awk -v m="$mac" -v l="$key" '
+		/^[[:space:]]*#/ { print; next }
+		NF < 2 { print; next }
+		tolower($2) == m || $1 == l { next }
+		{ print }
+	' "$CONF" > "$tmp" && mv "$tmp" "$CONF"
+
+	# 顺手清掉 dnsmasq 里对应的静态租约，避免留一条没人管的 host 段
+	if [ -n "$mac" ]; then
+		sec=$(find_sec_by_mac "$mac")
+		if [ -n "$sec" ]; then
+			uci -q delete dhcp.$sec
+			uci commit dhcp
+			"$DNSMASQ_INIT" running && "$DNSMASQ_INIT" reload
+		fi
+	fi
+	echo "已删除规则：$key"
+}
+
+cmd_list() {
+	if [ ! -f "$CONF" ]; then
+		echo "还没有任何规则（lan-fixed-ip add <MAC> <末位> [主机名]）"
+		return 0
+	fi
+	prefix=$(lan_prefix)
+	printf '%-6s %-18s %-16s %s\n' 末位 MAC 主机名 "当前地址"
+	grep -v '^[[:space:]]*#' "$CONF" | while read -r last mac name _rest; do
+		[ -n "$last" ] || continue
+		if [ -n "$prefix" ]; then
+			cur="$prefix.$last"
+		else
+			cur="(前缀未知)"
+		fi
+		printf '%-6s %-18s %-16s %s\n' "$last" "$mac" "${name:--}" "$cur"
+	done
+}
+
+case "$1" in
+	add)  shift; cmd_add "$@" ;;
+	del)  shift; cmd_del "$@" ;;
+	list) cmd_list ;;
+	sync) sync_rules ;;
+	''|-h|--help|help) usage ;;
+	*) usage; exit 1 ;;
+esac

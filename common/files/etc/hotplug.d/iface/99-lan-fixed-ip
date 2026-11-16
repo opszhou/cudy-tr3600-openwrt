@@ -1,0 +1,18 @@
+#!/bin/sh
+# LAN 起来时重算「固定末位」静态租约。
+#
+# 真正的逻辑在 /usr/sbin/lan-fixed-ip sync，这里只是事件入口：
+#   - 只在 lan 的 ifup 触发（改网段、/etc/init.d/network reload、开机都会走到）
+#   - 没装 CLI、没有规则文件时安静退出，不影响同一事件里的其他钩子
+#
+# 为什么不用 set -e：热插拔环境里任何失败都只该退出，不该中断其它钩子。
+
+[ "$ACTION" = "ifup" ] || exit 0
+[ "$INTERFACE" = "lan" ] || exit 0
+
+# 路径可注入，供 scripts/test-lan-fixed-ip.sh 在沙箱里跑（与 rpcd/sysdashboard 同一做法）
+CLI="${LAN_FIXED_CLI:-/usr/sbin/lan-fixed-ip}"
+[ -x "$CLI" ] || exit 0
+
+"$CLI" sync
+exit 0
