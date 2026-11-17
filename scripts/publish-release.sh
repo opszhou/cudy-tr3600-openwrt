@@ -20,6 +20,15 @@ FW_DIR=${FW_DIR:-fw}
 TAG_DATE=${TAG_DATE:-$(date -u +%Y%m%d)}
 UPSTREAM_LABEL=${UPSTREAM_LABEL:-openwrt}
 
+# tag 必须保持小写（历史链接与 TAG 匹配都依赖它），但标题是给人看的，
+# 用上游正式写法。标题里还要带设备和组合——否则 openwrt main 与 openwrt 25.12
+# 两个发布页会因为都叫 "openwrt" 而分不清谁是谁（2026-11-16 用户指出）。
+case "$UPSTREAM_LABEL" in
+  openwrt)     UPSTREAM_SHOW="OpenWrt" ;;
+  immortalwrt) UPSTREAM_SHOW="ImmortalWrt" ;;
+  *)           UPSTREAM_SHOW="$UPSTREAM_LABEL" ;;
+esac
+
 cd "$(dirname "$0")/.."
 
 [ -d "$FW_DIR" ] || { echo "找不到 artifact 目录 $FW_DIR"; exit 1; }
@@ -60,6 +69,7 @@ fi
 rm -rf assets && mkdir -p assets
 ROWS=$(mktemp)
 PROFS=""
+DEVS=""
 found=0
 
 echo "== fw 布局（扫描前） =="
@@ -74,6 +84,7 @@ for d in "$FW_DIR"/*/; do
   X=${A%-snapshot}; X=${X#${UPSTREAM_LABEL}-}; X=${X#openwrt-}
   PROF=${X##*-}; DEV=${X%-*}
   case " $PROFS " in *" $PROF "*) ;; *) PROFS="$PROFS $PROF" ;; esac
+  case " $DEVS " in *" $DEV "*) ;; *) DEVS="$DEVS $DEV" ;; esac
   while IFS= read -r f; do
     cp -f "$f" "assets/$(asset_name "$(basename "$f")" "$DEV" "$PROF")"
   done < <(find "$d" -type f ! -path "*/packages/*" \
@@ -99,6 +110,10 @@ echo "== 待发布资产 =="
 ls -lh assets
 
 # ---------- 上传（新建或追加） ----------
+# 标题展示串：unquoted echo 折叠多余空格，空格换 + 连接（如 lite+ultimate）
+DEVS_SHOW=$(echo $DEVS | sed 's/ /+/g')
+TITLE_PROFS=$(echo $PROFS | sed 's/ /+/g')
+
 if [ "$APPEND" = 1 ]; then
   # 追加模式：合并新旧 sha256sums（按文件名去重；资产名含组合名，不会互相覆盖）
   OLD=$(mktemp -d)
@@ -113,7 +128,7 @@ if [ "$APPEND" = 1 ]; then
   echo "已追加到: https://github.com/${GH_REPO}/releases/tag/${TAG}"
 else
   gh release create "$TAG" assets/* \
-    --title "${UPSTREAM_LABEL} ${VER} (${TAG_DATE:0:4}-${TAG_DATE:4:2}-${TAG_DATE:6:2})" \
+    --title "${UPSTREAM_SHOW} ${VER} · ${DEVS_SHOW} ${TITLE_PROFS} (${TAG_DATE:0:4}-${TAG_DATE:4:2}-${TAG_DATE:6:2})" \
     --notes-file /dev/null --latest >/dev/null
   echo "已创建: https://github.com/${GH_REPO}/releases/tag/${TAG}"
 fi
@@ -176,7 +191,7 @@ CHANGELOG=$(mktemp)
   if [ -n "$COMMITS" ]; then
     N=$(printf '%s\n' "$COMMITS" | grep -c . || true)
     if [ -n "$PREV_SINCE" ]; then
-      echo "> 自上次 ${UPSTREAM_LABEL} 发布（${PREV_SINCE%%T*}）以来，本次构建包含 ${N} 个提交："
+      echo "> 自上次 ${UPSTREAM_SHOW} 发布（${PREV_SINCE%%T*}）以来，本次构建包含 ${N} 个提交："
     else
       echo "> 本次构建最近 ${N} 个提交（无上一次发布可比对）："
     fi
@@ -192,7 +207,7 @@ CHANGELOG=$(mktemp)
 NOTES=$(mktemp)
 {
   cat "$CHANGELOG"
-  echo "本页包含组合：**${PROFS_SHOW:-未知}**（${UPSTREAM_LABEL} \`${VER}\`，${TAG_DATE:0:4}-${TAG_DATE:4:2}-${TAG_DATE:6:2}）。"
+  echo "本页包含组合：**${PROFS_SHOW:-未知}**（${UPSTREAM_SHOW} \`${VER}\`，${TAG_DATE:0:4}-${TAG_DATE:4:2}-${TAG_DATE:6:2}）。"
   echo "资产名里的组合名紧跟设备名（如 ${UPSTREAM_LABEL}-…-cudy_tr3600-v1-<组合>-squashfs-sysupgrade.bin）。"
   echo
   echo "| 组合 | 设备 | 主固件 | 包数量 |"
