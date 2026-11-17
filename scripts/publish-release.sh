@@ -127,7 +127,7 @@ if [ "$APPEND" = 1 ]; then
   echo "已追加到: https://github.com/${GH_REPO}/releases/tag/${TAG}"
 else
   gh release create "$TAG" assets/* \
-    --title "${DEVS_SHOW} ${TITLE_PROFS} · ${UPSTREAM_SHOW} ${VER} (${TAG_DATE:0:4}-${TAG_DATE:4:2}-${TAG_DATE:6:2})" \
+    --title "${DEVS_SHOW} ${TITLE_PROFS} · ${UPSTREAM_SHOW} ${VER}" \
     --notes-file /dev/null --latest >/dev/null
   echo "已创建: https://github.com/${GH_REPO}/releases/tag/${TAG}"
 fi
