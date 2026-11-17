@@ -186,20 +186,35 @@ CHANGELOG=$(mktemp)
 
     LOG_ARGS=(--no-merges --format='%h %s')
     [ -n "$SINCE" ] && LOG_ARGS+=(--since="$SINCE")
-    ENTRIES=$(git log "${LOG_ARGS[@]}" -- . \
-        ':(exclude)docs' ':(exclude).github' ':(exclude).workbuddy' ':(exclude)*.md' 2>/dev/null \
-      | grep -vE '^[0-9a-f]{7} chore: sync local changes into main' | head -n 15 || true)
+    # 再排掉发布脚本自身：它是发布工具，改了也不改变固件内容，
+    # 混进「影响固件的提交」会让人以为固件行为变了。
+    RAW=$(git log "${LOG_ARGS[@]}" -- . \
+        ':(exclude)docs' ':(exclude).github' ':(exclude).workbuddy' ':(exclude)*.md' \
+        ':(exclude)scripts/publish-release.sh' 2>/dev/null || true)
 
-    if [ -n "$ENTRIES" ]; then
+    # 历史遗留的同步提交不丢弃，合并成一行保留痕迹：它们确实是固件改动，
+    # 只是旧版 API 推送脚本把 message 覆盖成同一句，列几十行等于没列。
+    SYNC_N=$(printf '%s\n' "$RAW" | grep -cE '^[0-9a-f]{7} chore: sync local changes into main' || true)
+    ENTRIES=$(printf '%s\n' "$RAW" \
+      | grep -vE '^[0-9a-f]{7} chore: sync local changes into main' \
+      | grep -E '^[0-9a-f]{7} ' | head -n 15 || true)
+
+    if [ -n "$ENTRIES" ] || [ "${SYNC_N:-0}" -gt 0 ]; then
       if [ -n "$SINCE" ]; then
         echo "> 自上次 ${UPSTREAM_SHOW} 发布（${SINCE%%T*}）以来，影响固件的提交："
       else
         echo "> 影响固件的提交："
       fi
       echo
-      echo '```'
-      printf '%s\n' "$ENTRIES"
-      echo '```'
+      if [ -n "$ENTRIES" ]; then
+        echo '```'
+        printf '%s\n' "$ENTRIES"
+        echo '```'
+        echo
+      fi
+      # 重复的同步提交只占一行，正文说明它们为什么会同名
+      [ "${SYNC_N:-0}" -gt 0 ] && \
+        echo "- 另有 **${SYNC_N}** 条 \`chore: sync local changes into main\`（历史推送脚本覆盖了提交信息，合并为这一行）"
     else
       echo "> 自上次发布以来没有影响固件的改动（只有文档、CI 或纯同步提交）。"
     fi
