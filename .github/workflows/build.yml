@@ -177,6 +177,10 @@ jobs:
 
       - name: Checkout 本仓库
         uses: actions/checkout@v5
+        with:
+          # 发布说明的「本次更新」要按提交历史生成，浅克隆（默认 depth=1）没有历史。
+          # 本仓库只有脚本与配置，拉全量历史代价可忽略。
+          fetch-depth: 0
 
       - name: 解析设备配置
         run: |

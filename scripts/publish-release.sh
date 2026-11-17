@@ -159,9 +159,53 @@ if [ "$APPEND" = 1 ]; then
 fi
 PROFS_SHOW=$(echo $PROFS | sed 's/ /、/g; s/^、//')
 
+# ---------- 本次更新：只列「真的改变了固件」的提交 ----------
+# 过滤三刀（用户要求：不是这份固件的更新写进页面会让人误解）：
+#   1) 路径：只算会被打进固件的目录，docs/ .github/ .workbuddy/ 与任何 *.md 排除
+#   2) 类型：--no-merges 去掉合并提交
+#   3) 信息量：去掉历史遗留的 "chore: sync local changes into main"——
+#      那是旧版 API 推送脚本把 message 覆盖成固定模板的产物，同一句话重复几十次，
+#      列出来等于没列（该脚本已改为沿用本地真实提交信息，新提交不会再出现）
+# 任何一步失败都只降级成一行提示，绝不因「说明写不出来」中断发布。
+CHANGELOG=$(mktemp)
+{
+  echo "### 本次更新"
+  echo
+  if [ "$(git rev-parse --is-shallow-repository 2>/dev/null || echo false)" = "true" ]; then
+    echo "> 本仓库为浅克隆，无法生成提交列表（需要在 checkout 里开 fetch-depth: 0）。"
+  else
+    SINCE=$(gh api "repos/$GH_REPO/releases?per_page=100" \
+        --jq ".[] | select(.tag_name | startswith(\"${UPSTREAM_LABEL}-\")) | select(.tag_name != \"$TAG\") | select(.published_at != null) | .published_at" \
+        2>/dev/null | sort -r | head -n1 || true)
+
+    LOG_ARGS=(--no-merges --format='%h %s')
+    [ -n "$SINCE" ] && LOG_ARGS+=(--since="$SINCE")
+    ENTRIES=$(git log "${LOG_ARGS[@]}" -- . \
+        ':(exclude)docs' ':(exclude).github' ':(exclude).workbuddy' ':(exclude)*.md' 2>/dev/null \
+      | grep -vE '^[0-9a-f]{7} chore: sync local changes into main' | head -n 15 || true)
+
+    if [ -n "$ENTRIES" ]; then
+      if [ -n "$SINCE" ]; then
+        echo "> 自上次 ${UPSTREAM_SHOW} 发布（${SINCE%%T*}）以来，影响固件的提交："
+      else
+        echo "> 影响固件的提交："
+      fi
+      echo
+      echo '```'
+      printf '%s\n' "$ENTRIES"
+      echo '```'
+    else
+      echo "> 自上次发布以来没有影响固件的改动（只有文档、CI 或纯同步提交）。"
+    fi
+  fi
+  echo
+} > "$CHANGELOG"
 
 NOTES=$(mktemp)
 {
+  cat "$CHANGELOG"
+  echo "---"
+  echo
   echo "本页包含组合：**${PROFS_SHOW:-未知}**（${UPSTREAM_SHOW} \`${VER}\`，${TAG_DATE:0:4}-${TAG_DATE:4:2}-${TAG_DATE:6:2}）。"
   echo "资产名里的组合名紧跟设备名（如 ${UPSTREAM_LABEL}-…-cudy_tr3600-v1-<组合>-squashfs-sysupgrade.bin）。"
   echo
