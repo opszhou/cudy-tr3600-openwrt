@@ -7,7 +7,6 @@
 # 可选：
 #   FW_DIR    artifact 根目录（默认 fw，其下每个 artifact 一个子目录）
 #   TAG_DATE  标签中的日期（默认 UTC 今天）
-#   RUN_ID    本次构建的 run databaseId（取 head_sha 生成「本次更新」；缺省回退本地 HEAD）
 #
 # 同页语义：标签 = <上游>-<上游版本号>。同一上游同一 revision 的构建**永远落在同一页**——
 # 标签已存在时不新建，而是把本批资产并入（sha256sums 按文件名合并），说明文字按页面
@@ -128,7 +127,7 @@ if [ "$APPEND" = 1 ]; then
   echo "已追加到: https://github.com/${GH_REPO}/releases/tag/${TAG}"
 else
   gh release create "$TAG" assets/* \
-    --title "${UPSTREAM_SHOW} ${VER} · ${DEVS_SHOW} ${TITLE_PROFS} (${TAG_DATE:0:4}-${TAG_DATE:4:2}-${TAG_DATE:6:2})" \
+    --title "${DEVS_SHOW} ${TITLE_PROFS} · ${UPSTREAM_SHOW} ${VER} (${TAG_DATE:0:4}-${TAG_DATE:4:2}-${TAG_DATE:6:2})" \
     --notes-file /dev/null --latest >/dev/null
   echo "已创建: https://github.com/${GH_REPO}/releases/tag/${TAG}"
 fi
@@ -160,53 +159,9 @@ if [ "$APPEND" = 1 ]; then
 fi
 PROFS_SHOW=$(echo $PROFS | sed 's/ /、/g; s/^、//')
 
-# ---------- 本次更新：自动从提交历史生成，放在页面最顶部 ----------
-# 区间 = 上一个同上游 Release 的发布时间 → 本次构建 HEAD 上的提交。
-# 全走 GitHub API：CI 的 checkout 是浅克隆，本地 git log 没有历史。
-# 任何一步失败只降级成一行提示，绝不因「说明写不出来」而中断发布。
-CHANGELOG=$(mktemp)
-{
-  HEAD_SHA=""
-  if [ -n "${RUN_ID:-}" ]; then
-    HEAD_SHA=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID" --jq '.head_sha' 2>/dev/null || true)
-  fi
-  [ -n "$HEAD_SHA" ] || HEAD_SHA=$(git rev-parse HEAD 2>/dev/null || true)
-
-  JQ_PREV=".[] | select(.tag_name | startswith(\"${UPSTREAM_LABEL}-\")) | select(.tag_name != \"$TAG\") | select(.published_at != null) | .published_at"
-  PREV_SINCE=$(gh api "repos/$GH_REPO/releases?per_page=100" --jq "$JQ_PREV" 2>/dev/null \
-    | sort -r | head -n1 || true)
-
-  COMMITS=""
-  if [ -n "$HEAD_SHA" ]; then
-    API_COMMITS="repos/$GH_REPO/commits?sha=$HEAD_SHA&per_page=100"
-    [ -n "$PREV_SINCE" ] && API_COMMITS="${API_COMMITS}&since=$PREV_SINCE"
-    COMMITS=$(gh api "$API_COMMITS" \
-        --jq '.[] | "\(.sha[0:7]) \(.commit.message | split("\n")[0])"' 2>/dev/null \
-      | grep -vE '^[0-9a-f]{7} (Merge pull request|Merge branch|Revert ")' \
-      | head -n 20 || true)
-  fi
-
-  echo "### 本次更新"
-  echo
-  if [ -n "$COMMITS" ]; then
-    N=$(printf '%s\n' "$COMMITS" | grep -c . || true)
-    if [ -n "$PREV_SINCE" ]; then
-      echo "> 自上次 ${UPSTREAM_SHOW} 发布（${PREV_SINCE%%T*}）以来，本次构建包含 ${N} 个提交："
-    else
-      echo "> 本次构建最近 ${N} 个提交（无上一次发布可比对）："
-    fi
-    echo
-    printf '%s\n' "$COMMITS" | sed -E 's/^([0-9a-f]{7}) (.*)$/- `\1` \2/'
-    echo
-  else
-    echo "> 提交历史暂时无法读取，请查看 [仓库提交记录](https://github.com/${GH_REPO}/commits/main)。"
-    echo
-  fi
-} > "$CHANGELOG"
 
 NOTES=$(mktemp)
 {
-  cat "$CHANGELOG"
   echo "本页包含组合：**${PROFS_SHOW:-未知}**（${UPSTREAM_SHOW} \`${VER}\`，${TAG_DATE:0:4}-${TAG_DATE:4:2}-${TAG_DATE:6:2}）。"
   echo "资产名里的组合名紧跟设备名（如 ${UPSTREAM_LABEL}-…-cudy_tr3600-v1-<组合>-squashfs-sysupgrade.bin）。"
   echo
@@ -235,10 +190,10 @@ sha256sum -c sha256sums
 - 不含 `mt*-ram-*-bl2`（UART 芯片级产物）、压缩包与 `packages/*.apk`
 
 ### ⚠️ 声明
-本项目为**个人自用构建**，未经系统性真机验证，仅适配 Cudy TR3600 v1。刷机有变砖风险，后果自担。
+本项目为**个人自用构建**，未经系统性真机验证，仅适配本页列出的设备。刷机有变砖风险，后果自担。
 MD
 
 gh release edit "$TAG" --notes-file "$NOTES" --latest
 echo "说明已更新: https://github.com/${GH_REPO}/releases/tag/${TAG}"
-rm -f "$ROWS" "$CHANGELOG"
+rm -f "$ROWS"
 echo "== 完成 =="
