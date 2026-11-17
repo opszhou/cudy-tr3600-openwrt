@@ -174,8 +174,14 @@ CHANGELOG=$(mktemp)
   if [ "$(git rev-parse --is-shallow-repository 2>/dev/null || echo false)" = "true" ]; then
     echo "> 本仓库为浅克隆，无法生成提交列表（需要在 checkout 里开 fetch-depth: 0）。"
   else
-    SINCE=$(gh api "repos/$GH_REPO/releases?per_page=100" \
-        --jq ".[] | select(.tag_name | startswith(\"${UPSTREAM_LABEL}-\")) | select(.tag_name != \"$TAG\") | select(.published_at != null) | .published_at" \
+    # 基准必须落到「同一设备的上一页」：openwrt- 前缀下同时存在 TR3600 和 P3 两种
+    # 设备的发布，只按上游前缀取最新会把另一台设备的发布当成自己的上次发布，
+    # 时间窗口直接错位（P3 会拿到 TR3600 的发布时间，列表变空）。
+    DEV_RE=$(echo $DEVS | sed 's/^ *//; s/ *$//; s/ /|/g')
+    JQ_SEL=".[] | select(.tag_name | startswith(\"${UPSTREAM_LABEL}-\")) | select(.tag_name != \"${TAG}\") | select(.published_at != null)"
+    [ -n "$DEV_RE" ] && JQ_SEL="${JQ_SEL} | select([.assets[].name] | any(test(\"${DEV_RE}\")))"
+    JQ_SEL="${JQ_SEL} | .published_at"
+    SINCE=$(gh api "repos/$GH_REPO/releases?per_page=100" --jq "$JQ_SEL" \
         2>/dev/null | sort -r | head -n1 || true)
 
     LOG_ARGS=(--no-merges --format='%h %s')
