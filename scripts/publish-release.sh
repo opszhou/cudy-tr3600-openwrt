@@ -186,11 +186,12 @@ CHANGELOG=$(mktemp)
 
     LOG_ARGS=(--no-merges --format='%h %s')
     [ -n "$SINCE" ] && LOG_ARGS+=(--since="$SINCE")
-    # 再排掉发布脚本自身：它是发布工具，改了也不改变固件内容，
-    # 混进「影响固件的提交」会让人以为固件行为变了。
+    # 再排掉「改动本身不改变固件内容」的三类：发布工具、测试脚本、静态校验脚本。
+    # 它们混进「影响固件的提交」会让人以为固件行为变了。
     RAW=$(git log "${LOG_ARGS[@]}" -- . \
         ':(exclude)docs' ':(exclude).github' ':(exclude).workbuddy' ':(exclude)*.md' \
-        ':(exclude)scripts/publish-release.sh' 2>/dev/null || true)
+        ':(exclude)scripts/publish-release.*' ':(exclude)scripts/test-*' \
+        ':(exclude)scripts/verify-*' 2>/dev/null || true)
 
     # 历史遗留的同步提交不丢弃，合并成一行保留痕迹：它们确实是固件改动，
     # 只是旧版 API 推送脚本把 message 覆盖成同一句，列几十行等于没列。
