@@ -186,10 +186,14 @@ CHANGELOG=$(mktemp)
 
     LOG_ARGS=(--no-merges --format='%h %s')
     [ -n "$SINCE" ] && LOG_ARGS+=(--since="$SINCE")
-    # 再排掉「改动本身不改变固件内容」的三类：发布工具、测试脚本、静态校验脚本。
-    # 它们混进「影响固件的提交」会让人以为固件行为变了。
-    RAW=$(git log "${LOG_ARGS[@]}" -- . \
-        ':(exclude)docs' ':(exclude).github' ':(exclude).workbuddy' ':(exclude)*.md' \
+    # 用白名单而不是黑名单：只有「通用目录 + 本设备目录」里的改动才可能进这份固件。
+    #   common/ scripts/ upstreams/  —— 影响所有设备
+    #   devices/<本 release 的设备>/  —— 只影响这台
+    # devices/<别的设备>/ 的提交一律不进列表（否则 TR3600 的发布页会列出
+    # feat(fzs-p3): ... 这种跟自己无关的改动，用户明确反馈过这一点）。
+    PATHS=(common scripts upstreams)
+    for _d in $DEVS; do PATHS+=("devices/$_d"); done
+    RAW=$(git log "${LOG_ARGS[@]}" -- "${PATHS[@]}" \
         ':(exclude)scripts/publish-release.*' ':(exclude)scripts/test-*' \
         ':(exclude)scripts/verify-*' 2>/dev/null || true)
 
