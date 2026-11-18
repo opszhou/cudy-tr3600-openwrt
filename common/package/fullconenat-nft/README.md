@@ -36,8 +36,21 @@ immortalwrt 自己维护了完整的一套，本目录即搬自那里。
 2. **libnftnl 补丁** —— 用户态不认识 `fullcone` 表达式，`nft` 命令行会报 unknown expression
 3. **firewall4 补丁** —— 让 `option fullcone` 真正生成 nft 规则
 
-后两者放在 `common/patches/<上游>-<分支>/`，由 `scripts/apply-device-patches.sh` 的应用
-补丁阶段打进源码树（见该脚本头部的目录说明）。
+后两者是**包内补丁**（改的是 libnftnl / firewall4 的上游源码，不是源码树本身），放在：
+
+```
+common/pkg-patches/libs/libnftnl/900-*.patch
+common/pkg-patches/network/config/firewall4/900-*.patch
+```
+
+目录结构就是源码树里的相对路径，`scripts/assemble.sh` 会把它们镜像到
+`package/libs/libnftnl/patches/` 与 `package/network/config/firewall4/patches/`，
+再由 OpenWrt 在该包 prepare 阶段用 `patch -p1` 应用。
+
+编号用 900 是为了排在所有上游补丁之后，且不与上游将来新增的 001 撞名。
+
+⚠️ 别把这类补丁丢进 `common/patches/`（那是源码树补丁，在树根 `git apply`）。
+放错的表现是 `error: include/libnftnl/expr.h: does not exist in index`。
 
 ## 分支差异（重要）
 
