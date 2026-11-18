@@ -1,5 +1,8 @@
 #!/bin/sh
-# P3 专属：lighttpd 的 WebDAV 共享预设（替代原来的 dufs）。
+# 通用：lighttpd 的 WebDAV 共享预设（全设备共用，替代原来的 dufs）。
+#
+# 适用范围：所有带 lighttpd 的组合（当前 lite 组合的每台设备都装）。
+# 未装 lighttpd 的设备（比如将来某个精简组合）本脚本开头就检查主配置存在性后退出，不产生副作用。
 #
 # 为什么不用包自带模板：immortalwrt/packages 的 30-webdav.conf 只对 "/dav" 前缀
 # 启用 WebDAV，且监听端口仍是 80（与 uhttpd 冲突）。这里用 zz- 前缀的片段覆盖：
@@ -10,7 +13,7 @@
 # 由 uci-defaults 在首启执行一次；sysupgrade 保留 /etc 会留下旧片段，
 # 本脚本重复执行时整段覆盖，因此天然幂等。
 #
-# 注入点（仅供沙箱测试）：LW_MAIN_CONF / LW_CONF_DIR / LW_SHARE_DIR / LW_INIT / LW_BIN
+# 注入点（仅供沙箱测试）：LW_MAIN_CONF / LW_CONF_DIR / LW_SHARE_DIR / LW_INIT / LW_BIN / LW_FUNCS
 set -u
 
 MAIN_CONF="${LW_MAIN_CONF:-/etc/lighttpd/lighttpd.conf}"
@@ -62,9 +65,42 @@ if [ -x "$BIN" ] && ! "$BIN" -tt -f "$MAIN_CONF" >/dev/null 2>&1; then
 	exit 0
 fi
 
+# 端口安全闸门（最重要的一行防线）
+#
+# 历史事故：lighttpd 曾监听到 80 与 uhttpd 抢端口，LuCI 直接 403 打不开。
+# 默认 server.port 就是 80，一旦本片段因为任何原因没生效（被覆盖、被 include 顺序
+# 挤掉、被别的包替换主配置），lighttpd 就会去抢 80。
+#
+# 这里让 lighttpd 自己把「解析后的最终配置」打印出来（-p 是官方支持的 dump 选项），
+# 只认 server.port 的值；不是 8080 就不启动。宁可没有 WebDAV，也不能让 LuCI 失联。
+RESOLVED_PORT=""
+if [ -x "$BIN" ]; then
+	RESOLVED_PORT=$("$BIN" -p -f "$MAIN_CONF" 2>/dev/null \
+		| sed -n 's/^[[:space:]]*server\.port[[:space:]]*=[[:space:]]*\([0-9]\{1,5\}\).*/\1/p' \
+		| head -n1)
+fi
+
+# 解析出端口就强校验；解析不出（老版本 -p 输出格式不同）则放行并告警，
+# 避免闸门误杀导致 WebDAV 永远起不来——真正的兜底是下面的启动后检查。
+if [ -n "$RESOLVED_PORT" ] && [ "$RESOLVED_PORT" != "8080" ]; then
+	logger -t lighttpd-webdav "端口闸门拦截：解析出 server.port=$RESOLVED_PORT（期望 8080）。已撤掉 $FRAGMENT 且不启动 lighttpd，避免抢占 uhttpd 的 80 导致 LuCI 无法访问。"
+	rm -f "$FRAGMENT"
+	exit 0
+fi
+[ -n "$RESOLVED_PORT" ] || logger -t lighttpd-webdav "警告: 无法从 lighttpd -p 解析出 server.port，改为启动后检查监听端口"
+
 [ -x "$INIT" ] || exit 0
 "$INIT" enable 2>/dev/null || true
 "$INIT" restart 2>/dev/null || "$INIT" start 2>/dev/null || true
 
-logger -t lighttpd-webdav "WebDAV 已启用: 0.0.0.0:8080 根目录 $SHARE_DIR"
+# 启动后兜底：真的占了 80 就立刻停掉自己。uhttpd 若因此起不来，LuCI 就失联了，
+# 这个代价比少一个 WebDAV 服务大得多。
+if netstat -lntp 2>/dev/null | grep -qE ':(80|443)[[:space:]].*lighttpd'; then
+	logger -t lighttpd-webdav "严重: lighttpd 占用了 80/443，已强制 stop（保护 uhttpd/LuCI）。"
+	"$INIT" stop 2>/dev/null || true
+	rm -f "$FRAGMENT"
+	exit 0
+fi
+
+logger -t lighttpd-webdav "WebDAV 已启用: 8080 端口，根目录 $SHARE_DIR（80 保留给 uhttpd/LuCI）"
 exit 0

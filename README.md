@@ -105,6 +105,18 @@
 - **认证**：默认无（同网段可读写）。要加账号需要额外装 `lighttpd-mod-auth` + `lighttpd-mod-authn_file` 并在同一片段里配 `auth.require`，默认固件不含这两个模块
 - **sysupgrade**：`/mnt/webdav` 里的文件不在保留列表（只有 `/etc` 与 `sysupgrade.conf` 列出项会留），所以它适合做**临时中转**，不适合长期存放
 
+- **端口占用一览**（改动任何一项前先对一遍，80 被抢会让 LuCI 直接失联）：
+
+  | 端口 | 服务 | 说明 |
+  |---|---|---|
+  | **80 / 443** | uhttpd | **LuCI 管理页面，任何情况下都不要动** |
+  | **8080** | lighttpd | 本页的 WebDAV |
+  | 7681 | ttyd | 网页终端（仅 ultimate） |
+  | 9091 | transmission | BT 下载 RPC（仅 ultimate） |
+  | 9876 | ddns-go | DDNS 管理页（未启用时不通） |
+
+  预设脚本带**端口闸门**：启动前用 `lighttpd -p` 解析出最终端口，不是 8080 就撤掉配置且不启动；启动后再查一次有没有占住 80/443，占到就立刻 `stop` 自己。两道防线都是为了保住 LuCI。
+
 ### Transmission 下载
 
 - 入口：LuCI **服务 → Transmission**；WebUI `http://192.168.10.1:9091`（默认无认证，仅同网段）；开机自启
