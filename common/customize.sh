@@ -53,3 +53,17 @@ if [ ! -f "$ROOT/scripts/apply-qmodem-cfun-fix.sh" ]; then
     exit 1
 fi
 bash "$ROOT/scripts/apply-qmodem-cfun-fix.sh" "$PWD" || exit 1
+
+# ---- rust/host：从源码编 LLVM，不去下载 CI 预编译包 ----
+# run#74（P3 切 immortalwrt 后首验）失败在 host rust：
+#   downloading https://ci-artifacts.rust-lang.org/.../rust-dev-1.96.0-...tar.xz  → 404
+#   ERROR: failed to download llvm from ci → package/feeds/packages/rust [host] failed to build
+# 根因是 immortalwrt/packages 的 lang/rust/Makefile 写了 download-ci-llvm=true，
+# 而 openwrt/packages 同一个文件写 false（所以 openwrt 两条线一直没踩到）。
+# lite 组合含 dufs（Rust 单二进制，PKG_BUILD_DEPENDS:=rust/host），不装 dufs 就不会编 rust。
+# 改法与影响面见 scripts/apply-rust-llvm.sh；上游写法变了同样直接构建失败。
+if [ ! -f "$ROOT/scripts/apply-rust-llvm.sh" ]; then
+    echo "错误: 缺少 scripts/apply-rust-llvm.sh" >&2
+    exit 1
+fi
+bash "$ROOT/scripts/apply-rust-llvm.sh" "$PWD" || exit 1
