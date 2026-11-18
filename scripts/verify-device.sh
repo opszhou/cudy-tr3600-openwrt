@@ -24,10 +24,14 @@ REPO_NAME="${5:-openwrt}"
 eval "$(bash "$ROOT/scripts/parse-device.sh" "$ROOT" "$DEV")"
 BRANCH="${4:-${DEV_BRANCH}}"
 
-# 与 apply-device-patches.sh 同一规则：release 分支（openwrt-25.12）不再重复加上游前缀
+# 与 apply-device-patches.sh 同一规则：以下两种情况只用分支名
+#   1) release 分支（openwrt-25.12）已带上游名，不再重复加前缀
+#   2) release 分支同名但上游换了（P3 从 openwrt 换到 immortalwrt 的同一个 openwrt-25.12），
+#      分支名唯一确定基线，目录不随上游变
 case "$BRANCH" in
-	"$REPO_NAME-"*) PATCHDIR="$ROOT/devices/$DEV/patches/$BRANCH" ;;
-	*)                  PATCHDIR="$ROOT/devices/$DEV/patches/$REPO_NAME-$BRANCH" ;;
+	openwrt-*|immortalwrt-*) PATCHDIR="$ROOT/devices/$DEV/patches/$BRANCH" ;;
+	"$REPO_NAME-"*)           PATCHDIR="$ROOT/devices/$DEV/patches/$BRANCH" ;;
+	*)                        PATCHDIR="$ROOT/devices/$DEV/patches/$REPO_NAME-$BRANCH" ;;
 esac
 
 echo "==== 校验: 设备=$DEV 上游=$REPO_NAME 分支=$BRANCH ===="

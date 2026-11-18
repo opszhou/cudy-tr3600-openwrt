@@ -16,9 +16,9 @@ on:
         required: false
         default: ""
       upstream_label:
-        description: "标签前缀（openwrt / immortalwrt，留空=openwrt）"
+        description: "标签前缀（openwrt / immortalwrt，留空=按产物设备自动推断）"
         required: false
-        default: "openwrt"
+        default: ""
 
 permissions:
   contents: write
@@ -67,6 +67,29 @@ jobs:
           echo "== 下载到的 artifact =="
           find fw -mindepth 1 -maxdepth 1 -type d | sort
 
+      - name: 解析标签前缀（按产物设备推断上游）
+        # 留空时从 artifact 名反推设备（形如 fzs_5gcpe-p3-lite-<commit>-snapshot），再读该设备的
+        # device.yml。否则补发 P3 会静默打出 openwrt- 前缀的错标签——设备换了上游而补发工具不知道。
+        run: |
+          set -euo pipefail
+          LABEL="${{ inputs.upstream_label }}"
+          if [ -z "$LABEL" ]; then
+            for d in devices/*/; do
+              id=$(basename "$d")
+              if compgen -G "fw/*$id*" > /dev/null; then
+                eval "$(bash scripts/parse-device.sh . "$id")"
+                LABEL="${DEV_UPSTREAM_REPO:-openwrt}"
+                echo "产物匹配到设备 $id -> 标签前缀 $LABEL"
+                break
+              fi
+            done
+          fi
+          if [ -z "$LABEL" ]; then
+            LABEL=openwrt
+            echo "::warning::未从产物匹配到设备，标签前缀按 openwrt"
+          fi
+          echo "UPSTREAM_LABEL=$LABEL" >> "$GITHUB_ENV"
+
       - name: 汇总发布（lite + ultimate 同页）
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -75,7 +98,7 @@ jobs:
           RUN_ID: ${{ steps.target.outputs.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           IN_TAG_DATE: ${{ inputs.tag_date }}
-          UPSTREAM_LABEL: ${{ inputs.upstream_label }}
+          UPSTREAM_LABEL: ${{ env.UPSTREAM_LABEL }}
           RUN_CREATED: ${{ steps.target.outputs.created }}
         run: |
           set -euo pipefail

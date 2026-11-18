@@ -22,6 +22,8 @@
    target: mediatek/filogic          # 该设备的 OpenWrt target/subtarget
    profile: <CONFIG_TARGET_..._DEVICE_ 后面的名字>
    branch: main
+   upstream_owner: immortalwrt       # 可选：设备默认上游（留空=openwrt，CI 输入可临时覆盖）
+   upstream_repo: immortalwrt
    default_prs:                      # 该设备需要合并的官方 PR（可留空）
      - <pr号>
    ```
@@ -53,6 +55,21 @@
 
 - `device.yml` 的 `branch` 写目标分支全名；补丁目录同名（`patches/openwrt-25.12/`）
 - CI 的 matrix 按设备逐 job 解析分支，两个设备互不影响；`dl`/`ccache` 缓存 key 含分支与设备，不会串味
+
+### 设备默认上游
+
+`upstream_owner` / `upstream_repo` 是可选的设备级默认值，优先级：
+
+```
+工作流输入 > device.yml 的 upstream_* > openwrt/openwrt
+```
+
+- 只为「固定只走某个上游」的设备准备（如 P3 要 immortalwrt 的全锥形 NAT），写进 device.yml 就不会因为派发时漏传参数而编成另一个源
+- 需要按次切换上游的设备（如 cudy 在 openwrt main 与 immortalwrt master 之间切）**不要**写这两个字段
+- 补丁目录不随上游变：release 分支（`openwrt-25.12`）名字本身唯一确定基线，只用分支名；滚动分支（`main`/`master`）必须带上游名区分（`openwrt-main` / `immortalwrt-master`）
+
+### 包清单差异
+
 - `common/configs/*.list` 是跨设备共用的，若某个包在目标分支上不存在/改名：
   - 包改名 → 设备 `configs/add.list` 里用新名重新启用
   - 包里没有 → 设备 `configs/remove.list` 里写 `# CONFIG_PACKAGE_xxx is not set`（构建的"必选项审计"会自动豁免）

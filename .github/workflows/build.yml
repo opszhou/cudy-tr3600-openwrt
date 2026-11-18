@@ -20,11 +20,11 @@ on:
         type: boolean
         default: false
       upstream_owner:
-        description: "上游仓库 Owner"
-        default: "openwrt"
+        description: "上游仓库 Owner（留空=用 device.yml 的 upstream_owner，都没有则 openwrt）"
+        default: ""
       upstream_repo:
-        description: "上游仓库名"
-        default: "openwrt"
+        description: "上游仓库名（留空=用 device.yml 的 upstream_repo，都没有则 openwrt）"
+        default: ""
       upstream_branch:
         description: "上游分支（留空则使用 device.yml 的 branch；决定补丁目录）"
         default: ""
@@ -187,17 +187,24 @@ jobs:
           eval "$(bash scripts/parse-device.sh . "${{ matrix.device }}")"
           BRANCH="${{ inputs.upstream_branch }}"
           [ -n "$BRANCH" ] || BRANCH="${DEV_BRANCH:-main}"
+          # 上游解析优先级：本次输入 > device.yml 的 upstream_* > openwrt/openwrt。
+          # 设备级默认是为 P3 这类"固定走某个上游"的设备准备的：全锥形 NAT 只有
+          # immortalwrt 有实现，写死在 device.yml 里就不会因为派发时漏传参数而编错源。
+          OWNER="${{ inputs.upstream_owner }}"
+          [ -n "$OWNER" ] || OWNER="${DEV_UPSTREAM_OWNER:-openwrt}"
+          UREPO="${{ inputs.upstream_repo }}"
+          [ -n "$UREPO" ] || UREPO="${DEV_UPSTREAM_REPO:-openwrt}"
           # checkout 用哪个 ref：手动指定 > device.yml 的 ref（可为 tag）> 分支名。
           # 补丁目录仍按分支解析，所以"锁 tag 出稳定版"和"跟分支出滚动版"共用同一套补丁。
           REF="${{ inputs.upstream_ref }}"
           [ -n "$REF" ] || REF="${DEV_REF:-}"
           [ -n "$REF" ] || REF="$BRANCH"
-          echo "上游 checkout ref: $REF（补丁目录按分支 $BRANCH）"
+          echo "上游: $OWNER/$UREPO @ $REF（补丁目录按分支 $BRANCH）"
           {
             echo "DEV_BRANCH=$BRANCH"
             echo "CHECKOUT_REF=$REF"
-            echo "UPSTREAM_OWNER=${{ inputs.upstream_owner }}"
-            echo "UPSTREAM_REPO=${{ inputs.upstream_repo }}"
+            echo "UPSTREAM_OWNER=$OWNER"
+            echo "UPSTREAM_REPO=$UREPO"
           } >> "$GITHUB_ENV"
 
       - name: Checkout 上游 OpenWrt
@@ -215,7 +222,7 @@ jobs:
         # （那个字段描述的是 openwrt 的分支），上游换成 immortalwrt 时会去 patches/immortalwrt-main
         # 找补丁——实际目录是 immortalwrt-master，于是误判「无补丁 → 设备定义缺失」（run#67）。
         run: |
-          bash scripts/verify-device.sh . openwrt "${{ matrix.device }}" "${{ inputs.upstream_branch }}" "${{ inputs.upstream_repo }}"
+          bash scripts/verify-device.sh . openwrt "${{ matrix.device }}" "${{ env.DEV_BRANCH }}" "${{ env.UPSTREAM_REPO }}"
 
       - name: 缓存源码包（dl）
         uses: actions/cache@v5
@@ -376,6 +383,25 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: 解析上游名（发布标签前缀）
+        # 标签前缀必须与真正构建用的上游一致：immortalwrt 构建不能叫 openwrt-*。
+        # inputs.upstream_* 现在默认为空（留空=用 device.yml），所以这里要按设备补解析，
+        # 否则标签会退化成 "-r33380-xxx"（前缀为空）。
+        run: |
+          set -euo pipefail
+          LABEL="${{ inputs.upstream_repo }}"
+          if [ -z "$LABEL" ]; then
+            if [ -n "${{ inputs.device }}" ] && [ -f "devices/${{ inputs.device }}/device.yml" ]; then
+              eval "$(bash scripts/parse-device.sh . "${{ inputs.device }}")"
+              LABEL="${DEV_UPSTREAM_REPO:-openwrt}"
+            else
+              LABEL=openwrt
+              echo "::warning::未指定设备，发布标签按 openwrt 前缀（build_all 且各设备上游不同时请显式填 upstream_repo）"
+            fi
+          fi
+          echo "UPSTREAM_LABEL=$LABEL" >> "$GITHUB_ENV"
+          echo "发布标签前缀: $LABEL"
+
       - name: 下载全部固件 artifact
         uses: actions/download-artifact@v7
         with:
@@ -413,6 +439,6 @@ jobs:
           RUN: ${{ github.run_number }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
-          # 标签前缀按上游区分（immortalwrt 构建不能叫 openwrt-*）
-          UPSTREAM_LABEL: ${{ inputs.upstream_repo }}
+          # 标签前缀按上游区分（immortalwrt 构建不能叫 openwrt-*）；由上面的解析步骤写入
+          UPSTREAM_LABEL: ${{ env.UPSTREAM_LABEL }}
         run: bash scripts/publish-release.sh
