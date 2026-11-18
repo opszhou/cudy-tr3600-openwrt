@@ -32,7 +32,7 @@ cd "$(dirname "$0")/.."
 
 [ -d "$FW_DIR" ] || { echo "找不到 artifact 目录 $FW_DIR"; exit 1; }
 
-# 资产命名：组合名紧跟设备名（…-cudy_tr3600-v1-ultimate-squashfs-sysupgrade.bin）；
+# 资产命名：组合名紧跟设备名（…-<设备>-<组合>-squashfs-sysupgrade.bin）；
 # 文件名里没有设备名时（如 config.buildinfo），把组合名插在扩展名之前。
 asset_name() { # $1=原文件名 $2=设备 $3=组合
   local b="$1" dev="$2" prof="$3" stem ext
@@ -233,22 +233,44 @@ NOTES=$(mktemp)
   echo "---"
   echo
   echo "本页包含组合：**${PROFS_SHOW:-未知}**（${UPSTREAM_SHOW} \`${VER}\`，${TAG_DATE:0:4}-${TAG_DATE:4:2}-${TAG_DATE:6:2}）。"
-  echo "资产名里的组合名紧跟设备名（如 ${UPSTREAM_LABEL}-…-cudy_tr3600-v1-<组合>-squashfs-sysupgrade.bin）。"
+  echo "资产名里的组合名紧跟设备名（如 ${UPSTREAM_LABEL}-…-${DEVS_SHOW}-<组合>-squashfs-sysupgrade.bin）。"
   echo
   echo "| 组合 | 设备 | 主固件 | 包数量 |"
   echo "| --- | --- | --- | --- |"
   cat "$ROWS"
 } > "$NOTES"
 
-cat >> "$NOTES" <<'MD'
+# 只有 lite 的设备（如 P3）不该出现 ultimate 的选项说明——它根本没有 ultimate 可下
+if [ "$(printf '%s\n' $PROFS | grep -c .)" -gt 1 ]; then
+  cat >> "$NOTES" <<'MD'
 
 ### 两个组合怎么选
 - **lite** 覆盖日常路由 + 中文界面 + QModem 蜂窝；**ultimate** = lite + 下载 / 监控 / 组网等增量（完整清单见 `docs/PACKAGES.md`）。
+MD
+fi
+
+cat >> "$NOTES" <<'MD'
 
 ### 刷机步骤（务必按顺序）
-1. 原厂固件 → 先刷 Cudy 官方**中间固件**（见 Cudy 下载页说明），**不要**直接刷第三方固件
-2. 进入系统后，用「系统 → 备份/升级」刷入 `<上游>-…-<组合>-sysupgrade.bin`
-3. 救砖：`<上游>-…-<组合>-initramfs-kernel.bin` 可引导进内存系统抢救
+MD
+
+# 第 1 条按设备生成：写死某台设备的话，另一台设备的发布页会出现完全无关的指引
+# （P3 的发布页曾出现「先刷 Cudy 官方中间固件」）。DEVS 是本页汇总出的设备列表。
+case " $DEVS " in
+  *" cudy_tr3600-v1 "*)
+    echo '1. 原厂固件 → 先刷 Cudy 官方**中间固件**（见 Cudy 下载页说明），**不要**直接刷第三方固件'
+    ;;
+  *" fzs_5gcpe-p3 "*)
+    echo '1. 刷前先备份配置（`sysupgrade -b /tmp/backup.tar.gz`）并留存 `/proc/mtd`；原厂固件首次刷入的前置步骤见 `docs/FLASH-FZS-P3.md`'
+    ;;
+  *)
+    echo '1. 刷前先备份配置；原厂固件首次刷入请先看 `docs/` 下对应设备的刷机清单'
+    ;;
+esac
+
+cat >> "$NOTES" <<'MD'
+2. 用「系统 → 备份/升级」刷入 `*-sysupgrade.bin`（刷完自动重启）
+3. 救砖：`*-initramfs-kernel.bin` 可引导进内存系统抢救
 
 ### 校验
 ```

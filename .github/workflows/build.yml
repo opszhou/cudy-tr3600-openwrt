@@ -382,6 +382,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
+        with:
+          # 发布说明的「本次更新」要按提交历史生成（git log --since）。
+          # 这里之前漏了这行，release job 是浅克隆，于是每个发布页都退化成
+          # 「本仓库为浅克隆，无法生成提交列表」的提示。build job 早就加了，这个 job 漏了。
+          fetch-depth: 0
 
       - name: 解析上游名（发布标签前缀）
         # 标签前缀必须与真正构建用的上游一致：immortalwrt 构建不能叫 openwrt-*。
