@@ -1,0 +1,15 @@
+diff --git a/package/libs/libnftnl/Makefile b/package/libs/libnftnl/Makefile
+index d1f162b..ffe0086 100644
+--- a/package/libs/libnftnl/Makefile
++++ b/package/libs/libnftnl/Makefile
+@@ -20,6 +20,10 @@
+ PKG_LICENSE:=GPL-2.0-or-later
+ PKG_LICENSE_FILES:=COPYING
+ 
++# fullcone 表达式补丁改的是 src/Makefile.am，必须重新跑 autoreconf 生成 Makefile.in。
++# 否则 make 会去调用 automake，而 OpenWrt 构建环境并没有装它 —— 表现为
++#   make[6]: *** [Makefile:489: Makefile.in] Error 127  → package/libs/libnftnl failed to build
++PKG_FIXUP:=autoreconf
+ PKG_INSTALL:=1
+ PKG_BUILD_PARALLEL:=1
+ PKG_BUILD_FLAGS:=lto

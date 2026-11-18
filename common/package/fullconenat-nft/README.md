@@ -59,5 +59,20 @@ common/pkg-patches/network/config/firewall4/900-*.patch
 | openwrt `main` | 1.3.2 | 与 immortalwrt 同版本，补丁直接可用 |
 | openwrt `openwrt-25.12` | **1.3.1** | 需要单独适配，当前**未提供** |
 
-所以 `common/patches/` 目前只有 `openwrt-main/` 一份。25.12 上不要开
+所以 `common/pkg-patches/` 目前只有 main 的适配。25.12 上不要开
 `INCLUDE_NFT_FULLCONE`，否则会编出「模块在、用户态不认识」的半残状态。
+
+## 还有第四件：autoreconf
+
+libnftnl 的补丁改了 `src/Makefile.am`（把 `expr/fullcone.c` 加进 SOURCES）。
+autotools 项目改了 `.am` 就必须重新生成 `Makefile.in`，而 OpenWrt 的构建环境
+**不装 automake**，于是 make 走到 `Makefile.in` 目标时会报：
+
+```
+make[6]: *** [Makefile:489: Makefile.in] Error 127      # 127 = command not found
+ERROR: package/libs/libnftnl failed to build.
+```
+
+`common/patches/openwrt-main/0001-libnftnl-enable-autoreconf.patch` 给 libnftnl 的
+Makefile 补了一行 `PKG_FIXUP:=autoreconf`，让 buildroot 先跑 autoreconf 再编。
+immortalwrt 上游的 libnftnl Makefile 本来就有这一行，openwrt 没有——这就是差异根源。
