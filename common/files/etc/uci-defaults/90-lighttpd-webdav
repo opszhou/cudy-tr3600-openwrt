@@ -1,0 +1,70 @@
+#!/bin/sh
+# P3 专属：lighttpd 的 WebDAV 共享预设（替代原来的 dufs）。
+#
+# 为什么不用包自带模板：immortalwrt/packages 的 30-webdav.conf 只对 "/dav" 前缀
+# 启用 WebDAV，且监听端口仍是 80（与 uhttpd 冲突）。这里用 zz- 前缀的片段覆盖：
+#   · 端口 8080（uhttpd 继续占用 80，LuCI 不受影响）
+#   · 根目录 /mnt/webdav（不动 /mnt 本身，避免和将来的挂载点抢路径）
+#   · 根路径也启用 WebDAV，客户端填 http://<ip>:8080/ 即可，不必记 /dav
+#
+# 由 uci-defaults 在首启执行一次；sysupgrade 保留 /etc 会留下旧片段，
+# 本脚本重复执行时整段覆盖，因此天然幂等。
+#
+# 注入点（仅供沙箱测试）：LW_MAIN_CONF / LW_CONF_DIR / LW_SHARE_DIR / LW_INIT / LW_BIN
+set -u
+
+MAIN_CONF="${LW_MAIN_CONF:-/etc/lighttpd/lighttpd.conf}"
+CONF_DIR="${LW_CONF_DIR:-/etc/lighttpd/conf.d}"
+SHARE_DIR="${LW_SHARE_DIR:-/mnt/webdav}"
+INIT="${LW_INIT:-/etc/init.d/lighttpd}"
+BIN="${LW_BIN:-/usr/sbin/lighttpd}"
+FRAGMENT="$CONF_DIR/zz-webdav-share.conf"
+
+# 没装 lighttpd 就直接退出（同一套 common/files 也会进 TR3600 等设备）
+[ -f "$MAIN_CONF" ] || exit 0
+
+# user_exists / user_add 是 OpenWrt 的 shell 函数，不 source 就拿不到。
+# 本脚本早于 lighttpd 的 init 执行，此时 http 用户通常还没被创建，chown 会失败。
+FUNCS="${LW_FUNCS:-/lib/functions.sh}"
+[ -f "$FUNCS" ] && . "$FUNCS"
+if command -v user_exists >/dev/null 2>&1; then
+	user_exists http || user_add http
+fi
+
+mkdir -p "$SHARE_DIR" "$CONF_DIR" 2>/dev/null || true
+if id http >/dev/null 2>&1; then
+	chown http:www-data "$SHARE_DIR" 2>/dev/null || true
+fi
+chmod 0775 "$SHARE_DIR" 2>/dev/null || true
+
+cat > "$FRAGMENT" <<'FRAG'
+# 由 /etc/uci-defaults/90-lighttpd-webdav 写入，重刷固件会自动重建。
+# 覆盖包自带 30-webdav.conf 的两个设定：端口 80 与仅 /dav 前缀。
+
+server.port          = 8080
+server.document-root = "/mnt/webdav"
+
+# 根路径启用 WebDAV。lighttpd 的 mod_webdav 只在 DAV 方法（PROPFIND/PUT/LOCK…）
+# 时接管，普通 GET 仍走静态文件，因此不影响网页访问。
+$HTTP["url"] =~ "^/" {
+	webdav.activate       = "enable"
+	webdav.is-readonly    = "disable"
+	# 锁与属性数据库放 /var/lib/lighttpd（init 脚本已按 www-data 建好目录）；
+	# /etc 属 root，http 用户写不进去，放那里会导致 LOCK/UNLOCK 失败。
+	webdav.sqlite-db-name = home_dir + "/webdav.db"
+}
+FRAG
+
+# 配置校验：失败就撤掉本片段，不让设备因为一个附加服务起不来
+if [ -x "$BIN" ] && ! "$BIN" -tt -f "$MAIN_CONF" >/dev/null 2>&1; then
+	logger -t lighttpd-webdav "配置校验失败，已撤掉 $FRAGMENT（lighttpd 保持包默认配置）"
+	rm -f "$FRAGMENT"
+	exit 0
+fi
+
+[ -x "$INIT" ] || exit 0
+"$INIT" enable 2>/dev/null || true
+"$INIT" restart 2>/dev/null || "$INIT" start 2>/dev/null || true
+
+logger -t lighttpd-webdav "WebDAV 已启用: 0.0.0.0:8080 根目录 $SHARE_DIR"
+exit 0

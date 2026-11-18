@@ -1,6 +1,6 @@
 # ===== 精简实用型组合（lite）—— 需求清单的精简版 =====
 # = lite（不含 modem 基座）减去：ttyd / netspeedtest / statistics / mwan3 / macvlan
-# 保留：argon 主题、turboacc、nikki、ddns-go、acme、socat、UPnP、SFTP、dufs（文件+WebDAV）、SQM、nlbwmon、定时重启
+# 保留：argon 主题、turboacc、nikki、ddns-go、acme、socat、UPnP、SFTP、lighttpd WebDAV（8080）、SQM、nlbwmon、定时重启
 # 额外依赖 feed：kenzok8 / small（argon-config、turboacc、ddns-go 所需）
 
 # ---- 基础与界面 ----
@@ -39,16 +39,24 @@ CONFIG_PACKAGE_miniupnpd-nftables=y
 
 # ---- 文件服务与存储 ----
 CONFIG_PACKAGE_openssh-sftp-server=y
-# dufs：网页文件浏览器 + WebDAV 一体（官方源，Rust 单二进制，procd/uci 管理）
-# 首启预设 8080 端口、根目录 /mnt、只读；开写与认证见 README
-CONFIG_PACKAGE_dufs=y
-# dufs 的 LuCI 面板（服务 → Dufs）：状态栏 + 打开网页按钮 + 端口/根目录/auth/各 allow_* 开关
-# 官方 luci feed 没有这个应用（实测 kenzok8、small 也没有），来源是 immortalwrt/luci，
-# 已原样 vendored 到 common/package/luci-app-dufs（assemble.sh 会拷进源码树 package/）。
-# ⚠️ immortalwrt 上游的 luci feed 自带同一个应用，那份会与本地副本重名冲突，
-#    故 assemble.sh 对 immortalwrt 已跳过本地拷贝（详见脚本内注释），此处配置两上游通用。
-CONFIG_PACKAGE_luci-app-dufs=y
-CONFIG_PACKAGE_luci-i18n-dufs-zh-cn=y
+# WebDAV 文件共享：lighttpd + 官方 mod_webdav（替代原 dufs）
+#
+# 为什么换掉 dufs：它是 Rust 单二进制，写 PKG_BUILD_DEPENDS:=rust/host，
+# 一装就要编整条 host rust 工具链；而 host rust 要从源码编 LLVM（上游
+# immortalwrt 甚至设 download-ci-llvm=true 去拉已 404 的 CI artifact），
+# 单这一项就让每次构建多出几十分钟到一小时。体积上也不划算：
+# dufs 4.7 MB 二进制 + 常驻 4 MB RSS，lighttpd 全套约 2 MB、常驻更少。
+#
+# 变体说明（Makefile 里是 BuildPlugin 宏生成，注意包名带下划线）：
+#   lighttpd-mod-webdav      完整版，依赖 libsqlite3 + libxml2，支持 LOCK/UNLOCK
+#   lighttpd-mod-webdav_min  精简版，零额外依赖，但不支持 LOCK
+# Windows「映射网络驱动器」与 macOS Finder 挂载都依赖 LOCK，故取完整版。
+#
+# 端口 8080 / 根目录 /mnt/webdav / 可写，由 common/files/etc/uci-defaults/
+# 90-lighttpd-webdav 写入；80 仍留给 uhttpd（LuCI）。没有 LuCI 面板，
+# 改配置直接编辑 /etc/lighttpd/conf.d/zz-webdav-share.conf。
+CONFIG_PACKAGE_lighttpd=y
+CONFIG_PACKAGE_lighttpd-mod-webdav=y
 
 # ---- USB 存储（U 盘/移动硬盘开箱即挂载；基础 kmod-usb-storage 已在 modem.list）----
 # ⚠️ Kconfig 不支持行内注释（conf 会把 "y # ..." 整段当值导致包被静默丢弃），注释必须独立成行

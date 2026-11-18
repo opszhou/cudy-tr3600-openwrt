@@ -1,12 +1,11 @@
 #!/bin/sh
-# 通用默认配置预设（lite/ultimate 共用：LAN IP、UPnP 安全模式、dufs 端口与权限、Transmission 下载目录、
+# 通用默认配置预设（lite/ultimate 共用：LAN IP、UPnP 安全模式、Transmission 下载目录、
 # 定时重启、BBR、WiFi7 模式与带宽、5G SSID 后缀）
 # （uci-defaults，首次开机执行一次；WED 关闭在 /etc/modules.conf，模块参数层面固化）
 
 # 测试钩子（scripts/test-router-presets.sh 用；默认值与生产行为完全一致）
 BBR_DIR="${BBR_SYS_DIR:-/sys/module/tcp_bbr}"
 SYSCTL_CONF="${SYSCTL_CONF:-/etc/sysctl.conf}"
-DUFS_CONF="${DUFS_CONF:-/etc/config/dufs}"
 UPNP_CONF="${UPNP_CONF:-/etc/config/upnpd}"
 
 # ---- 默认 LAN：192.168.10.1/24，DHCP 池 .100~.249 ----
@@ -42,26 +41,6 @@ if [ -x /etc/init.d/hotfix ]; then
 	/etc/init.d/hotfix start >/dev/null 2>&1 || true
 fi
 
-# ---- dufs：网页文件浏览器 + WebDAV（统一 8080，80 独占给 LuCI）----
-# dufs 替代 filebrowser（难看）+ lighttpd（抢 80 端口导致 LuCI 403 事故），两职一包，
-# 只监听 8080，端口冲突从根上消失（99-web-port-guard 已随之删除）。
-# 默认开放上传（网页拖拽 / WebDAV PUT）；删除权限默认关（防误删），要开改 /etc/config/dufs，
-# 见 README「dufs 文件服务」。同网段任意设备可写，介意就加 list auth 认证。
-if [ -f "$DUFS_CONF" ]; then
-	uci -q set dufs.config.enabled='1'
-	uci -q set dufs.config.port='8080'
-	uci -q set dufs.config.serve_path='/mnt'
-	uci -q set dufs.config.allow_upload='1'
-	uci -q set dufs.config.allow_search='1'
-	uci -q set dufs.config.allow_archive='1'
-	# 按路径权限：所有挂载点只读，仅第一块 USB 盘（/mnt/sda1）可读写；盘名不同改这一行
-	# dufs 嵌套规则自动从严（递归删除含只读子树的目录会被 403 拒绝）；
-	# 全局 allow_delete 未开兜底——即使 :rw 也删不掉东西
-	uci -q delete dufs.config.auth
-	uci -q add_list dufs.config.auth='@/:ro,/sda1:rw'
-	uci -q commit dufs
-fi
-
 # ---- Transmission：下载目录从 /tmp（内存盘，重启全丢）迁到持久存储 ----
 # 上游默认 download_dir=/tmp/transmission/done、config_dir=/tmp/transmission，而 /tmp 是内存盘，
 # 下载完成的文件和任务列表重启即消失。首启改为 /mnt 下：检测到第一块 USB 盘（/mnt/sda1）就落在盘上，
@@ -74,9 +53,10 @@ if [ -f "$TRANS_CONF" ]; then
 	if [ -d "$TRANS_SDA1" ]; then
 		TRANS_DL_ROOT="$TRANS_SDA1/transmission"
 	fi
-	# config 放点前缀隐藏目录：dufs 以 /mnt 为根做网页共享，而 settings.json 里有 RPC 凭据、
-	# resume/ 里有任务元数据——暴露在网页文件浏览器里既难看又可能被 WebDAV 覆写。
-	# dufs 不开 --show-hidden 就不会列出点目录，配置从此对共享界面隐身。
+	# config 放点前缀隐藏目录：WebDAV 共享根是 /mnt/webdav，但用户完全可能把
+	# document-root 改成 /mnt（见 README 的「共享 U 盘」做法）——那时 settings.json
+	# 里的 RPC 凭据与 resume/ 里的任务元数据就会暴露给 WebDAV 客户端。
+	# 点目录在 WebDAV 的 PROPFIND 列表里不显眼，也不易被误覆写，沿用这个约定。
 	mkdir -p "$TRANS_DL_ROOT/done" "$TRANS_DL_ROOT/incomplete" "$TRANS_DL_ROOT/.config"
 	chown -R transmission:transmission "$TRANS_DL_ROOT" 2>/dev/null || true
 	uci -q set transmission.@transmission[0].enabled='1'

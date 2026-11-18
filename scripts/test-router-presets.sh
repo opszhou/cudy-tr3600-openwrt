@@ -89,7 +89,7 @@ get_val() { # <键> -> 去引号的值
     local v="${line#*=}"; v="${v#\'}"; v="${v%\'}"; printf '%s' "$v"
 }
 
-# ---- 初始 fixture：system 节 + 双频 radio（radio0=2G、radio1=5G）+ 既有 cron 任务 + dufs 配置 ----
+# ---- 初始 fixture：system 节 + 双频 radio（radio0=2G、radio1=5G）+ 既有 cron 任务 ----
 cat > "$UCI_STATE_FILE" <<'FIX'
 system.@system[0]=system
 network.lan=interface
@@ -109,13 +109,7 @@ wireless.default_radio1.encryption=psk2
 wireless.default_radio1.key=secret123
 FIX
 printf '0 5 * * * /usr/bin/some-existing-job\n' > "$CRON_FILE"
-cat > "$SB/dufs.config" <<'FIX'
-config dufs 'config'
-	option enabled '0'
-	option port '5000'
-	option serve_path '/mnt'
-FIX
-export DUFS_CONF="$SB/dufs.config"
+# dufs 已整体移除（改用 lighttpd WebDAV，配置在 /etc/lighttpd/conf.d/），此处不再造 fixture
 
 # UPnP 配置（不装 UPnP 的设备没有这个文件，预设应跳过而不是凭空建一个）
 cat > "$SB/upnpd.config" <<'FIX'
@@ -149,16 +143,10 @@ assert_eq "主机名 tr3600" "tr3600" "$(get_val system.@system[0].hostname)"
 assert_eq "时区 zonename Asia/Shanghai" "Asia/Shanghai" "$(get_val system.@system[0].zonename)"
 assert_eq "timezone 对应 CST-8" "CST-8" "$(get_val system.@system[0].timezone)"
 assert_eq "24 小时制 h23" "h23" "$(get_val system.@system[0].clock_hourcycle)"
-assert_eq "dufs 启用" "1" "$(get_val dufs.config.enabled)"
-assert_eq "dufs 端口 8080" "8080" "$(get_val dufs.config.port)"
-assert_eq "dufs 根目录 /mnt" "/mnt" "$(get_val dufs.config.serve_path)"
-assert_eq "dufs 默认开上传" "1" "$(get_val dufs.config.allow_upload)"
-assert_eq "dufs 删除权限默认关" "" "$(get_val dufs.config.allow_delete)"
-assert_eq "dufs 仅 U 盘可写其余只读" "@/:ro,/sda1:rw" "$(get_val dufs.config.auth)"
 # Transmission：默认 /tmp 是内存盘，预设必须迁出；无 U 盘时落 overlay
 assert_eq "Transmission 开机自启" "1" "$(get_val 'transmission.@transmission[0].enabled')"
 assert_eq "Transmission 下载目录迁出 /tmp（无 U 盘落 overlay）" "$SB/mnt/transmission/done" "$(get_val 'transmission.@transmission[0].download_dir')"
-assert_eq "Transmission 配置目录持久化且对 dufs 隐藏" "$SB/mnt/transmission/.config" "$(get_val 'transmission.@transmission[0].config_dir')"
+assert_eq "Transmission 配置目录持久化且对 WebDAV 客户端隐藏" "$SB/mnt/transmission/.config" "$(get_val 'transmission.@transmission[0].config_dir')"
 assert_eq "Transmission 未完成目录启用" "1" "$(get_val 'transmission.@transmission[0].incomplete_dir_enabled')"
 assert_eq "5G SSID 加 _5G 后缀" "Home_5G" "$(get_val wireless.default_radio1.ssid)"
 assert_eq "2.4G SSID 保持不变" "OpenWrt" "$(get_val wireless.default_radio0.ssid)"

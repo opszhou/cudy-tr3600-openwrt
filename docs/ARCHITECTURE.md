@@ -22,7 +22,7 @@
 ├── common/                # ── 全局层：所有设备、所有上游共用 ──
 │   ├── configs/           # 包清单(.config 片段)：modem(随身WiFi)/lite/proxy/extra
 │   ├── customize.sh       # 公共定制脚本（feeds 安装后执行）
-│   ├── package/           # 源码树 vendor 包（luci-app-dufs / luci-app-sysdashboard，不走 feed）
+│   ├── package/           # 源码树 vendor 包（luci-app-sysdashboard，不走 feed）
 │   └── files/             # 公共 /etc 覆盖（开机预设 uci-defaults / hotplug.d / init.d）
 └── scripts/               # 组装/合并/编译脚本（CI 与本地通用）
 ```

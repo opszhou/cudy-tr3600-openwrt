@@ -6,7 +6,7 @@
 
 | 组合 | 定位 | 内容 |
 |------|------|------|
-| **lite** | 精简实用（默认） | QModem 随身 WiFi 全套 + 中文化 LuCI + Argon 主题（默认）+ turboacc 硬件加速/BBR + nikki 代理 + ddns-go + acme 证书 + UPnP + WOL + SFTP + dufs（网页文件管理 + WebDAV，8080，含 LuCI 面板）+ SQM + nlbwmon 流量统计 + **系统仪表盘**（只读首页）+ USB 存储全驱动（UAS/ext4/exFAT/NTFS3/FAT32 + 自动挂载） |
+| **lite** | 精简实用（默认） | QModem 随身 WiFi 全套 + 中文化 LuCI + Argon 主题（默认）+ turboacc 硬件加速/BBR + nikki 代理 + ddns-go + acme 证书 + UPnP + WOL + SFTP + lighttpd WebDAV（8080，支持 LOCK 可映射网络驱动器）+ SQM + nlbwmon 流量统计 + **系统仪表盘**（只读首页）+ USB 存储全驱动（UAS/ext4/exFAT/NTFS3/FAT32 + 自动挂载） |
 | **ultimate** | 全能 | lite 全部 + tailscale + travelmate + ttyd + luci-app-statistics 轻量监控 + macvlan + transmission（BT 下载，默认目录 /mnt、开机自启） |
 
 > **上游变更备注（2026-10 实测）**：官方 luci feed 已删除 `luci-app-vnstat` / `luci-app-autoreboot` / `luci-app-socat`，
@@ -15,9 +15,9 @@
 > netspeedtest 依赖的上游 python3 子包已不存在，连同其 feed 一并移除；
 > NetPath 已试装后移除（上游无 init/uci 文件，仅 CLI 无面板），多 WAN 暂无面板方案。详见 `common/configs/*.list` 内注释。
 >
-> **luci-app-dufs（2026-11 起）**：openwrt 官方 luci、kenzok8、small 三个源都没有 dufs 的 LuCI 面板（只有后端 `dufs`）。
-> 面板取自 **immortalwrt/luci**，原样 vendored 到 `common/package/luci-app-dufs`（Apache-2.0）；
-> `assemble.sh` 在 `REPO=immortalwrt` 时会删掉本地副本，改用该上游 luci feed 自带的同名包，避免 Kconfig 重复符号。
+> **WebDAV（2026-11 起）**：dufs 已整体移除，改用 `lighttpd` + `lighttpd-mod-webdav`。
+> 原因是 dufs 为 Rust 单二进制，其包写 `PKG_BUILD_DEPENDS:=rust/host`，会把整条 host rust
+> 工具链拉进构建（含从源码编 LLVM，几十分钟起）。lighttpd 方案体积约 2 MB、无编译期依赖。
 >
 > **luci-app-sysdashboard（2026-11 起）**：本仓库自研的**只读**系统仪表盘，不是上游组件。
 > 与 FanchmWrt 那类带 DPI 应用识别的看板不同，它只聚合本机已有的公开数据
@@ -34,7 +34,7 @@
 - **无线默认开启**：radio 与 wifi-iface 都置 `disabled=0`（OpenWrt 出厂是关闭的）；无密钥接口显式 `encryption=none` → 默认是**开放热点**
 - **USB 网卡自动当 WAN**：`common/files/etc/hotplug.d/net/50-usb-wan`（插拔时建/拉起 `wanusb`）+ `common/files/etc/init.d/usb-wan`（开机兜底扫描，START=95）；预设负责把它 `enable` 进 rc.d。接管范围＝USB 总线上的**以太协议**设备（有线网卡 / 手机共享 / RNDIS·ECM·NCM 免驱上网卡）；名字 `wwan*`·`rmnet*`、或同设备存在 `qmi_wwan*`·`cdc_mbim`·`cdc_wdm` 驱动的（需拨号的 QMI/MBIM 模组）一律不碰，留给 QModem
 - **5G SSID 自动加 `_5G` 后缀**（区分双频，幂等）
-- dufs 首启预设：**8080 端口**、根目录 `/mnt`、仅第一块 USB 盘（`/mnt/sda1`）可写、其余挂载点只读、删除全局关；LuCI 面板「服务 → Dufs」可在图形界面改这些项
+- WebDAV 首启预设：**8080 端口**（80 留给 uhttpd）、根目录 `/mnt/webdav`、可读写、无认证；配置片段写在 `/etc/lighttpd/conf.d/zz-webdav-share.conf`，由 `common/files/etc/uci-defaults/90-lighttpd-webdav` 生成（无 LuCI 面板）
 - Transmission 首启预设：**开机自启**，下载/未完成/配置目录从上游默认的 `/tmp`（内存盘，重启即丢）迁到 `/mnt/transmission/`；首启时若已插 U 盘（`/mnt/sda1`）则改落 `/mnt/sda1/transmission/`
 - UPnP 默认**安全模式**；BBR 拥塞控制默认启用
 - 每周一凌晨 04:30 自动重启（crontab 写入；上游 luci-app-autoreboot 已删除）
@@ -131,11 +131,9 @@ feeds 追加配置见 `upstreams/<上游>/feeds.append`。除 QModem 外，所�
 
 | 包 | 原因 |
 |----|------|
-| `luci-app-dufs` | 三个上游 luci 源都没有（只有 immortalwrt/luci 有）；Makefile 的 `include ../../luci.mk` 已改为 `$(TOPDIR)/feeds/luci/luci.mk`，否则在 `package/` 下解析不到 |
 | `luci-app-sysdashboard` | 本仓库自研包，上游不存在；同样改用 `$(TOPDIR)/feeds/luci/luci.mk`。rpcd 脚本必须带可执行位（本机 `core.filemode=false`，提交前需 `git update-index --chmod=+x`） |
 
-> 注意与上游 feed 重名：若某上游 feed 自带同名包（如 immortalwrt 的 luci feed 自带 luci-app-dufs），
-> `assemble.sh` 必须跳过本地副本，否则 Kconfig 会出现重复符号。
+> 注意与上游 feed 重名：若某上游 feed 自带同名包，`assemble.sh` 必须跳过本地副本，否则 Kconfig 会出现重复符号。
 > `luci-app-sysdashboard` 是自研名，四个 feed（openwrt/luci、immortalwrt/luci、kenzok8、small）均无同名包，无需例外处理。
 
 ### 系统仪表盘（luci-app-sysdashboard）

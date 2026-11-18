@@ -17,3 +17,7 @@ CONFIG_PACKAGE_kmod-usb-wdm=y
 CONFIG_PACKAGE_luci-app-statistics=y
 CONFIG_PACKAGE_luci-i18n-statistics-zh-cn=y
 CONFIG_PACKAGE_collectd-mod-thermal=y
+
+# ---- WebDAV 文件共享 ----
+# 已统一到 common/configs/lite.list（lighttpd + lighttpd-mod-webdav），
+# 本机不再单独声明。去掉 dufs 后 rust 不参与构建，本机与其它设备行为一致。

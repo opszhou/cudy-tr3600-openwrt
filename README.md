@@ -36,7 +36,7 @@
   - **USB 网卡插上自动当 WAN**：自动建 `wanusb`（DHCP）、并入防火墙 wan 区、开机兜底，插上/开机即通，无需手动点连接
   - 5G SSID 自动加 `_5G` 后缀（双频同名会导致终端漫游到错误频段）
   - 每周一凌晨 04:30 自动重启；UPnP 默认安全模式；BBR 拥塞控制默认启用
-  - **dufs** 默认 8080 端口、根目录 `/mnt`、仅 U 盘可写；**Transmission** 下载目录迁出内存盘（插着 U 盘则落在盘上）并开机自启
+  - **WebDAV 文件服务**（lighttpd + mod_webdav）默认 8080 端口、根目录 `/mnt/webdav`；**Transmission** 下载目录迁出内存盘（插着 U 盘则落在盘上）并开机自启
   - **管理面板接管为官方框架 + 自研逻辑**：沿用 `luci-mod-dashboard` 的卡片/图表/拖拽布局，网络侧判定改用默认路由与自研能力表（5G 的 `wwan0` 不在 netifd 里，原生会一直显示「未连接」）。未联网 / 接口禁用 / 无模组 / 无客户端时相关部件自动隐藏，恢复后 5 秒内自动出现（详见 `docs/DASHBOARD.md`）
 - **全套中文 LuCI** + Argon 主题（默认主题，含 argon-config 配置器）
 - **随身 WiFi 场景拉满**：QModem 管理 UI，USB RNDIS / QMI / NCM / MBIM / 串口全驱动，即插即用
@@ -56,7 +56,7 @@
 | 代理 | **nikki**（mihomo 内核）+ LuCI 管理界面 + TUN / nft-tproxy 内核模块 |
 | DDNS 与证书 | ddns-go + acme（acme-acmesh，LuCI 面板） |
 | 端口与服务 | UPnP（miniupnpd）+ WOL 网络唤醒 + socat（命令行）+ SFTP |
-| 文件服务 | dufs 网页文件浏览器 + WebDAV 一体（**8080** 端口，80 保留给 LuCI；仅 U 盘可写其余只读；LuCI 面板「服务 → Dufs」，见下方「dufs 文件服务」） |
+| 文件服务 | **WebDAV**（lighttpd + mod_webdav，**8080** 端口，80 保留给 LuCI；根目录 `/mnt/webdav`，支持 LOCK 可映射网络驱动器；见下方「WebDAV 文件服务」）
 | USB 存储 | UAS 高速协议 + ext4 / exFAT / NTFS3 / FAT32 文件系统 + 自动挂载（block-mount） |
 | 网络质量 | SQM 智能队列（消除 bufferbloat）+ nlbwmon 按主机流量统计 |
 | 系统界面 | **管理面板**（官方框架 + 自研逻辑，只读）：信号强度 / 网络状态 / 流量统计 / 在线设备 / 实时流量曲线，未联网的部件自动隐藏 |
@@ -91,22 +91,19 @@
   `bash scripts/test-dashboard-catalog.sh`（部件声明 + 能力模型 + 显隐场景矩阵）。
 - **架构与扩展方式**：见 `docs/DASHBOARD.md`（新增部件只改 `sd/catalog.js` 一条 + `sd/providers.js` 一个分支）。
 
-### dufs 文件服务（网页文件管理 + WebDAV）
+### WebDAV 文件服务（lighttpd + mod_webdav）
 
-- **LuCI 面板：服务 → Dufs**（`luci-app-dufs`）。可看运行状态、点按钮直接打开网页界面，并改端口/根目录/auth 规则与各权限开关。官方 luci feed 没有这个应用，源码 vendored 自 immortalwrt/luci（见「许可证」）
-- 访问：`http://192.168.10.1:8080`；网页界面与 WebDAV 共用同一路径和端口（不做本地域名——设备不把路由器当 DNS 时解析不了，IP 反正是固定的）
-- 权限模型：浏览/下载/搜索/打包 zip 对**所有挂载点**开放；**仅第一块 USB 盘 `/mnt/sda1` 可写**（上传，网页拖拽 / WebDAV PUT），其余一律只读；删除全局关闭（防误删）
-- 盘名不是 `sda1`（如 `sdb1`）时，改 `/etc/config/dufs` 里的路径后重启服务：
-
-  ```sh
-  uci del_list dufs.config.auth='@/:ro,/sda1:rw'
-  uci add_list dufs.config.auth='@/:ro,/sdb1:rw'
-  uci commit dufs && /etc/init.d/dufs restart
-  ```
-
-- 要开删除（危险）：面板里勾 `Allow delete files/folders`，或 `uci set dufs.config.allow_delete='1' && uci commit dufs && /etc/init.d/dufs restart`。注意删除是**全局开关**，不认「谁建的」——开了之后 `/sda1` 子树内任何文件都能被删（默认无认证）
-- 默认无认证（同网段设备可对 U 盘写入）；介意就加账号：`/etc/config/dufs` 里 `list auth '用户名:密码@/:rw'`（会覆盖匿名规则），重启生效
-- 根目录 `/mnt`（U 盘/移动硬盘自动挂载点）；dufs 的 WebDAV 是 Class 1（无 LOCK），普通文件传输/播放没问题，不保证 Office 在线编辑等高级用法
+- **端口 8080**（80 留给 uhttpd/LuCI），根目录 `/mnt/webdav`，可读写，默认无认证
+- **挂载方式**：
+  - Windows：资源管理器「映射网络驱动器」→ `http://<路由器IP>:8080/`
+  - macOS：Finder「前往 → 连接服务器」→ `http://<路由器IP>:8080/`
+  - 手机 / rclone / RaiDrive 等第三方客户端同理，协议选 WebDAV
+- **没有 LuCI 面板**。配置就是一个文件：`/etc/lighttpd/conf.d/zz-webdav-share.conf`，改完 `/etc/init.d/lighttpd restart` 生效
+- **为什么不是 dufs**：dufs 是 Rust 单二进制，它的包写 `PKG_BUILD_DEPENDS:=rust/host`，一装就要编整条 host rust 工具链（含从源码编 LLVM），单这一项就让每次构建多出几十分钟到一小时。lighttpd 方案体积约 2 MB、不需要编译期依赖，WebDAV 能力等价
+- **模块选型**：编译的是完整版 `lighttpd-mod-webdav`（依赖 libsqlite3 + libxml2），支持 LOCK/UNLOCK —— Windows 映射驱动器与 macOS 挂载都需要它。若只做脚本/客户端的上传下载，可改用零依赖的细版 `lighttpd-mod-webdav_min`（去掉 LOCK）
+- **存储**：`/mnt/webdav` 位于 overlay（可写分区）。插 U 盘的话它**不会**自动变成共享根目录 —— 要共享 U 盘请改 `zz-webdav-share.conf` 里的 `server.document-root`，或把 `/mnt/sda1` 做软链接进去
+- **认证**：默认无（同网段可读写）。要加账号需要额外装 `lighttpd-mod-auth` + `lighttpd-mod-authn_file` 并在同一片段里配 `auth.require`，默认固件不含这两个模块
+- **sysupgrade**：`/mnt/webdav` 里的文件不在保留列表（只有 `/etc` 与 `sysupgrade.conf` 列出项会留），所以它适合做**临时中转**，不适合长期存放
 
 ### Transmission 下载
 
@@ -178,5 +175,4 @@
 
 本仓库自身内容遵循 [GPL-2.0](LICENSES/GPL-2.0)。
 第三方组件：QModem 为 MPL-2.0，Nikki 为 GPL-3.0，其余以各自仓库为准。
-`common/package/luci-app-dufs` 为原样 vendored 的 immortalwrt/luci 组件（Apache-2.0，作者 Tianling Shen），仅改动 luci.mk 的 include 路径。
 `common/package/luci-app-sysdashboard` 为本仓库自研组件（Apache-2.0），无第三方代码依赖。
