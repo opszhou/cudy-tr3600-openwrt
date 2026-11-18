@@ -112,27 +112,6 @@ if [ -d "$OPENWRT/files" ]; then
     find "$OPENWRT/files" -type f \( -path '*/usr/bin/*' -o -path '*/usr/sbin/*' -o -path '*/etc/init.d/*' -o -path '*/etc/hotplug.d/*' \) -exec chmod 755 {} + 2>/dev/null || true
 fi
 
-# 5.6) 包内补丁：整目录镜像到源码树的 package/<路径>/patches/
-# 与 common/patches（源码树补丁，在源码树根 git apply）是两类东西：
-#   源码树补丁  —— 改 target/linux、改包 Makefile，路径相对源码树根
-#   包内补丁    —— 改某个包的**上游源码**，路径相对该包解压后的目录，由 OpenWrt 在
-#                  prepare 阶段用 patch -p1 应用；放错地方的表现是
-#                  "error: include/xxx.h: does not exist in index"（run#71 实测）
-# 目录结构即源码树里的相对路径，例如 common/pkg-patches/libs/libnftnl/ -> package/libs/libnftnl/patches/
-if [ -d "$ROOT/common/pkg-patches" ]; then
-    while IFS= read -r src; do
-        rel=${src#$ROOT/common/pkg-patches/}
-        dst="$OPENWRT/package/$rel/patches"
-        [ -d "$OPENWRT/package/$rel" ] || {
-            echo "错误: 包内补丁的目标包不存在: package/$rel（上游改名？）" >&2
-            exit 1
-        }
-        mkdir -p "$dst"
-        cp -f "$src"/*.patch "$dst"/
-        echo "包内补丁: package/$rel/patches <- $(cd "$src" && ls *.patch | tr '\n' ' ')"
-    done < <(find "$ROOT/common/pkg-patches" -name '*.patch' -type f -printf '%h\n' | sort -u)
-fi
-
 # 6) 组装 .config：交给 assemble-config.sh（单一真源）
 #    注意：feeds update 会静默触发一次 make defconfig，那时 feed 包还不可见 → 必须由
 #    build-device.sh 在 feeds 安装完成后再调一次同一个脚本（见那里的注释）。
