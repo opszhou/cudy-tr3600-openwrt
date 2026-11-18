@@ -14,7 +14,13 @@
 id: fzs_5gcpe-p3
 target: mediatek/filogic
 profile: fzs_5gcpe-p3               # CONFIG_TARGET_..._DEVICE_<profile>，见 default.seed
-branch: openwrt-25.12               # 上游分支（immortalwrt 沿用 openwrt 的分支命名）
+branch: openwrt-25.12               # 上游分支（决定补丁目录 patches/openwrt-25.12/）
+# 锁稳定版 tag：branch 头上的版本标记永远是 "25.12-SNAPSHOT"（分支持续开发），
+# 固件里 DISTRIB_RELEASE 会显示 SNAPSHOT，看着像测试版。锁 v25.12.2 后
+# /etc/openwrt_version 是正式的 25.12.2（r38135-0c4cd0f9920a）。
+# 补丁仍按 branch 找目录，所以「锁 tag 出稳定版」和「跟分支出滚动版」共用同一套补丁。
+# 升级稳定版：改这一行到新的 v25.12.x（先在本地对这个 tag 跑一遍补丁）。
+ref: v25.12.2
 
 # 设备默认上游：workflow inputs 留空时用它，避免每次派发漏传参数而编成 openwrt 源。
 # 本设备无需合并任何官方 PR：移植补丁直接入库（devices/fzs_5gcpe-p3/patches/openwrt-25.12/）

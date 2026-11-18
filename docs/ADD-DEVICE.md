@@ -22,6 +22,7 @@
    target: mediatek/filogic          # 该设备的 OpenWrt target/subtarget
    profile: <CONFIG_TARGET_..._DEVICE_ 后面的名字>
    branch: main
+   ref: v25.12.2                     # 可选：锁 tag/commit（留空=跟分支头）。branch 仍决定补丁目录
    upstream_owner: immortalwrt       # 可选：设备默认上游（留空=openwrt，CI 输入可临时覆盖）
    upstream_repo: immortalwrt
    default_prs:                      # 该设备需要合并的官方 PR（可留空）
@@ -54,6 +55,8 @@
 ## 跨分支设备（如 fzs_5gcpe-p3 用 openwrt-25.12，cudy 用 main）
 
 - `device.yml` 的 `branch` 写目标分支全名；补丁目录同名（`patches/openwrt-25.12/`）
+- 想要正式版本号而不是 `SNAPSHOT`：加 `ref: v25.12.x` 锁 tag。分支头的版本标记永远是 SNAPSHOT，
+  锁 tag 后 `/etc/openwrt_version` 才是发布号（如 `25.12.2`）。补丁仍按 `branch` 找，不用改目录
 - CI 的 matrix 按设备逐 job 解析分支，两个设备互不影响；`dl`/`ccache` 缓存 key 含分支与设备，不会串味
 
 ### 设备默认上游
