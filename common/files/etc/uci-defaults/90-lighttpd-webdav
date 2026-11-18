@@ -2,19 +2,27 @@
 # 通用：lighttpd 的 WebDAV 共享预设（全设备共用，替代原来的 dufs）。
 #
 # 适用范围：所有带 lighttpd 的组合（当前 lite 组合的每台设备都装）。
-# 未装 lighttpd 的设备（比如将来某个精简组合）本脚本开头就检查主配置存在性后退出，不产生副作用。
+# 未装 lighttpd 的设备在开头判断主配置存在性后退出，不产生副作用。
 #
-# 为什么不用包自带模板：immortalwrt/packages 的 30-webdav.conf 只对 "/dav" 前缀
-# 启用 WebDAV，且监听端口仍是 80（与 uhttpd 冲突）。这里用 zz- 前缀的片段覆盖：
-#   · 端口 8080（uhttpd 继续占用 80，LuCI 不受影响）
-#   · 根目录 /mnt/webdav（不动 /mnt 本身，避免和将来的挂载点抢路径）
-#   · 根路径也启用 WebDAV，客户端填 http://<ip>:8080/ 即可，不必记 /dav
+# 目标状态：监听 **8080**（80 留给 uhttpd/LuCI），根目录 `/mnt/webdav`，可读写。
 #
-# 由 uci-defaults 在首启执行一次；sysupgrade 保留 /etc 会留下旧片段，
-# 本脚本重复执行时整段覆盖，因此天然幂等。
+# ⛔ 三个踩过的坑，改这个脚本前先读（run#78 刷机现场全部踩了一遍）：
+#
+# 1) 不要加 `set -u`。下面要 source /lib/functions.sh 拿 user_exists/user_add，
+#    那个文件里的函数会引用未定义变量，严格模式让脚本在写任何配置之前就退出，
+#    而且退出码非 0 导致 uci-defaults 不删除脚本——表面看「文件在、就是没生效」。
+#    后果：lighttpd 用默认 80 启动，抢了 uhttpd 的端口，LuCI 403。
+#
+# 2) 不能在 conf.d 里重定义 server.document-root / server.port。
+#    lighttpd 会报 "Duplicate config variable in conditional 0 global" 并拒绝启动。
+#    正确做法是改主配置里的**变量**：主配置写的是
+#    `server.document-root = server_root`，所以改 `var.server_root` 就够；
+#    端口主配置里根本没写（默认 80），插一条 server.port。
+#
+# 3) 端口闸门必须在**启动之前**判定。先启动再检查等于已经把 80 抢了。
+#    这里：改配置 → 解析端口 → 不是 8080 就整体回滚并停用，绝不让 lighttpd 起来。
 #
 # 注入点（仅供沙箱测试）：LW_MAIN_CONF / LW_CONF_DIR / LW_SHARE_DIR / LW_INIT / LW_BIN / LW_FUNCS
-set -u
 
 MAIN_CONF="${LW_MAIN_CONF:-/etc/lighttpd/lighttpd.conf}"
 CONF_DIR="${LW_CONF_DIR:-/etc/lighttpd/conf.d}"
@@ -22,57 +30,51 @@ SHARE_DIR="${LW_SHARE_DIR:-/mnt/webdav}"
 INIT="${LW_INIT:-/etc/init.d/lighttpd}"
 BIN="${LW_BIN:-/usr/sbin/lighttpd}"
 FRAGMENT="$CONF_DIR/zz-webdav-share.conf"
+BACKUP="$MAIN_CONF.webdav-orig"
 
-# 没装 lighttpd 就直接退出（同一套 common/files 也会进 TR3600 等设备）
 [ -f "$MAIN_CONF" ] || exit 0
 
-# user_exists / user_add 是 OpenWrt 的 shell 函数，不 source 就拿不到。
-# 本脚本早于 lighttpd 的 init 执行，此时 http 用户通常还没被创建，chown 会失败。
-FUNCS="${LW_FUNCS:-/lib/functions.sh}"
-[ -f "$FUNCS" ] && . "$FUNCS"
+# 首次执行留一份原始主配置，闸门失败用它整体回滚
+[ -f "$BACKUP" ] || cp "$MAIN_CONF" "$BACKUP" 2>/dev/null
+
+# user_exists / user_add 来自 functions.sh；出错也不影响主流程
+if [ -f "${LW_FUNCS:-/lib/functions.sh}" ]; then
+	. "${LW_FUNCS:-/lib/functions.sh}"
+fi
 if command -v user_exists >/dev/null 2>&1; then
 	user_exists http || user_add http
 fi
 
-mkdir -p "$SHARE_DIR" "$CONF_DIR" 2>/dev/null || true
+mkdir -p "$SHARE_DIR" "$CONF_DIR" 2>/dev/null
 if id http >/dev/null 2>&1; then
-	chown http:www-data "$SHARE_DIR" 2>/dev/null || true
+	chown http:www-data "$SHARE_DIR" 2>/dev/null
 fi
-chmod 0775 "$SHARE_DIR" 2>/dev/null || true
+chmod 0775 "$SHARE_DIR" 2>/dev/null
 
+# ---- 1) 根目录：改 var.server_root（主配置的 document-root 引用它）----
+if grep -q '^var\.server_root = "/www/"' "$MAIN_CONF"; then
+	sed -i 's|^var\.server_root = "/www/"|var.server_root = "/mnt/webdav/"|' "$MAIN_CONF"
+fi
+
+# ---- 2) 端口：主配置没有 server.port（默认 80），插一条 8080 ----
+if ! grep -q '^server\.port' "$MAIN_CONF"; then
+	sed -i 's|^server\.document-root|server.port                 = 8080\nserver.document-root|' "$MAIN_CONF"
+fi
+
+# ---- 3) conf.d 只放 WebDAV 启用（条件块，与包自带 30-webdav.conf 同构）----
 cat > "$FRAGMENT" <<'FRAG'
 # 由 /etc/uci-defaults/90-lighttpd-webdav 写入，重刷固件会自动重建。
-# 覆盖包自带 30-webdav.conf 的两个设定：端口 80 与仅 /dav 前缀。
-
-server.port          = 8080
-server.document-root = "/mnt/webdav"
-
-# 根路径启用 WebDAV。lighttpd 的 mod_webdav 只在 DAV 方法（PROPFIND/PUT/LOCK…）
-# 时接管，普通 GET 仍走静态文件，因此不影响网页访问。
+# 端口与根目录在主配置里（server.port / var.server_root），这里只负责启用模块。
 $HTTP["url"] =~ "^/" {
 	webdav.activate       = "enable"
 	webdav.is-readonly    = "disable"
-	# 锁与属性数据库放 /var/lib/lighttpd（init 脚本已按 www-data 建好目录）；
-	# /etc 属 root，http 用户写不进去，放那里会导致 LOCK/UNLOCK 失败。
+	# 锁与属性库放 home_dir（/var/lib/lighttpd，init 已按 www-data 建好）；
+	# /etc 属 root，http 用户写不进去，放那里会让 LOCK/UNLOCK 失败。
 	webdav.sqlite-db-name = home_dir + "/webdav.db"
 }
 FRAG
 
-# 配置校验：失败就撤掉本片段，不让设备因为一个附加服务起不来
-if [ -x "$BIN" ] && ! "$BIN" -tt -f "$MAIN_CONF" >/dev/null 2>&1; then
-	logger -t lighttpd-webdav "配置校验失败，已撤掉 $FRAGMENT（lighttpd 保持包默认配置）"
-	rm -f "$FRAGMENT"
-	exit 0
-fi
-
-# 端口安全闸门（最重要的一行防线）
-#
-# 历史事故：lighttpd 曾监听到 80 与 uhttpd 抢端口，LuCI 直接 403 打不开。
-# 默认 server.port 就是 80，一旦本片段因为任何原因没生效（被覆盖、被 include 顺序
-# 挤掉、被别的包替换主配置），lighttpd 就会去抢 80。
-#
-# 这里让 lighttpd 自己把「解析后的最终配置」打印出来（-p 是官方支持的 dump 选项），
-# 只认 server.port 的值；不是 8080 就不启动。宁可没有 WebDAV，也不能让 LuCI 失联。
+# ---- 4) 端口闸门：解析不到 8080 就整体回滚、停用、绝不启动 ----
 RESOLVED_PORT=""
 if [ -x "$BIN" ]; then
 	RESOLVED_PORT=$("$BIN" -p -f "$MAIN_CONF" 2>/dev/null \
@@ -80,27 +82,27 @@ if [ -x "$BIN" ]; then
 		| head -n1)
 fi
 
-# 解析出端口就强校验；解析不出（老版本 -p 输出格式不同）则放行并告警，
-# 避免闸门误杀导致 WebDAV 永远起不来——真正的兜底是下面的启动后检查。
 if [ -n "$RESOLVED_PORT" ] && [ "$RESOLVED_PORT" != "8080" ]; then
-	logger -t lighttpd-webdav "端口闸门拦截：解析出 server.port=$RESOLVED_PORT（期望 8080）。已撤掉 $FRAGMENT 且不启动 lighttpd，避免抢占 uhttpd 的 80 导致 LuCI 无法访问。"
+	logger -t lighttpd-webdav "端口闸门拦截：解析出 server.port=$RESOLVED_PORT（期望 8080）。回滚主配置、撤掉片段、停用 lighttpd，避免抢占 uhttpd 的 80 导致 LuCI 无法访问。"
+	[ -f "$BACKUP" ] && cp "$BACKUP" "$MAIN_CONF"
 	rm -f "$FRAGMENT"
+	"$INIT" stop 2>/dev/null
+	"$INIT" disable 2>/dev/null
 	exit 0
 fi
-[ -n "$RESOLVED_PORT" ] || logger -t lighttpd-webdav "警告: 无法从 lighttpd -p 解析出 server.port，改为启动后检查监听端口"
+if [ -z "$RESOLVED_PORT" ]; then
+	# 解析不出（老版本 -p 输出格式差异）也不启动：宁可少一个 WebDAV，
+	# 也不能赌它会不会退回 80 把 LuCI 抢掉。
+	logger -t lighttpd-webdav "无法从 lighttpd -p 解析出 server.port，为安全起见不启动 lighttpd（主配置改动保留，排查后手工 /etc/init.d/lighttpd start）。"
+	rm -f "$FRAGMENT"
+	"$INIT" stop 2>/dev/null
+	exit 0
+fi
 
+# ---- 5) 端口正确才启用并启动 ----
 [ -x "$INIT" ] || exit 0
-"$INIT" enable 2>/dev/null || true
-"$INIT" restart 2>/dev/null || "$INIT" start 2>/dev/null || true
-
-# 启动后兜底：真的占了 80 就立刻停掉自己。uhttpd 若因此起不来，LuCI 就失联了，
-# 这个代价比少一个 WebDAV 服务大得多。
-if netstat -lntp 2>/dev/null | grep -qE ':(80|443)[[:space:]].*lighttpd'; then
-	logger -t lighttpd-webdav "严重: lighttpd 占用了 80/443，已强制 stop（保护 uhttpd/LuCI）。"
-	"$INIT" stop 2>/dev/null || true
-	rm -f "$FRAGMENT"
-	exit 0
-fi
+"$INIT" enable 2>/dev/null
+"$INIT" restart 2>/dev/null || "$INIT" start 2>/dev/null
 
 logger -t lighttpd-webdav "WebDAV 已启用: 8080 端口，根目录 $SHARE_DIR（80 保留给 uhttpd/LuCI）"
 exit 0

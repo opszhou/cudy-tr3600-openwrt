@@ -98,10 +98,13 @@
   - Windows：资源管理器「映射网络驱动器」→ `http://<路由器IP>:8080/`
   - macOS：Finder「前往 → 连接服务器」→ `http://<路由器IP>:8080/`
   - 手机 / rclone / RaiDrive 等第三方客户端同理，协议选 WebDAV
-- **没有 LuCI 面板**。配置就是一个文件：`/etc/lighttpd/conf.d/zz-webdav-share.conf`，改完 `/etc/init.d/lighttpd restart` 生效
+- **没有 LuCI 面板**。配置分两处，改完 `/etc/init.d/lighttpd restart` 生效：
+  - 端口与根目录在主配置 `/etc/lighttpd/lighttpd.conf`（`server.port`、`var.server_root`）
+  - WebDAV 启用片段在 `/etc/lighttpd/conf.d/zz-webdav-share.conf`
+  - ⛔ 不要在 `conf.d` 里重定义 `server.document-root` / `server.port`：lighttpd 会报 `Duplicate config variable` 并拒绝启动，这也是首刷时踩过的坑
 - **为什么不是 dufs**：dufs 是 Rust 单二进制，它的包写 `PKG_BUILD_DEPENDS:=rust/host`，一装就要编整条 host rust 工具链（含从源码编 LLVM），单这一项就让每次构建多出几十分钟到一小时。lighttpd 方案体积约 2 MB、不需要编译期依赖，WebDAV 能力等价
 - **模块选型**：编译的是完整版 `lighttpd-mod-webdav`（依赖 libsqlite3 + libxml2），支持 LOCK/UNLOCK —— Windows 映射驱动器与 macOS 挂载都需要它。若只做脚本/客户端的上传下载，可改用零依赖的细版 `lighttpd-mod-webdav_min`（去掉 LOCK）
-- **存储**：`/mnt/webdav` 位于 overlay（可写分区）。插 U 盘的话它**不会**自动变成共享根目录 —— 要共享 U 盘请改 `zz-webdav-share.conf` 里的 `server.document-root`，或把 `/mnt/sda1` 做软链接进去
+- **存储**：`/mnt/webdav` 位于 overlay（可写分区）。插 U 盘的话它**不会**自动变成共享根目录 —— 要共享 U 盘请改主配置里的 `var.server_root`，或把 `/mnt/sda1` 做软链接进去
 - **认证**：默认无（同网段可读写）。要加账号需要额外装 `lighttpd-mod-auth` + `lighttpd-mod-authn_file` 并在同一片段里配 `auth.require`，默认固件不含这两个模块
 - **sysupgrade**：`/mnt/webdav` 里的文件不在保留列表（只有 `/etc` 与 `sysupgrade.conf` 列出项会留），所以它适合做**临时中转**，不适合长期存放
 
@@ -115,7 +118,10 @@
   | 9091 | transmission | BT 下载 RPC（仅 ultimate） |
   | 9876 | ddns-go | DDNS 管理页（未启用时不通） |
 
-  预设脚本带**端口闸门**：启动前用 `lighttpd -p` 解析出最终端口，不是 8080 就撤掉配置且不启动；启动后再查一次有没有占住 80/443，占到就立刻 `stop` 自己。两道防线都是为了保住 LuCI。
+  预设脚本带**端口闸门**，顺序是「改配置 → `lighttpd -p` 解析端口 → 确认是 8080 才启用并启动」：
+  解析出别的端口就整体回滚主配置、撤掉片段、`stop` + `disable`；解析不出来也一律不启动
+  （宁可少一个 WebDAV，也不能赌它会不会退回默认的 80 把 LuCI 抢掉）。
+  上一版是「先启动再检查」，等于端口已经抢完了才反应——首刷 P3 就因此让 LuCI 变成 403。
 
 ### Transmission 下载
 
