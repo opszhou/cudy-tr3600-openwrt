@@ -43,9 +43,15 @@
 #                                   （删了不释放任何内存，只省 1 MB flash，收益太低）
 #
 # 明确不动：
-#   argon 主题与 argon-config          —— 界面观感，~700 KB，无进程
-#   luci-app-turboacc + kmod-nft-offload + kmod-tcp-bbr —— 流卸载/BBR 对 5G 吞吐有收益
+#   argon 主题                          —— 界面观感，~700 KB，无进程
+#   kmod-nft-offload + kmod-tcp-bbr     —— 流卸载/BBR 对 5G 吞吐有收益
 #   QModem 全家 + umbim/uqmi + 模组侧 USB 驱动 —— 核心功能，实测约 11 MB RSS
 #   luci-mod-dashboard + luci-app-sysdashboard —— 自研面板，开销落在 rpcd 里
 #   dnsmasq / odhcpd / firewall4 / netifd / wpad / dropbear / uhttpd —— 系统底座
+#
+# 注：luci-app-turboacc 面板不会有 —— 本设备已切 immortalwrt，其 luci 源不含该应用
+# （上游差异清单 upstreams/immortalwrt/exclude.list 里已整体关闭）。功能不丢：
+#   · 全锥形 NAT   -> immortalwrt 的 firewall.config 默认 option fullcone 1
+#   · 流卸载       -> 默认 option flow_offloading 1 + 上面的 kmod-nft-offload
+#   · BBR          -> 模块在；要生效需 sysctl net.ipv4.tcp_congestion_control=bbr
 # ============================================================================
