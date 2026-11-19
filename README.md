@@ -98,6 +98,7 @@
   - Windows：资源管理器「映射网络驱动器」→ `http://<路由器IP>:8080/`
   - macOS：Finder「前往 → 连接服务器」→ `http://<路由器IP>:8080/`
   - 手机 / rclone / RaiDrive 等第三方客户端同理，协议选 WebDAV
+- **浏览器也能直接看**：打开 `http://<路由器IP>:8080/` 就是文件列表（`mod_dirlisting` 已启用，点目录能进去、点文件直接下载）。点目录进去、点文件名下载，改完立刻可见
 - **没有 LuCI 面板**。配置分两处，改完 `/etc/init.d/lighttpd restart` 生效：
   - 端口与根目录在主配置 `/etc/lighttpd/lighttpd.conf`（`server.port`、`var.server_root`）
   - WebDAV 启用片段在 `/etc/lighttpd/conf.d/zz-webdav-share.conf`

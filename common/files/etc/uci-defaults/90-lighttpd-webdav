@@ -65,6 +65,16 @@ fi
 cat > "$FRAGMENT" <<'FRAG'
 # 由 /etc/uci-defaults/90-lighttpd-webdav 写入，重刷固件会自动重建。
 # 端口与根目录在主配置里（server.port / var.server_root），这里只负责启用模块。
+#
+# mod_dirlisting / mod_staticfile：让浏览器直接打开 http://<ip>:8080/ 能看到文件列表。
+# 缺了它俩，GET 目录会 403（只有 WebDAV 客户端能用，浏览器一片 Forbidden）——
+# 模块本身随 lighttpd 主包安装（/usr/lib/lighttpd/mod_dirlisting.so），只是默认不加载。
+server.modules += ( "mod_dirlisting" )
+server.modules += ( "mod_staticfile" )
+dir-listing.activate    = "enable"
+# 隐藏点目录：/mnt/webdav 里若有 .config 之类（如 Transmission 的配置）不该被列出来
+dir-listing.hide-dotfiles = "enable"
+
 $HTTP["url"] =~ "^/" {
 	webdav.activate       = "enable"
 	webdav.is-readonly    = "disable"
