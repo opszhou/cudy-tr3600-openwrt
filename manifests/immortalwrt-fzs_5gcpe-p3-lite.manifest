@@ -44,7 +44,8 @@ jansson4 - 2.14.1-r1
 jq - 1.8.1-r2
 jshn - 2026.06.19~7dd12784-r1
 jsonfilter - 2026.03.16~b9034210-r1
-kernel - 6.12.103~cd76c4e945b752dca52559663bc575a3-r1
+kernel - 6.12.103~61fb0241bd8111f1894764a079f49ad1-r1
+kmod-asn1-decoder - 6.12.103-r1
 kmod-cfg80211 - 6.12.103.6.18.39-r1
 kmod-crypto-aead - 6.12.103-r1
 kmod-crypto-arc4 - 6.12.103-r1
@@ -74,7 +75,10 @@ kmod-crypto-sha512 - 6.12.103-r1
 kmod-crypto-user - 6.12.103-r1
 kmod-fs-exfat - 6.12.103-r1
 kmod-fs-ext4 - 6.12.103-r1
+kmod-fs-ksmbd - 6.12.103-r1
+kmod-fs-netfs - 6.12.103-r1
 kmod-fs-ntfs3 - 6.12.103-r1
+kmod-fs-smbfs-common - 6.12.103-r1
 kmod-fs-vfat - 6.12.103-r1
 kmod-gpio-button-hotplug - 6.12.103-r5
 kmod-hwmon-core - 6.12.103-r1
@@ -118,7 +122,9 @@ kmod-nft-offload - 6.12.103-r1
 kmod-nls-base - 6.12.103-r1
 kmod-nls-cp437 - 6.12.103-r1
 kmod-nls-iso8859-1 - 6.12.103-r1
+kmod-nls-ucs2-utils - 6.12.103-r1
 kmod-nls-utf8 - 6.12.103-r1
+kmod-oid-registry - 6.12.103-r1
 kmod-phy-ax88796b - 6.12.103-r1
 kmod-phylink - 6.12.103-r1
 kmod-ppp - 6.12.103-r1
@@ -167,6 +173,7 @@ kmod-usb-xhci-hcd - 6.12.103-r1
 kmod-usb-xhci-mtk - 6.12.103-r1
 kmod-usb2 - 6.12.103-r1
 kmod-usb3 - 6.12.103-r1
+ksmbd-server - 3.5.6-r1
 libatomic1 - 14.3.0-r5
 libblobmsg-json20260213 - 2026.06.19~7dd12784-r1
 libbpf1 - 1.6.2-r1
@@ -187,7 +194,6 @@ libjson-script20260213 - 2026.06.19~7dd12784-r1
 libltdl7 - 2.5.4-r1
 liblucihttp-ucode - 2023.03.15~9b5b683f-r1
 liblucihttp0 - 2023.03.15~9b5b683f-r1
-libmbedtls21 - 3.6.7-r1
 libmnl0 - 1.0.5-r1
 libncurses6 - 6.4-r3
 libnetfilter-conntrack3 - 1.1.0-r1
@@ -195,6 +201,8 @@ libnettle8 - 3.10.2-r1
 libnfnetlink0 - 1.0.2-r1
 libnftnl11 - 1.3.1-r1
 libnghttp2-14 - 1.70.0-r1
+libnl-core200 - 3.12.0-r1
+libnl-genl200 - 3.12.0-r1
 libnl-tiny1 - 2025.12.02~40493a65-r1
 libopenssl-conf - 3.5.7-r1
 libopenssl-legacy - 3.5.7-r1
@@ -217,15 +225,13 @@ libudev-zero - 1.0.4-r1
 libusb-1.0-0 - 1.0.29-r1
 libustream-openssl20201210 - 2026.03.01~99f1c0db-r1
 libuuid1 - 2.41.5-r1
-libxml2-16 - 2.15.1-r1
 libxtables12 - 1.8.10-r3
-lighttpd - 1.4.85-r1
-lighttpd-mod-webdav - 1.4.85-r1
 logd - 2025.10.30~6f78fa49-r1
 luci - 26.322.27569~476b525
 luci-app-acme - 26.322.27569~476b525
 luci-app-ddns-go - 26.322.27569~476b525
 luci-app-firewall - 26.322.27569~476b525
+luci-app-ksmbd - 26.322.27569~476b525
 luci-app-nlbwmon - 26.322.27569~476b525
 luci-app-package-manager - 26.322.27569~476b525
 luci-app-qmodem-next - 3.4.0_rc3-r1
@@ -241,6 +247,7 @@ luci-i18n-base-zh-cn - 26.322.27569~476b525
 luci-i18n-dashboard-zh-cn - 26.322.27569~476b525
 luci-i18n-ddns-go-zh-cn - 26.322.27569~476b525
 luci-i18n-firewall-zh-cn - 26.322.27569~476b525
+luci-i18n-ksmbd-zh-cn - 26.322.27569~476b525
 luci-i18n-nlbwmon-zh-cn - 26.322.27569~476b525
 luci-i18n-package-manager-zh-cn - 26.322.27569~476b525
 luci-i18n-qmodem-next-zh-cn - 26.252.72642~8c073fa
@@ -334,6 +341,7 @@ wget-ssl - 1.25.0-r3
 wifi-scripts - 1.0-r1
 wireless-regdb - 2026.05.30-r1
 wpad-mesh-openssl - 2025.08.26~ca266cc2-r2
+wsdd2 - 2023.12.21~b676d8ac-r2
 wwan - 2019.04.29-r6
 xtables-nft - 1.8.10-r3
 xxd - 2025.11.26-r1
