@@ -14,9 +14,7 @@
 # 影响面：只改 feeds 内 lang/rust/Makefile 的一行开关。产物一致（都是同一个 LLVM 版本），
 # 代价是 host rust 编译时间变长（从源码编 LLVM）。openwrt 侧一直是这么编的（run#69 实测可过）。
 #
-# 何时会触发：清单里只要出现任何 Rust 实现的包就会编 host rust。
-#   · 2026-11 之前是 dufs（Rust 单二进制，PKG_BUILD_DEPENDS:=rust/host）
-#   · 2026-11 起 dufs 已换成 lighttpd + mod_webdav，当前清单里没有 Rust 包 → 本脚本空转
+# 何时会触发：清单里只要出现任何 Rust 实现的包就会编 host rust。当前清单里没有 Rust 包 → 本脚本空转。
 # 保留它的理由：这是防御。immortalwrt 的 download-ci-llvm=true 一旦被任何 rust 包拉起
 # 就必然 404 失败，而失败点埋在编译两小时之后，代价远高于这几行判断。
 #

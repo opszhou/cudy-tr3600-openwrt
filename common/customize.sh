@@ -60,8 +60,8 @@ bash "$ROOT/scripts/apply-qmodem-cfun-fix.sh" "$PWD" || exit 1
 #   ERROR: failed to download llvm from ci → package/feeds/packages/rust [host] failed to build
 # 根因是 immortalwrt/packages 的 lang/rust/Makefile 写了 download-ci-llvm=true，
 # 而 openwrt/packages 同一个文件写 false（所以 openwrt 两条线一直没踩到）。
-# 触发条件：清单里有 Rust 实现的包才会编 host rust。2026-11 起 dufs 已换成 lighttpd
-# + mod_webdav，当前各设备清单都没有 Rust 包，所以这一步通常空转（保留作防御）。
+# 触发条件：清单里有 Rust 实现的包才会编 host rust。当前各设备清单都没有 Rust 包，
+# 所以这一步通常空转（保留作防御）。
 # 改法与影响面见 scripts/apply-rust-llvm.sh；上游写法变了同样直接构建失败。
 if [ ! -f "$ROOT/scripts/apply-rust-llvm.sh" ]; then
     echo "错误: 缺少 scripts/apply-rust-llvm.sh" >&2

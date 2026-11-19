@@ -32,6 +32,8 @@ mkok() {
 		'luci-app-qmodem-next - 3.4.0_rc3-r1' \
 		'kmod-usb3 - 6.12.0-r1' \
 		'luci-i18n-base-zh-cn - git-1' \
+		'ksmbd-server - 3.5.6-r1' \
+		'luci-app-ksmbd - git-1' \
 		> "$T/openwrt-mediatek-filogic-cudy_tr3600-v1.manifest"
 	truncate -s 80M "$T/openwrt-mediatek-filogic-cudy_tr3600-v1-squashfs-sysupgrade.bin"
 }
@@ -67,7 +69,8 @@ fi
 # 用例 6：P3 的配置能识别自己的驱动包（回归 run#54 的误判：A 设备期望套到 B 设备）
 rm -rf "$TMP/bin/targets"/*; mkdir -p "$T"
 printf '%s\n' 'qmodem - x' 'luci-app-qmodem-next - x' 'kmod-mt7915e - x' 'mt7981-wo-firmware - x' \
-	'kmod-usb3 - x' 'luci-i18n-base-zh-cn - x' > "$T/openwrt-mediatek-filogic-fzs_5gcpe-p3.manifest"
+	'kmod-usb3 - x' 'luci-i18n-base-zh-cn - x' \
+	'ksmbd-server - x' 'luci-app-ksmbd - x' > "$T/openwrt-mediatek-filogic-fzs_5gcpe-p3.manifest"
 truncate -s 80M "$T/openwrt-mediatek-filogic-fzs_5gcpe-p3-squashfs-sysupgrade.bin"
 if bash "$AUDIT" fzs_5gcpe-p3 "$TMP/bin/targets" > /dev/null 2>&1; then
 	check "P3 用 P3 配置应通过" "通过" "通过"

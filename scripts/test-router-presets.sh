@@ -109,7 +109,7 @@ wireless.default_radio1.encryption=psk2
 wireless.default_radio1.key=secret123
 FIX
 printf '0 5 * * * /usr/bin/some-existing-job\n' > "$CRON_FILE"
-# dufs 已整体移除（改用 lighttpd WebDAV，配置在 /etc/lighttpd/conf.d/），此处不再造 fixture
+# 文件服务（ksmbd）的预设在 /etc/config/ksmbd，不在此处造 fixture
 
 # UPnP 配置（不装 UPnP 的设备没有这个文件，预设应跳过而不是凭空建一个）
 cat > "$SB/upnpd.config" <<'FIX'
@@ -146,7 +146,7 @@ assert_eq "24 小时制 h23" "h23" "$(get_val system.@system[0].clock_hourcycle)
 # Transmission：默认 /tmp 是内存盘，预设必须迁出；无 U 盘时落 overlay
 assert_eq "Transmission 开机自启" "1" "$(get_val 'transmission.@transmission[0].enabled')"
 assert_eq "Transmission 下载目录迁出 /tmp（无 U 盘落 overlay）" "$SB/mnt/transmission/done" "$(get_val 'transmission.@transmission[0].download_dir')"
-assert_eq "Transmission 配置目录持久化且对 WebDAV 客户端隐藏" "$SB/mnt/transmission/.config" "$(get_val 'transmission.@transmission[0].config_dir')"
+assert_eq "Transmission 配置目录持久化到 /mnt（重启不丢）" "$SB/mnt/transmission/.config" "$(get_val 'transmission.@transmission[0].config_dir')"
 assert_eq "Transmission 未完成目录启用" "1" "$(get_val 'transmission.@transmission[0].incomplete_dir_enabled')"
 assert_eq "5G SSID 加 _5G 后缀" "Home_5G" "$(get_val wireless.default_radio1.ssid)"
 assert_eq "2.4G SSID 保持不变" "OpenWrt" "$(get_val wireless.default_radio0.ssid)"

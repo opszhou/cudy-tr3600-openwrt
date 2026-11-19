@@ -36,7 +36,7 @@
   - **USB 网卡插上自动当 WAN**：自动建 `wanusb`（DHCP）、并入防火墙 wan 区、开机兜底，插上/开机即通，无需手动点连接
   - 5G SSID 自动加 `_5G` 后缀（双频同名会导致终端漫游到错误频段）
   - 每周一凌晨 04:30 自动重启；UPnP 默认安全模式；BBR 拥塞控制默认启用
-  - **WebDAV 文件服务**（lighttpd + mod_webdav）默认 8080 端口、根目录 `/mnt/webdav`；**Transmission** 下载目录迁出内存盘（插着 U 盘则落在盘上）并开机自启
+  - **SMB 文件共享**（ksmbd，内核态）共享 `/mnt`，Windows/Mac/电视直接映射网络驱动器；**Transmission** 下载目录迁出内存盘（插着 U 盘则落在盘上）并开机自启
   - **管理面板接管为官方框架 + 自研逻辑**：沿用 `luci-mod-dashboard` 的卡片/图表/拖拽布局，网络侧判定改用默认路由与自研能力表（5G 的 `wwan0` 不在 netifd 里，原生会一直显示「未连接」）。未联网 / 接口禁用 / 无模组 / 无客户端时相关部件自动隐藏，恢复后 5 秒内自动出现（详见 `docs/DASHBOARD.md`）
 - **全套中文 LuCI** + Argon 主题（默认主题，含 argon-config 配置器）
 - **随身 WiFi 场景拉满**：QModem 管理 UI，USB RNDIS / QMI / NCM / MBIM / 串口全驱动，即插即用
@@ -56,7 +56,7 @@
 | 代理 | **nikki**（mihomo 内核）+ LuCI 管理界面 + TUN / nft-tproxy 内核模块 |
 | DDNS 与证书 | ddns-go + acme（acme-acmesh，LuCI 面板） |
 | 端口与服务 | UPnP（miniupnpd）+ WOL 网络唤醒 + socat（命令行）+ SFTP |
-| 文件服务 | **WebDAV**（lighttpd + mod_webdav，**8080** 端口，80 保留给 LuCI；根目录 `/mnt/webdav`，支持 LOCK 可映射网络驱动器；见下方「WebDAV 文件服务」）
+| 文件服务 | **SMB 共享**（ksmbd 内核态，共享 `/mnt`，有 LuCI 面板；见下方「SMB 文件共享」） |
 | USB 存储 | UAS 高速协议 + ext4 / exFAT / NTFS3 / FAT32 文件系统 + 自动挂载（block-mount） |
 | 网络质量 | SQM 智能队列（消除 bufferbloat）+ nlbwmon 按主机流量统计 |
 | 系统界面 | **管理面板**（官方框架 + 自研逻辑，只读）：信号强度 / 网络状态 / 流量统计 / 在线设备 / 实时流量曲线，未联网的部件自动隐藏 |
@@ -91,38 +91,33 @@
   `bash scripts/test-dashboard-catalog.sh`（部件声明 + 能力模型 + 显隐场景矩阵）。
 - **架构与扩展方式**：见 `docs/DASHBOARD.md`（新增部件只改 `sd/catalog.js` 一条 + `sd/providers.js` 一个分支）。
 
-### WebDAV 文件服务（lighttpd + mod_webdav）
+### SMB 文件共享（ksmbd）
 
-- **端口 8080**（80 留给 uhttpd/LuCI），根目录 `/mnt/webdav`，可读写，默认无认证
-- **挂载方式**：
-  - Windows：资源管理器「映射网络驱动器」→ `http://<路由器IP>:8080/`
-  - macOS：Finder「前往 → 连接服务器」→ `http://<路由器IP>:8080/`
-  - 手机 / rclone / RaiDrive 等第三方客户端同理，协议选 WebDAV
-- **浏览器也能直接看**：打开 `http://<路由器IP>:8080/` 就是文件列表（`mod_dirlisting` 已启用，点目录能进去、点文件直接下载）。点目录进去、点文件名下载，改完立刻可见
-- **没有 LuCI 面板**。配置分两处，改完 `/etc/init.d/lighttpd restart` 生效：
-  - 端口与根目录在主配置 `/etc/lighttpd/lighttpd.conf`（`server.port`、`var.server_root`）
-  - WebDAV 启用片段在 `/etc/lighttpd/conf.d/zz-webdav-share.conf`
-  - ⛔ 不要在 `conf.d` 里重定义 `server.document-root` / `server.port`：lighttpd 会报 `Duplicate config variable` 并拒绝启动，这也是首刷时踩过的坑
-- **为什么不是 dufs**：dufs 是 Rust 单二进制，它的包写 `PKG_BUILD_DEPENDS:=rust/host`，一装就要编整条 host rust 工具链（含从源码编 LLVM），单这一项就让每次构建多出几十分钟到一小时。lighttpd 方案体积约 2 MB、不需要编译期依赖，WebDAV 能力等价
-- **模块选型**：编译的是完整版 `lighttpd-mod-webdav`（依赖 libsqlite3 + libxml2），支持 LOCK/UNLOCK —— Windows 映射驱动器与 macOS 挂载都需要它。若只做脚本/客户端的上传下载，可改用零依赖的细版 `lighttpd-mod-webdav_min`（去掉 LOCK）
-- **存储**：`/mnt/webdav` 位于 overlay（可写分区）。插 U 盘的话它**不会**自动变成共享根目录 —— 要共享 U 盘请改主配置里的 `var.server_root`，或把 `/mnt/sda1` 做软链接进去
-- **认证**：默认无（同网段可读写）。要加账号需要额外装 `lighttpd-mod-auth` + `lighttpd-mod-authn_file` 并在同一片段里配 `auth.require`，默认固件不含这两个模块
-- **sysupgrade**：`/mnt/webdav` 里的文件不在保留列表（只有 `/etc` 与 `sysupgrade.conf` 列出项会留），所以它适合做**临时中转**，不适合长期存放
+- **入口**：LuCI **服务 → 网络共享**（官方 `luci-app-ksmbd` 面板）；客户端用 `\\<路由器IP>\share`
+  - Windows：资源管理器地址栏直接输 `\\192.168.1.1\share`，或「映射网络驱动器」
+  - macOS：Finder「前往 → 连接服务器」→ `smb://192.168.1.1/share`
+  - 电视 / 播放器 / 手机：SMB 协议选它即可，绝大多数设备原生支持
+- **共享什么**：`/mnt`，也就是 block-mount 给 U 盘/移动硬盘分配的挂载点（`/mnt/sda1`、`/mnt/sdb1`…）。
+  插盘即见，不需要改配置；没插盘时共享是空的
+- **默认免密可读写**（`guest_ok yes` + `read_only no`）：家庭内网常规做法。
+  要账号密码就在面板里加用户并把 `guest_ok` 关掉；只想别人看不能写就把 `read_only` 改 `yes`
+- **为什么是 ksmbd 而不是 samba4**：ksmbd 是内核态 SMB 服务端（`kmod-fs-ksmbd` 140 KB + `ksmbd.mountd`），
+  整套约 1.5 MB；samba4 光 `samba4-libs` 就 >10 MB，还会拖进 python3/perl host 工具链。
+  功能上少了 AD 域/打印共享，家庭文件共享用不到
+- **配置**：`/etc/config/ksmbd`（uci，面板就是它的前端）。预设见 `common/files/etc/config/ksmbd`。
+  改完 `/etc/init.d/ksmbd restart` 生效，不需要重启路由器
+- **不想用**：`/etc/init.d/ksmbd disable && /etc/init.d/ksmbd stop`
+- **内核模块是编译期决定的**：`kmod-fs-ksmbd` 不能运行时装，所以这条链路必须整包重编（本项目 lite 组合已含）
 
 - **端口占用一览**（改动任何一项前先对一遍，80 被抢会让 LuCI 直接失联）：
 
   | 端口 | 服务 | 说明 |
   |---|---|---|
   | **80 / 443** | uhttpd | **LuCI 管理页面，任何情况下都不要动** |
-  | **8080** | lighttpd | 本页的 WebDAV |
+  | **445** | ksmbd | SMB 共享（TCP 445，局域网） |
   | 7681 | ttyd | 网页终端（仅 ultimate） |
   | 9091 | transmission | BT 下载 RPC（仅 ultimate） |
   | 9876 | ddns-go | DDNS 管理页（未启用时不通） |
-
-  预设脚本带**端口闸门**，顺序是「改配置 → `lighttpd -p` 解析端口 → 确认是 8080 才启用并启动」：
-  解析出别的端口就整体回滚主配置、撤掉片段、`stop` + `disable`；解析不出来也一律不启动
-  （宁可少一个 WebDAV，也不能赌它会不会退回默认的 80 把 LuCI 抢掉）。
-  上一版是「先启动再检查」，等于端口已经抢完了才反应——首刷 P3 就因此让 LuCI 变成 403。
 
 ### Transmission 下载
 
