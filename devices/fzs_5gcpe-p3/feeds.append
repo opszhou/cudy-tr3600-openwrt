@@ -1,0 +1,16 @@
+# P3 专属 feed 覆盖（设备级，同名 feed 覆盖上游自带定义）。
+#
+# 为什么需要这一行：本设备锁了 ImmortalWrt 稳定版 v25.12.2，而那个 tag 自带的
+# feeds.conf.default 把 luci 钉在 d6167ea 这个 commit 上——那一版 luci-mod-dashboard
+# 还没有 lib/ 目录（charts.js / widgets.js / layout.js / system.js / history.js）。
+# 本仓库自研面板 common/package/luci-app-sysdashboard 正是基于 lib/ 那套 API 写的，
+# 缺了它 scripts/verify-dashboard-api.mjs 会直接拦下构建（run#82 就死在这里：
+# 「错误: 缺少 lib/charts.js（上游结构已变）」）。
+#
+# 处理：把 luci 提到 openwrt-25.12 分支头，并钉 commit 保证可复现。
+#   476b5257e3aa8274a727d648ba06c4ed284c159b = immortalwrt/luci openwrt-25.12 分支头
+# 升级时同步改这两处（dewey 顺序：先确认新 commit 的 dashboard 有 lib/）。
+#
+# ⛔ 不能写成 `...;openwrt-25.12^476b525...`：assemble.sh 会拒绝同时带 ;branch 与 ^commit，
+#    而 scripts/feeds 在这种情况下会忽略 ^commit（先判 branch），等于没钉住。
+src-git luci https://github.com/immortalwrt/luci.git^476b5257e3aa8274a727d648ba06c4ed284c159b

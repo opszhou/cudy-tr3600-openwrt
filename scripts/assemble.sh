@@ -38,12 +38,23 @@ done
 #    过滤 rc/beta/alpha 等预发布 tag 取版本最高者；无稳定 tag 取最高 tag；完全无 tag 回退默认分支
 #    ^<sha> 固定 commit 行原样透传（OpenWrt scripts/feeds 原生支持，可复现、可回滚）；
 #    ⛔ 同一行不得同时写 ;branch 与 ^commit（feeds 优先 branch，commit 会被忽略）
-FEEDS_FILE="$ROOT/upstreams/$REPO/feeds.append"
-if [ ! -f "$FEEDS_FILE" ]; then
-    echo "错误: 找不到上游 feed 配置: ${FEEDS_FILE#$ROOT/}（每个上游目录必须有 feeds.append）" >&2
+UPSTREAM_FEEDS="$ROOT/upstreams/$REPO/feeds.append"
+if [ ! -f "$UPSTREAM_FEEDS" ]; then
+    echo "错误: 找不到上游 feed 配置: ${UPSTREAM_FEEDS#$ROOT/}（每个上游目录必须有 feeds.append）" >&2
     exit 1
 fi
-echo "feed 追加来源: ${FEEDS_FILE#$ROOT/}"
+echo "feed 追加来源: ${UPSTREAM_FEEDS#$ROOT/}"
+
+# 设备级 feeds.append（可选）合并进来：设备行在后，同名 feed 由后面的覆盖前面的。
+# 典型用途：某个设备锁了老版本上游 tag，但该 tag 钉住的 luci 缺少自研面板要的 lib/，
+# 于是设备级显式把 luci 提到更新版本。
+FEEDS_FILE=$(mktemp)
+cat "$UPSTREAM_FEEDS" > "$FEEDS_FILE"
+DEV_FEEDS="$ROOT/devices/$DEV/feeds.append"
+if [ -f "$DEV_FEEDS" ]; then
+    echo "feed 追加来源: ${DEV_FEEDS#$ROOT/}（设备级，同名覆盖）"
+    cat "$DEV_FEEDS" >> "$FEEDS_FILE"
+fi
 resolve_latest_tag() {
     local tags stable
     tags=$(git ls-remote --tags "$1" 2>/dev/null | awk '{print $2}' | sed 's|refs/tags/||' | grep -v '\^{}' || true)
@@ -75,9 +86,18 @@ while IFS= read -r line; do
             line="src-git $_name $_url"
         fi
     fi
+    # 同名 feed 覆盖：上游自带的 feeds.conf.default 会把 feed 钉在某个 commit 上，
+    # 而设备可能需要更新的那一份（例：immortalwrt v25.12.2 钉的 luci 里
+    # luci-mod-dashboard 还没有 lib/ 目录，自研面板依赖它的 charts.js/widgets.js）。
+    # 只有 feeds.append 里**显式写出**某个 feed 时才覆盖它，其余仍保持「只追加不覆盖」。
+    _fname=$(printf '%s\n' "$line" | awk '{print $2}')
+    if [ -n "$_fname" ] && grep -qE "^src-git ${_fname} " "$OPENWRT/feeds.conf.default" 2>/dev/null; then
+        sed -i "/^src-git ${_fname} /d" "$OPENWRT/feeds.conf.default"
+        echo "feed ${_fname}: 覆盖上游自带定义（feeds.append 显式指定）"
+    fi
     grep -qxF "$line" "$OPENWRT/feeds.conf.default" || echo "$line" >> "$OPENWRT/feeds.conf.default"
 done < "$FEEDS_FILE"
-
+rm -f "$FEEDS_FILE"
 # 4) 源码树内包：公共 vendor 包（如 netpath）+ 设备专属包（如 tr3600-dualslot-upgrade）
 #    不走 feed：绕开 scan.mk 对非标准 feed 布局的兼容问题
 if [ -d "$ROOT/common/package" ]; then
