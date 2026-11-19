@@ -1,6 +1,6 @@
 # ===== 精简实用型组合（lite）—— 需求清单的精简版 =====
 # = lite（不含 modem 基座）减去：ttyd / netspeedtest / statistics / mwan3 / macvlan
-# 保留：argon 主题、turboacc、nikki、ddns-go、acme、socat、UPnP、SFTP、ksmbd SMB 共享、SQM、nlbwmon、定时重启
+# 保留：argon 主题、turboacc、nikki、ddns-go、acme、socat、UPnP、SFTP、samba4 SMB 共享、SQM、nlbwmon、定时重启
 # 额外依赖 feed：kenzok8 / small（argon-config、turboacc、ddns-go 所需）
 
 # ---- 基础与界面 ----
@@ -39,18 +39,20 @@ CONFIG_PACKAGE_miniupnpd-nftables=y
 
 # ---- 文件服务与存储 ----
 CONFIG_PACKAGE_openssh-sftp-server=y
-# SMB 文件共享：ksmbd（内核态 SMB2/3 服务端）
+# SMB 文件共享：samba4（用户态 SMB 服务端）
 #
-# 为什么是 ksmbd 而不是 samba4：ksmbd 由内核模块 ksmbd.ko + 用户态 ksmbd.mountd 组成，
-# 整套约 1.5 MB；samba4 一个 samba4-libs 就 >10 MB，还要拉 python3/perl host 工具链。
-# 实测证据：官方 ImmortalWrt 25.12.2 的 mediatek/filogic 仓库里
-# kmod-fs-ksmbd 只有 140 KB，说明该 target 的内核符号可正常打开。
+# 为什么不是 ksmbd：ksmbd 跑在内核态，它的 SMB2 缓冲按内存分档（128–256MB 给 1M），
+# 在 233MB 内存 + ubifs overlay 的机器上「读文件」会直接卡死 → 31 秒看门狗复位 →
+# 整机重启；复位还会连带把 USB 侧搞挂（2026-11-19 真机事故，模组掉线到需要断电）。
+# 用户态进程崩了只死自己，procd 拉起来，路由和拨号不受影响。
 #
-# 面板：luci-app-ksmbd（官方 feed 自带，菜单「服务 → 网络共享」），
-# 底层读写 /etc/config/ksmbd，预设见 common/files/etc/config/ksmbd。
-CONFIG_PACKAGE_kmod-fs-ksmbd=y
-CONFIG_PACKAGE_ksmbd-server=y
-CONFIG_PACKAGE_luci-app-ksmbd=y
+# 代价：镜像 +10~12MB（samba4-libs），常驻内存 20~40MB。CPU 方面空闲为 0，
+# 传输时用 config procd 的 samba_nice 降优先级，不跟拨号抢 CPU。
+#
+# 面板：luci-app-samba4（服务 → 网络共享），底层 /etc/config/samba4；
+# 预设见 common/files/etc/config/samba4。
+CONFIG_PACKAGE_samba4-server=y
+CONFIG_PACKAGE_luci-app-samba4=y
 
 # ---- USB 存储（U 盘/移动硬盘开箱即挂载；基础 kmod-usb-storage 已在 modem.list）----
 # ⚠️ Kconfig 不支持行内注释（conf 会把 "y # ..." 整段当值导致包被静默丢弃），注释必须独立成行

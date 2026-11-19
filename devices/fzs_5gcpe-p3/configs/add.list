@@ -19,4 +19,4 @@ CONFIG_PACKAGE_luci-i18n-statistics-zh-cn=y
 CONFIG_PACKAGE_collectd-mod-thermal=y
 
 # ---- 文件服务 ----
-# SMB（ksmbd）已在 common/configs/lite.list，全设备一致，本机不再单独声明。
+# SMB（samba4）已在 common/configs/lite.list，全设备一致，本机不再单独声明。

@@ -32,8 +32,8 @@ mkok() {
 		'luci-app-qmodem-next - 3.4.0_rc3-r1' \
 		'kmod-usb3 - 6.12.0-r1' \
 		'luci-i18n-base-zh-cn - git-1' \
-		'ksmbd-server - 3.5.6-r1' \
-		'luci-app-ksmbd - git-1' \
+		'samba4-server - 4.22.4-r1' \
+		'luci-app-samba4 - git-1' \
 		> "$T/openwrt-mediatek-filogic-cudy_tr3600-v1.manifest"
 	truncate -s 80M "$T/openwrt-mediatek-filogic-cudy_tr3600-v1-squashfs-sysupgrade.bin"
 }
@@ -70,7 +70,7 @@ fi
 rm -rf "$TMP/bin/targets"/*; mkdir -p "$T"
 printf '%s\n' 'qmodem - x' 'luci-app-qmodem-next - x' 'kmod-mt7915e - x' 'mt7981-wo-firmware - x' \
 	'kmod-usb3 - x' 'luci-i18n-base-zh-cn - x' \
-	'ksmbd-server - x' 'luci-app-ksmbd - x' > "$T/openwrt-mediatek-filogic-fzs_5gcpe-p3.manifest"
+	'samba4-server - x' 'luci-app-samba4 - x' > "$T/openwrt-mediatek-filogic-fzs_5gcpe-p3.manifest"
 truncate -s 80M "$T/openwrt-mediatek-filogic-fzs_5gcpe-p3-squashfs-sysupgrade.bin"
 if bash "$AUDIT" fzs_5gcpe-p3 "$TMP/bin/targets" > /dev/null 2>&1; then
 	check "P3 用 P3 配置应通过" "通过" "通过"

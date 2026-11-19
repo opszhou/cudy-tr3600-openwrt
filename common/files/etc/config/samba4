@@ -1,0 +1,36 @@
+# SMB 共享预设（samba4）—— 由 /etc/init.d/samba4 读取并生成 /var/etc/smb.conf
+# 也可在 LuCI「服务 → 网络共享」里改（面板就是这份 uci 的前端）
+#
+# 共享目录取 /mnt，也就是 block-mount 挂 U 盘/移动硬盘的位置（/mnt/sda1…），
+# 插上盘就能被 Windows / Mac / 电视看到。
+#
+# ⚠️ 默认「局域网免密可读写」：
+#   guest_ok  yes —— 无账号即可访问（老电视盒子、播放器需要这样）
+#   read_only no  —— 可写
+#   force_root 1  —— 以 root 身份落盘，避免 vfat/ext4 权限问题
+# 但 **Windows 11 24H2 之后不允许匿名/来宾 SMB**，这类客户端必须在面板里
+# 建用户（或命令行 `smbpasswd -a <用户名>`），然后用账号连。
+# 想收紧：面板里关掉 guest_ok，并把 read_only 改 yes。
+#
+# CPU：samba4 空闲不占 CPU，传输时才活跃。下面的 samba_nice 给它 3 级 nice，
+# 让文件传输不跟拨号、转发抢调度（这也是选它而不是内核态 ksmbd 的配套设置）。
+
+config samba
+	option workgroup 'WORKGROUP'
+	option charset 'UTF-8'
+	option description 'OpenWrt'
+	option enable_extra_tuning '0'
+
+config sambashare
+	option name 'share'
+	option path '/mnt'
+	option read_only 'no'
+	option guest_ok 'yes'
+	option create_mask '0666'
+	option dir_mask '0777'
+	option force_root '1'
+	option inherit_owner 'yes'
+
+# 降低 smbd 进程调度优先级：文件传输不该抢拨号/转发的 CPU
+config procd 'extra'
+	option samba_nice '3'

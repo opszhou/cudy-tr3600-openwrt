@@ -30,7 +30,7 @@
 # 的写法见文件最上面那一组。
 #
 #   体积（安装后）      实测 RSS     包 / 说明
-#   ~1.5 MB            常驻极少     ksmbd + kmod-fs-ksmbd —— 局域网 SMB 共享（官方面板）
+#    ~11 MB            ~30 MB        samba4 + luci-app-samba4 —— 局域网 SMB 共享（用户态，崩溃不牵连整机）
 #   1.0 MB             2.1 MB       luci-app-statistics + collectd —— 保留（历史曲线）
 #   0.06 MB            0.95 MB      luci-app-nlbwmon —— 保留（按主机流量）
 #   10.9 MB            未运行        ddns-go —— 保留（以后可能配 IPv6 + DDNS）

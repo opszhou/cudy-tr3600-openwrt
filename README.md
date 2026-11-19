@@ -4,6 +4,7 @@
   <img alt="License" src="https://img.shields.io/badge/license-GPL--2.0-blue">
   <img alt="CI" src="https://img.shields.io/badge/CI-GitHub_Actions-2088FF?logo=githubactions&logoColor=white">
   <img alt="Device" src="https://img.shields.io/badge/device-Cudy_TR3600_v1-red">
+  <img alt="Device" src="https://img.shields.io/badge/device-FZS_5GCPE_P3-orange">
   <img alt="OpenWrt" src="https://img.shields.io/badge/OpenWrt-mediatek%2Ffilogic-00B5E2">
 </p>
 
@@ -36,7 +37,8 @@
   - **USB 网卡插上自动当 WAN**：自动建 `wanusb`（DHCP）、并入防火墙 wan 区、开机兜底，插上/开机即通，无需手动点连接
   - 5G SSID 自动加 `_5G` 后缀（双频同名会导致终端漫游到错误频段）
   - 每周一凌晨 04:30 自动重启；UPnP 默认安全模式；BBR 拥塞控制默认启用
-  - **SMB 文件共享**（ksmbd，内核态）共享 `/mnt`，Windows/Mac/电视直接映射网络驱动器；**Transmission** 下载目录迁出内存盘（插着 U 盘则落在盘上）并开机自启
+  - **SMB 文件共享**（samba4，用户态）：共享 `/mnt`（U 盘挂载点），TCP 445，免密可读写，Windows / macOS / 电视直接映射网络驱动器
+  - **Transmission**（仅 ultimate）下载目录迁出内存盘（插着 U 盘则落在盘上）并开机自启
   - **管理面板接管为官方框架 + 自研逻辑**：沿用 `luci-mod-dashboard` 的卡片/图表/拖拽布局，网络侧判定改用默认路由与自研能力表（5G 的 `wwan0` 不在 netifd 里，原生会一直显示「未连接」）。未联网 / 接口禁用 / 无模组 / 无客户端时相关部件自动隐藏，恢复后 5 秒内自动出现（详见 `docs/DASHBOARD.md`）
 - **全套中文 LuCI** + Argon 主题（默认主题，含 argon-config 配置器）
 - **随身 WiFi 场景拉满**：QModem 管理 UI，USB RNDIS / QMI / NCM / MBIM / 串口全驱动，即插即用
@@ -56,7 +58,7 @@
 | 代理 | **nikki**（mihomo 内核）+ LuCI 管理界面 + TUN / nft-tproxy 内核模块 |
 | DDNS 与证书 | ddns-go + acme（acme-acmesh，LuCI 面板） |
 | 端口与服务 | UPnP（miniupnpd）+ WOL 网络唤醒 + socat（命令行）+ SFTP |
-| 文件服务 | **SMB 共享**（ksmbd 内核态，共享 `/mnt`，有 LuCI 面板；见下方「SMB 文件共享」） |
+| 文件服务 | **SMB 共享**（samba4 用户态）：TCP **445**，共享名 `share` → 目录 `/mnt`（U 盘挂载点），**免密可读写**，客户端 `\\<路由器IP>\share`；面板 LuCI「服务 → 网络共享」；见下方「SMB 文件共享」 |
 | USB 存储 | UAS 高速协议 + ext4 / exFAT / NTFS3 / FAT32 文件系统 + 自动挂载（block-mount） |
 | 网络质量 | SQM 智能队列（消除 bufferbloat）+ nlbwmon 按主机流量统计 |
 | 系统界面 | **管理面板**（官方框架 + 自研逻辑，只读）：信号强度 / 网络状态 / 流量统计 / 在线设备 / 实时流量曲线，未联网的部件自动隐藏 |
@@ -91,30 +93,32 @@
   `bash scripts/test-dashboard-catalog.sh`（部件声明 + 能力模型 + 显隐场景矩阵）。
 - **架构与扩展方式**：见 `docs/DASHBOARD.md`（新增部件只改 `sd/catalog.js` 一条 + `sd/providers.js` 一个分支）。
 
-### SMB 文件共享（ksmbd）
+### SMB 文件共享（samba4）
 
-- **入口**：LuCI **服务 → 网络共享**（官方 `luci-app-ksmbd` 面板）；客户端用 `\\<路由器IP>\share`
-  - Windows：资源管理器地址栏直接输 `\\192.168.1.1\share`，或「映射网络驱动器」
-  - macOS：Finder「前往 → 连接服务器」→ `smb://192.168.1.1/share`
-  - 电视 / 播放器 / 手机：SMB 协议选它即可，绝大多数设备原生支持
-- **共享什么**：`/mnt`，也就是 block-mount 给 U 盘/移动硬盘分配的挂载点（`/mnt/sda1`、`/mnt/sdb1`…）。
-  插盘即见，不需要改配置；没插盘时共享是空的
-- **默认免密可读写**（`guest_ok yes` + `read_only no`）：家庭内网常规做法。
-  要账号密码就在面板里加用户并把 `guest_ok` 关掉；只想别人看不能写就把 `read_only` 改 `yes`
-- **为什么是 ksmbd 而不是 samba4**：ksmbd 是内核态 SMB 服务端（`kmod-fs-ksmbd` 140 KB + `ksmbd.mountd`），
-  整套约 1.5 MB；samba4 光 `samba4-libs` 就 >10 MB，还会拖进 python3/perl host 工具链。
-  功能上少了 AD 域/打印共享，家庭文件共享用不到
-- **配置**：`/etc/config/ksmbd`（uci，面板就是它的前端）。预设见 `common/files/etc/config/ksmbd`。
-  改完 `/etc/init.d/ksmbd restart` 生效，不需要重启路由器
-- **不想用**：`/etc/init.d/ksmbd disable && /etc/init.d/ksmbd stop`
-- **内核模块是编译期决定的**：`kmod-fs-ksmbd` 不能运行时装，所以这条链路必须整包重编（本项目 lite 组合已含）
+- **怎么连**：
+  - Windows：资源管理器地址栏输 `\\192.168.5.1\share`，或「映射网络驱动器」
+  - macOS：Finder「前往 → 连接服务器」→ `smb://192.168.5.1/share`
+  - 电视 / 播放器 / 手机：协议选 SMB 即可，绝大多数设备原生支持
+- **插盘即见**：共享的是 `/mnt`，也就是 block-mount 给 U 盘/移动硬盘分配的挂载点（`/mnt/sda1`、`/mnt/sdb1`…）。
+  不用改配置；没插盘时共享是空的
+- **Win11 必须用账号**：Windows 11 24H2 起系统级禁止匿名/来宾 SMB，免密共享连不上。在 LuCI
+  「服务 → 网络共享」里加用户，或命令行 `smbpasswd -a <用户名>` 建账号（**不能是 root**，
+  模板里 `invalid users = root`），然后用这个账号连。老电视盒子仍可走免密
+- **改共享目录 / 权限**：同一页面改（底层 `/etc/config/samba4`，预设见
+  `common/files/etc/config/samba4`）；改完 `/etc/init.d/samba4 restart` 生效，不需要重启路由器
+- **CPU 占用**：空闲为 0（事件驱动，无轮询）。预设里加了 `samba_nice 3`，把 smbd 的调度优先级调低，
+  文件传输不会跟拨号、转发抢 CPU —— 这点跟 nikki 不一样，mihomo 是每个包都过用户态，samba 只在有读写时活跃
+- **为什么是 samba4 而不是 ksmbd**：ksmbd 在内核态，它的 SMB2 缓冲按内存分档（128–256MB 给 1M），
+  在 233MB + ubifs 的机器上读文件会卡死 → 31 秒看门狗复位 → 整机重启，还会连带把 USB 模组搞挂。
+  samba4 是用户态进程，崩了只死自己，路由和拨号不受影响。代价是镜像 +10~12MB、常驻 20~40MB 内存
+- **不想用**：`/etc/init.d/samba4 disable && /etc/init.d/samba4 stop`
 
 - **端口占用一览**（改动任何一项前先对一遍，80 被抢会让 LuCI 直接失联）：
 
   | 端口 | 服务 | 说明 |
   |---|---|---|
   | **80 / 443** | uhttpd | **LuCI 管理页面，任何情况下都不要动** |
-  | **445** | ksmbd | SMB 共享（TCP 445，局域网） |
+  | **445** | samba4 | SMB 共享（TCP 445，局域网） |
   | 7681 | ttyd | 网页终端（仅 ultimate） |
   | 9091 | transmission | BT 下载 RPC（仅 ultimate） |
   | 9876 | ddns-go | DDNS 管理页（未启用时不通） |

@@ -6,7 +6,7 @@
 
 | 组合 | 定位 | 内容 |
 |------|------|------|
-| **lite** | 精简实用（默认） | QModem 随身 WiFi 全套 + 中文化 LuCI + Argon 主题（默认）+ turboacc 硬件加速/BBR + nikki 代理 + ddns-go + acme 证书 + UPnP + WOL + SFTP + **ksmbd SMB 共享**（共享 `/mnt`，有 LuCI 面板）+ SQM + nlbwmon 流量统计 + **系统仪表盘**（只读首页）+ USB 存储全驱动（UAS/ext4/exFAT/NTFS3/FAT32 + 自动挂载） |
+| **lite** | 精简实用（默认） | QModem 随身 WiFi 全套 + 中文化 LuCI + Argon 主题（默认）+ turboacc 硬件加速/BBR + nikki 代理 + ddns-go + acme 证书 + UPnP + WOL + SFTP + **samba4 SMB 共享**（共享 `/mnt`，有 LuCI 面板）+ SQM + nlbwmon 流量统计 + **系统仪表盘**（只读首页）+ USB 存储全驱动（UAS/ext4/exFAT/NTFS3/FAT32 + 自动挂载） |
 | **ultimate** | 全能 | lite 全部 + tailscale + travelmate + ttyd + luci-app-statistics 轻量监控 + macvlan + transmission（BT 下载，默认目录 /mnt、开机自启） |
 
 > **上游变更备注（2026-10 实测）**：官方 luci feed 已删除 `luci-app-vnstat` / `luci-app-autoreboot` / `luci-app-socat`，
@@ -15,8 +15,11 @@
 > netspeedtest 依赖的上游 python3 子包已不存在，连同其 feed 一并移除；
 > NetPath 已试装后移除（上游无 init/uci 文件，仅 CLI 无面板），多 WAN 暂无面板方案。详见 `common/configs/*.list` 内注释。
 >
-> **文件服务**：`ksmbd`（内核态 SMB，`kmod-fs-ksmbd` 140 KB + mountd，整套约 1.5 MB），
-> 官方 `luci-app-ksmbd` 面板，进公共清单；共享目录与权限见 `common/files/etc/config/ksmbd`。
+> **文件服务**：`samba4`（用户态 SMB，`samba4-server` + 官方 `luci-app-samba4` 面板），
+> 进公共清单；共享目录与权限见 `common/files/etc/config/samba4`。
+> 不用 ksmbd 的原因：ksmbd 在内核态，其 SMB2 缓冲按内存分档（128–256MB 给 1M），
+> 在 233MB + ubifs 的机器上读文件会卡死 → 看门狗复位 → 整机重启并连带 USB 模组掉线。
+> 代价是镜像 +10~12MB、常驻内存 20~40MB；CPU 空闲为 0，且预设里用 `samba_nice 3` 降优先级。
 >
 > **luci-app-sysdashboard（2026-11 起）**：本仓库自研的**只读**系统仪表盘，不是上游组件。
 > 与 FanchmWrt 那类带 DPI 应用识别的看板不同，它只聚合本机已有的公开数据
@@ -33,8 +36,11 @@
 - **无线默认开启**：radio 与 wifi-iface 都置 `disabled=0`（OpenWrt 出厂是关闭的）；无密钥接口显式 `encryption=none` → 默认是**开放热点**
 - **USB 网卡自动当 WAN**：`common/files/etc/hotplug.d/net/50-usb-wan`（插拔时建/拉起 `wanusb`）+ `common/files/etc/init.d/usb-wan`（开机兜底扫描，START=95）；预设负责把它 `enable` 进 rc.d。接管范围＝USB 总线上的**以太协议**设备（有线网卡 / 手机共享 / RNDIS·ECM·NCM 免驱上网卡）；名字 `wwan*`·`rmnet*`、或同设备存在 `qmi_wwan*`·`cdc_mbim`·`cdc_wdm` 驱动的（需拨号的 QMI/MBIM 模组）一律不碰，留给 QModem
 - **5G SSID 自动加 `_5G` 后缀**（区分双频，幂等）
-- **SMB 共享预设**：`common/files/etc/config/ksmbd` —— 共享名 `share`、路径 `/mnt`（block-mount 的 U 盘挂载位置）、
-  免密可读写（`guest_ok yes` + `read_only no`），服务由内核态 ksmbd 提供，面板为官方 `luci-app-ksmbd`（服务 → 网络共享）
+- **SMB 共享预设**：`common/files/etc/config/samba4` —— 共享名 `share`、路径 `/mnt`（block-mount 的 U 盘挂载位置）、
+  免密可读写（`guest_ok yes` + `read_only no` + `force_root 1`），服务由用户态 samba4 提供，
+  面板为官方 `luci-app-samba4`（服务 → 网络共享）；另设 `samba_nice 3` 降低 smbd 调度优先级，
+  文件传输不跟拨号/转发抢 CPU。Windows 11 需用账号连（系统禁止匿名 SMB），
+  账号用面板或 `smbpasswd -a` 建，不能是 root
 - Transmission 首启预设：**开机自启**，下载/未完成/配置目录从上游默认的 `/tmp`（内存盘，重启即丢）迁到 `/mnt/transmission/`；首启时若已插 U 盘（`/mnt/sda1`）则改落 `/mnt/sda1/transmission/`
 - UPnP 默认**安全模式**；BBR 拥塞控制默认启用
 - 每周一凌晨 04:30 自动重启（crontab 写入；上游 luci-app-autoreboot 已删除）

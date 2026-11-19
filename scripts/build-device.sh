@@ -159,7 +159,7 @@ echo "✅ 包索引预热完成，.config 未被改写"
 if [ "${CONFIG_ONLY:-0}" = "1" ]; then
     echo "==== CONFIG_ONLY: 跳过下载与编译 ===="
     echo "---- 关键包在最终 .config 里的状态 ----"
-    for p in qmodem luci-app-qmodem-next luci-ssl luci-app-package-manager htop curl luci-i18n-base-zh-cn ksmbd-server luci-app-ksmbd luci-app-sysdashboard; do
+    for p in qmodem luci-app-qmodem-next luci-ssl luci-app-package-manager htop curl luci-i18n-base-zh-cn samba4-server luci-app-samba4 luci-app-sysdashboard; do
         if grep -Fxq "CONFIG_PACKAGE_$p=y" .config; then
             echo "  OK      $p"
         else

@@ -109,7 +109,7 @@ wireless.default_radio1.encryption=psk2
 wireless.default_radio1.key=secret123
 FIX
 printf '0 5 * * * /usr/bin/some-existing-job\n' > "$CRON_FILE"
-# 文件服务（ksmbd）的预设在 /etc/config/ksmbd，不在此处造 fixture
+# 文件服务（samba4）的预设在 /etc/config/samba4，不在此处造 fixture
 
 # UPnP 配置（不装 UPnP 的设备没有这个文件，预设应跳过而不是凭空建一个）
 cat > "$SB/upnpd.config" <<'FIX'
