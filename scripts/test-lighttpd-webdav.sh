@@ -106,6 +106,24 @@ grep -q '^stop$' "$d/init.calls" 2>/dev/null && ok "已 stop" || bad "未 stop"
 grep -q '^disable$' "$d/init.calls" 2>/dev/null && ok "已 disable（开机不再拉起）" || bad "未 disable"
 grep -q '^restart$' "$d/init.calls" 2>/dev/null && bad "闸门失败却 restart 了" || ok "未启动 lighttpd"
 
+echo "== 4e. 自定义端口 9090 → 放行（方便换端口）=="
+d=$(mk_sb port9090 9090)
+out=$(run_press "$d"); rc=$?
+[ "$rc" = 0 ] && ok "退出码 0" || bad "退出码应为 0"
+[ -f "$d/lighttpd/conf.d/zz-webdav-share.conf" ] && ok "片段保留" || bad "自定义端口被误拦"
+grep -q '^restart$' "$d/init.calls" 2>/dev/null && ok "正常启动" || bad "未启动"
+
+echo "== 4f. 443 → 拒绝（与 uhttpd 冲突）=="
+d=$(mk_sb port443 443)
+out=$(run_press "$d"); rc=$?
+grep -q '^restart$' "$d/init.calls" 2>/dev/null && bad "443 竟启动了" || ok "未启动"
+[ ! -f "$d/lighttpd/conf.d/zz-webdav-share.conf" ] && ok "片段已撤" || bad "片段仍在"
+
+echo "== 4g. 特权端口 80 <1024 之外，8000 也放行 =="
+d=$(mk_sb port8000 8000)
+out=$(run_press "$d"); rc=$?
+grep -q '^restart$' "$d/init.calls" 2>/dev/null && ok "8000 正常启动" || bad "8000 被误拦"
+
 echo "== 5. 解析不出端口 → 不启动（不赌它会不会退回 80）=="
 d=$(mk_sb noport "")
 out=$(run_press "$d"); rc=$?

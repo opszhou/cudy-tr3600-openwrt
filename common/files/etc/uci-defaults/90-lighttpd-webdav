@@ -82,27 +82,33 @@ if [ -x "$BIN" ]; then
 		| head -n1)
 fi
 
-if [ -n "$RESOLVED_PORT" ] && [ "$RESOLVED_PORT" != "8080" ]; then
-	logger -t lighttpd-webdav "端口闸门拦截：解析出 server.port=$RESOLVED_PORT（期望 8080）。回滚主配置、撤掉片段、停用 lighttpd，避免抢占 uhttpd 的 80 导致 LuCI 无法访问。"
+# 判定规则（只拦真正危险的，不限制用户换端口）：
+#   · 80 / 443   —— 与 uhttpd（LuCI）直接冲突，必须拒绝
+#   · < 1024     —— lighttpd 以 http 用户运行，绑不上特权端口，启动必失败
+#   · 非纯数字   —— 配置写坏了
+#   · 解析不出   —— 说明配置结构已变，不赌它会不会退回默认的 80
+# 其余端口（8080 / 9090 / 任何 >=1024）一律放行，方便自己换端口。
+REJECT=""
+case "$RESOLVED_PORT" in
+	"")         REJECT="无法从 lighttpd -p 解析出 server.port" ;;
+	80|443)     REJECT="server.port=$RESOLVED_PORT 与 uhttpd（LuCI）冲突" ;;
+	*[!0-9]*)   REJECT="server.port 不是纯数字（$RESOLVED_PORT）" ;;
+	*)          [ "$RESOLVED_PORT" -lt 1024 ] && REJECT="server.port=$RESOLVED_PORT <1024，http 用户绑不上" ;;
+esac
+
+if [ -n "$REJECT" ]; then
+	logger -t lighttpd-webdav "端口闸门拦截：$REJECT。回滚主配置、撤掉片段、停用 lighttpd，避免抢占 uhttpd 导致 LuCI 无法访问。"
 	[ -f "$BACKUP" ] && cp "$BACKUP" "$MAIN_CONF"
 	rm -f "$FRAGMENT"
 	"$INIT" stop 2>/dev/null
 	"$INIT" disable 2>/dev/null
 	exit 0
 fi
-if [ -z "$RESOLVED_PORT" ]; then
-	# 解析不出（老版本 -p 输出格式差异）也不启动：宁可少一个 WebDAV，
-	# 也不能赌它会不会退回 80 把 LuCI 抢掉。
-	logger -t lighttpd-webdav "无法从 lighttpd -p 解析出 server.port，为安全起见不启动 lighttpd（主配置改动保留，排查后手工 /etc/init.d/lighttpd start）。"
-	rm -f "$FRAGMENT"
-	"$INIT" stop 2>/dev/null
-	exit 0
-fi
 
-# ---- 5) 端口正确才启用并启动 ----
+# ---- 5) 端口合法才启用并启动 ----
 [ -x "$INIT" ] || exit 0
 "$INIT" enable 2>/dev/null
 "$INIT" restart 2>/dev/null || "$INIT" start 2>/dev/null
 
-logger -t lighttpd-webdav "WebDAV 已启用: 8080 端口，根目录 $SHARE_DIR（80 保留给 uhttpd/LuCI）"
+logger -t lighttpd-webdav "WebDAV 已启用: $RESOLVED_PORT 端口，根目录 $SHARE_DIR（80/443 保留给 uhttpd/LuCI）"
 exit 0
