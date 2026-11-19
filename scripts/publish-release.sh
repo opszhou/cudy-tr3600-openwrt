@@ -63,6 +63,18 @@ APPEND=0
 if gh release view "$TAG" >/dev/null 2>&1; then
   APPEND=1
   echo "Release $TAG 已存在 → 追加资产模式（同页合并）"
+  # tag 仍钉在「首次发布这个版本号」的提交上，而资产是本次新编的。
+  # 不挪 tag 的话，Release 页面的 Source code (zip) 会是旧代码，
+  # 跟固件对不上（2026-11-19 踩过：固件已是 samba4，源码快照还是含 ksmbd 的旧提交）。
+  # 版本号来自上游、不随本仓库提交变化，所以把 tag 指向本次构建的提交是正确语义。
+  if [ -n "${GITHUB_SHA:-}" ] && git rev-parse --git-dir >/dev/null 2>&1; then
+    if git tag -f "$TAG" "$GITHUB_SHA" >/dev/null 2>&1 &&
+       git push -f origin "refs/tags/$TAG" >/dev/null 2>&1; then
+      echo "tag 已前移到 ${GITHUB_SHA:0:8}（源码快照与固件一致）"
+    else
+      echo "⚠️ tag 前移失败（不影响固件发布），Source code 仍指向旧提交"
+    fi
+  fi
 fi
 
 rm -rf assets && mkdir -p assets
