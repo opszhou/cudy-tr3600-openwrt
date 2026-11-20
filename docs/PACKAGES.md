@@ -19,7 +19,7 @@
 > 进公共清单；共享目录与权限见 `common/files/etc/config/samba4`。
 > 不用 ksmbd 的原因：ksmbd 在内核态，其 SMB2 缓冲按内存分档（128–256MB 给 1M），
 > 在 233MB + ubifs 的机器上读文件会卡死 → 看门狗复位 → 整机重启并连带 USB 模组掉线。
-> 代价是镜像 +10~12MB、常驻内存 20~40MB；CPU 空闲为 0，且预设里用 `samba_nice 3` 降优先级。
+> 代价是镜像 +10–12MB、常驻内存 20–40MB；CPU 空闲为 0，且预设里用 `samba_nice 3` 降优先级。
 >
 > **luci-app-sysdashboard（2026-11 起）**：本仓库自研的**只读**系统仪表盘，不是上游组件。
 > 与 FanchmWrt 那类带 DPI 应用识别的看板不同，它只聚合本机已有的公开数据
@@ -30,9 +30,9 @@
 
 `common/files/etc/uci-defaults/99-router-presets`，首次开机自动生效，LuCI 均可改：
 
-- 默认 LAN **192.168.10.1/24**，DHCP 池 **.100~.249**；主机名 **tr3600**
+- 默认 LAN **192.168.10.1/24**，DHCP 池 **.100–.249**；主机名 **tr3600**
 - 时区 **Asia/Shanghai**（CST-8）；LuCI 时间显示 **24 小时制**（`clock_hourcycle=h23`）
-- 双频 WiFi 7（EHT）默认：国家码 **CN**（默认 00 会禁掉 5G 149~165 段）、ACS 自动信道（排除 DFS）、2.4G 20MHz / 5G 80MHz / 6G 160MHz；已设密钥接口升级为 **WPA2/WPA3 混合**（sae-mixed + PMF optional，无密钥接口不动避免起不来）
+- 双频 WiFi 7（EHT）默认：国家码 **CN**（默认 00 会禁掉 5G 149–165 段）、ACS 自动信道（排除 DFS）、2.4G 20MHz / 5G 80MHz / 6G 160MHz；已设密钥接口升级为 **WPA2/WPA3 混合**（sae-mixed + PMF optional，无密钥接口不动避免起不来）
 - **无线默认开启**：radio 与 wifi-iface 都置 `disabled=0`（OpenWrt 出厂是关闭的）；无密钥接口显式 `encryption=none` → 默认是**开放热点**
 - **USB 网卡自动当 WAN**：`common/files/etc/hotplug.d/net/50-usb-wan`（插拔时建/拉起 `wanusb`）+ `common/files/etc/init.d/usb-wan`（开机兜底扫描，START=95）；预设负责把它 `enable` 进 rc.d。接管范围＝USB 总线上的**以太协议**设备（有线网卡 / 手机共享 / RNDIS·ECM·NCM 免驱上网卡）；名字 `wwan*`·`rmnet*`、或同设备存在 `qmi_wwan*`·`cdc_mbim`·`cdc_wdm` 驱动的（需拨号的 QMI/MBIM 模组）一律不碰，留给 QModem
 - **5G SSID 自动加 `_5G` 后缀**（区分双频，幂等）
