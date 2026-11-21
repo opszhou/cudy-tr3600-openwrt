@@ -111,8 +111,8 @@ ssh root@$LEDE_IP 'sysupgrade -n /tmp/openwrt-mediatek-filogic-fzs_5gcpe-p3-squa
 |---|---|---|
 | 首启 | 设 LAN `192.168.5.1`、主机名 `fzs-p3`、时区、WiFi HE20/HE80 打开 | — |
 | 首启 | 写 `/etc/modem-probe.txt`（模组 VID/PID、AT 口、ATI、QModem 状态） | — |
-| 首启 + 每 20 秒（最多 6 次） | 按 IMSI 自动补 QModem APN（移动 cmnet / 联通 3gnet / 电信 ctnet / 广电 ctwap），只补空值 | `/etc/qmodem-apn-auto.log` |
-| 每次开机 | 重放 `/etc/hotfix.d/*.sh`（DNS 兜底、APN 补全） | `logread -t hotfix` |
+| 首启 + 每 20 秒（最多 6 次） | ~~按 IMSI 自动补 QModem APN~~ → **已移除**。APN 留空时模组用自身默认 APN 即可拨号；需要指定时用 `fzs-p3-set-apn <apn>` | — |
+| 每次开机 | 重放 `/etc/hotfix.d/*.sh`（DNS 兜底等） | `logread -t hotfix` |
 | 插 USB 网卡 | 非拨号类设备自动建 `wanusb`（QMI/MBIM 模组会让位给 QModem） | `logread | grep usb-wan` |
 
 ### 两个内置命令

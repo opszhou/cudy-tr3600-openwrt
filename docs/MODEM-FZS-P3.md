@@ -161,8 +161,19 @@ QModem 的模组配置是**运行期按扫描结果生成**的（`/etc/config/qm
 `lte_band` `nsa_band` `sa_band` `voice_pcm_interface` `mhi_netdev` `mhi_uci_q` `rmnet` …
 
 **注意**：段里**没有** `at_port` 字段——AT 端口由运行时扫描/规则决定。
-所以本仓库的 `20-qmodem-apn-auto.sh` 采用"先用段里记录（若有），否则 `ttyUSB2/3/1/0` 逐个 AT 探活"的方式，
-在 RM500U-CNV 上（AT 口 = `ttyUSB2`）已验证可工作。
+
+> ⛔⛔ **不要用「开 `/dev/ttyUSB*` 发 AT」的方式探测或读 IMSI。**
+> 2026-11-21 实测：`cat /dev/ttyUSB2` 与 QModem 的拨号进程抢同一串口，触发内核
+> `xhci-mtk 11200000.usb: xHCI host not responding to stop endpoint command` →
+> `HC died; cleaning up`，USB 主控直接死掉，模组和所有 USB 设备一起掉线，
+> **只能重启设备恢复**。表面上看是「模组掉了 / sim card is miss」，极易误诊。
+>
+> 需要运营商信息就走 QModem 的 ubus：`ubus call qmodem cell_info '{"config_section":"<段>"}'`
+> 返回 `MCC`/`MNC`（等价于 IMSI 前 5 位），它内部串行化访问串口，不会冲突。
+>
+> 另外：**APN 留空不影响拨号**，模组会用自身默认 APN（RM500U-CNV 实测移动/联通均正常）。
+> 确实要指定时再手动设，见下。
+
 
 **常用命令行修改**：
 
